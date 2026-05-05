@@ -45,7 +45,7 @@ You can download the latest stable release of azul in the [releases page](https:
 
 ## Technical details
 
-azul is written in a mix of C++17, Swift 5, Objective-C 2 and Objective-C++. The core is written in C++ for future portability, but it uses Apple's Metal for visualisation and SIMD for fast vector/matrix computations. It uses [pugixml](https://pugixml.org) to parse XML, [simdjson](https://github.com/lemire/simdjson) to parse JSON, and the [CGAL](https://www.cgal.org) Triangulation package to triangulate concave polygons for display.
+azul is written in a mix of C++17, Swift 5, Objective-C 2 and Objective-C++. The core is written in C++ for future portability, but it uses Apple's Metal for visualisation and SIMD for fast vector/matrix computations. It uses [pugixml](https://pugixml.org) to parse XML, [simdjson](https://github.com/lemire/simdjson) to parse JSON, and the [CGAL](https://www.cgal.org) Triangulation and Polygon repair packages to triangulate concave polygons for display.
 
 ## Not implemented / ideas for the future
 
@@ -53,7 +53,6 @@ azul is written in a mix of C++17, Swift 5, Objective-C 2 and Objective-C++. The
 * Icons for missing types
 * Better handling of big coordinates
 * Improved search with live viewing of matching objects
-* Reordering hierarchies in sidebar
 * Way to navigate xlinks / implicit parent-child relationships
 * Use status bar to indicate actions, success/failure
 * Customising colours, more complex materials
@@ -63,7 +62,7 @@ azul is written in a mix of C++17, Swift 5, Objective-C 2 and Objective-C++. The
 * Showing the data plane and rotation point
 * Animations when re-centering
 * Keyboard navigation
-* Multi-threaded file loading and ray shooting
+* Multi-threaded file loading
 * QuickLook plug-in
 * Icon previews
 * iOS support
