@@ -71,6 +71,17 @@ struct BufferWithColour {
   
   @objc var multipleSelection: Bool = false
   
+  var isDarkMode: Bool {
+    effectiveAppearance.name.rawValue.contains("Dark")
+  }
+  
+  func updateAppearance() {
+    clearColor = isDarkMode
+      ? MTLClearColorMake(0.0, 0.0, 0.0, 1.0)
+      : MTLClearColorMake(1.0, 1.0, 1.0, 1.0)
+    needsDisplay = true
+  }
+  
   var constants = Constants()
   
   var eye = SIMD3<Float>(0.0, 0.0, 0.0)
@@ -90,7 +101,6 @@ struct BufferWithColour {
     super.init(frame: frameRect, device: device)
     
     // View
-    clearColor = MTLClearColorMake(1.0, 1.0, 1.0, 1.0)
     colorPixelFormat = .bgra8Unorm
     depthStencilPixelFormat = .depth32Float
     self.sampleCount = 4
@@ -185,6 +195,9 @@ struct BufferWithColour {
     constants.modelMatrixInverseTransposed = matrix_upper_left_3x3(matrix: modelMatrix).inverse.transpose
     constants.viewMatrixInverse = viewMatrix.inverse
     
+    // Initial appearance
+    updateAppearance()
+    
     // Allow dragging
     registerForDraggedTypes([NSPasteboard.PasteboardType.fileURL])
     
@@ -213,6 +226,10 @@ struct BufferWithColour {
   
   override var acceptsFirstResponder: Bool {
     return true
+  }
+  
+  override func viewDidChangeEffectiveAppearance() {
+    updateAppearance()
   }
   
   func createMSAATextures(size: CGSize) {
@@ -291,7 +308,11 @@ struct BufferWithColour {
     if viewEdges {
       for edgeBuffer in edgeBuffers {
         renderEncoder.setVertexBuffer(edgeBuffer.buffer, offset:0, index:0)
-        constants.colour = edgeBuffer.colour
+        var edgeColour = edgeBuffer.colour
+        if isDarkMode && edgeColour.x == 0 && edgeColour.y == 0 && edgeColour.z == 0 {
+          edgeColour = SIMD4<Float>(1, 1, 1, 1)
+        }
+        constants.colour = edgeColour
         renderEncoder.setVertexBytes(&constants, length: MemoryLayout<Constants>.size, index: 1)
         renderEncoder.drawPrimitives(type: .line, vertexStart: 0, vertexCount: edgeBuffer.buffer.length/MemoryLayout<Vertex>.size)
       }
@@ -299,7 +320,7 @@ struct BufferWithColour {
     
     if viewBoundingBox && boundingBoxBuffer != nil {
       renderEncoder.setVertexBuffer(boundingBoxBuffer, offset:0, index:0)
-      constants.colour = SIMD4<Float>(0.0, 0.0, 0.0, 1.0)
+      constants.colour = isDarkMode ? SIMD4<Float>(1.0, 1.0, 1.0, 1.0) : SIMD4<Float>(0.0, 0.0, 0.0, 1.0)
       renderEncoder.setVertexBytes(&constants, length: MemoryLayout<Constants>.size, index: 1)
       renderEncoder.drawPrimitives(type: .line, vertexStart: 0, vertexCount: boundingBoxBuffer!.length/MemoryLayout<Vertex>.size)
     }
