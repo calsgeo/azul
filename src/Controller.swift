@@ -52,39 +52,28 @@ class SplitViewController: NSObject, NSSplitViewDelegate {
 
 class LeftSplitViewController: NSObject, NSSplitViewDelegate {
   func splitView(_ splitView: NSSplitView, effectiveRect proposedEffectiveRect: NSRect, forDrawnRect drawnRect: NSRect, ofDividerAt dividerIndex: Int) -> NSRect {
-    if dividerIndex == 0 || dividerIndex == 1 {
-      return NSZeroRect
-    } else {
-      let effectiveRect = NSRect(x: 0, y: splitView.subviews[0].bounds.height+splitView.subviews[1].bounds.height+splitView.subviews[2].bounds.height-5, width: splitView.bounds.width, height: 10)
+    if dividerIndex == 0 {
+      let effectiveRect = NSRect(x: 0, y: splitView.subviews[0].bounds.height-5, width: splitView.bounds.width, height: 10)
       return effectiveRect
     }
+    return NSZeroRect
   }
   
   func splitView(_ splitView: NSSplitView, resizeSubviewsWithOldSize oldSize: NSSize) {
     let dividerThickness = splitView.dividerThickness
-    var searchRect = splitView.subviews[0].frame
-    var lodRect = splitView.subviews[1].frame
-    var objectsRect = splitView.subviews[2].frame
-    var attributesRect = splitView.subviews[3].frame
+    var objectsRect = splitView.subviews[0].frame
+    var attributesRect = splitView.subviews[1].frame
     let newFrame = splitView.frame
 
-    searchRect.size.width = newFrame.size.width
-    searchRect.origin = CGPoint(x: 0, y: 0)
-    
-    lodRect.size.width = newFrame.size.width
-    lodRect.origin.y = searchRect.size.height + dividerThickness
-    
     objectsRect.size.width = newFrame.size.width
-    objectsRect.size.height = newFrame.size.height - searchRect.size.height - lodRect.size.height - dividerThickness*2 - attributesRect.size.height - dividerThickness
-    objectsRect.origin.y = lodRect.origin.y + lodRect.size.height + dividerThickness
+    objectsRect.origin = CGPoint(x: 0, y: 0)
+    objectsRect.size.height = newFrame.size.height - attributesRect.size.height - dividerThickness
     
     attributesRect.size.width = newFrame.size.width
     attributesRect.origin.y = objectsRect.origin.y + objectsRect.size.height + dividerThickness
 
-    splitView.subviews[0].frame = searchRect
-    splitView.subviews[1].frame = lodRect
-    splitView.subviews[2].frame = objectsRect
-    splitView.subviews[3].frame = attributesRect
+    splitView.subviews[0].frame = objectsRect
+    splitView.subviews[1].frame = attributesRect
   }
 }
 
@@ -111,8 +100,13 @@ class OutlineView: NSOutlineView {
   }
 }
 
+extension NSToolbarItem.Identifier {
+  static let lodSelector = NSToolbarItem.Identifier("azul.lodSelector")
+  static let search = NSToolbarItem.Identifier("azul.search")
+}
+
 @NSApplicationMain
-@objc class Controller: NSObject, NSApplicationDelegate {
+@objc class Controller: NSObject, NSApplicationDelegate, NSToolbarDelegate {
 
   @IBOutlet weak var window: NSWindow!
   var splitView: NSSplitView?
@@ -170,38 +164,19 @@ class OutlineView: NSOutlineView {
     leftSplitView!.dividerStyle = .thin
     leftSplitView!.addSubview(NSView())
     leftSplitView!.addSubview(NSView())
-    leftSplitView!.addSubview(NSView())
-    leftSplitView!.addSubview(NSView())
     splitView!.subviews[0] = leftSplitView!
     leftSplitView!.adjustSubviews()
-    leftSplitView!.setPosition(20, ofDividerAt: 0)
-    leftSplitView!.setPosition(44, ofDividerAt: 1)
-    leftSplitView!.setPosition(474, ofDividerAt: 2)
+    leftSplitView!.setPosition(474, ofDividerAt: 0)
     leftSplitView!.delegate = leftSplitViewController
     
-    searchField = NSSearchField(frame: leftSplitView!.subviews[0].bounds)
-    searchField!.delegate = searchFieldDelegate
-    searchFieldDelegate.controller = self
-    leftSplitView!.subviews[0] = searchField!
-    
-    lodSegmentedControl = NSSegmentedControl(frame: leftSplitView!.subviews[1].bounds)
-    lodSegmentedControl!.segmentCount = 1
-    lodSegmentedControl!.setLabel("0", forSegment: 0)
-    lodSegmentedControl!.selectedSegment = 0
-    lodSegmentedControl!.target = self
-    lodSegmentedControl!.action = #selector(lodSegmentChanged)
-    lodSegmentedControl!.segmentStyle = .rounded
-    lodSegmentedControl!.isHidden = true
-    leftSplitView!.subviews[1] = lodSegmentedControl!
-    
-    objectsScrollView = NSScrollView(frame: leftSplitView!.subviews[2].bounds)
+    objectsScrollView = NSScrollView(frame: leftSplitView!.subviews[0].bounds)
     objectsScrollView!.hasVerticalScroller = true
     objectsScrollView!.hasHorizontalScroller = true
     objectsScrollView!.wantsLayer = true
     objectsScrollView!.identifier = NSUserInterfaceItemIdentifier.init(rawValue: "ObjectsScrollView")
-    leftSplitView!.subviews[2] = objectsScrollView!
+    leftSplitView!.subviews[0] = objectsScrollView!
     
-    objectsClipView = NSClipView(frame: leftSplitView!.subviews[2].bounds)
+    objectsClipView = NSClipView(frame: leftSplitView!.subviews[0].bounds)
     objectsScrollView!.contentView = objectsClipView!
     
     objectsSourceList = OutlineView(frame: objectsScrollView!.bounds)
@@ -223,14 +198,14 @@ class OutlineView: NSOutlineView {
     objectsSourceList!.addTableColumn(objectsSourceListColumn!)
     objectsSourceList!.outlineTableColumn = objectsSourceListColumn
     
-    attributesScrollView = NSScrollView(frame: leftSplitView!.subviews[3].bounds)
+    attributesScrollView = NSScrollView(frame: leftSplitView!.subviews[1].bounds)
     attributesScrollView!.hasVerticalScroller = true
     attributesScrollView!.hasHorizontalScroller = true
     attributesScrollView!.wantsLayer = true
     attributesScrollView!.identifier = NSUserInterfaceItemIdentifier.init(rawValue: "AttributesScrollView")
-    leftSplitView!.subviews[3] = attributesScrollView!
+    leftSplitView!.subviews[1] = attributesScrollView!
     
-    attributesClipView = NSClipView(frame: leftSplitView!.subviews[3].bounds)
+    attributesClipView = NSClipView(frame: leftSplitView!.subviews[1].bounds)
     attributesScrollView!.contentView = attributesClipView!
     
     attributesTableView = NSTableView(frame: attributesScrollView!.bounds)
@@ -266,6 +241,16 @@ class OutlineView: NSOutlineView {
     toggleViewEdgesMenuItem.state = .on
     window.minSize = NSSize(width: 400, height: 300)
     
+    // Unified toolbar with integrated title
+    window.styleMask.insert(.unifiedTitleAndToolbar)
+    window.toolbarStyle = .unified
+    
+    let toolbar = NSToolbar(identifier: "azul.toolbar")
+    toolbar.delegate = self
+    toolbar.allowsUserCustomization = false
+    toolbar.autosavesConfiguration = false
+    window.toolbar = toolbar
+    
     objectsSourceList!.dataSource = dataManager
     objectsSourceList!.delegate = dataManager
     objectsSourceList!.doubleAction = #selector(sourceListDoubleClick)
@@ -274,6 +259,43 @@ class OutlineView: NSOutlineView {
   
   func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
     return true
+  }
+  
+  // MARK: - NSToolbarDelegate
+  
+  func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+    return [.lodSelector, .flexibleSpace, .search]
+  }
+  
+  func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+    return [.lodSelector, .search]
+  }
+  
+  func toolbar(_ toolbar: NSToolbar, itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier, willBeInsertedIntoToolbar flag: Bool) -> NSToolbarItem? {
+    switch itemIdentifier {
+    case .lodSelector:
+      let lodItem = NSToolbarItem(itemIdentifier: itemIdentifier)
+      let seg = NSSegmentedControl()
+      seg.segmentCount = 1
+      seg.setLabel("0", forSegment: 0)
+      seg.selectedSegment = 0
+      seg.target = self
+      seg.action = #selector(lodSegmentChanged)
+      seg.segmentStyle = .separated
+      lodItem.view = seg
+      lodSegmentedControl = seg
+      return lodItem
+      
+    case .search:
+      let searchItem = NSSearchToolbarItem(itemIdentifier: itemIdentifier)
+      searchItem.searchField.delegate = searchFieldDelegate
+      searchFieldDelegate.controller = self
+      searchField = searchItem.searchField
+      return searchItem
+      
+    default:
+      return nil
+    }
   }
   
   @IBAction func new(_ sender: NSMenuItem) {
@@ -369,10 +391,8 @@ class OutlineView: NSOutlineView {
   }
   
   @IBAction func focusOnSearchBar(_ sender: NSMenuItem) {
-    if splitView!.subviews[0].bounds.size.width == 0 {
-      toggleSideBar(sender)
-    }
-    window.makeFirstResponder(searchField!)
+    guard let searchField = searchField else { return }
+    window.makeFirstResponder(searchField)
   }
   
   func loadData(from urls: [URL]) {
