@@ -105,6 +105,7 @@ extension NSToolbarItem.Identifier {
   var attributeNamesColumn: NSTableColumn?
   var attributeValuesColumn: NSTableColumn?
   var totalProgress: Double = 0.0
+  var statusBarView: NSVisualEffectView?
   var progressIndicator: NSProgressIndicator?
   var statusTextField: NSTextField?
   
@@ -194,15 +195,39 @@ extension NSToolbarItem.Identifier {
     metalView!.controller = self
     metalView!.dataManager = dataManager
     
-    progressIndicator = NSProgressIndicator(frame: NSRect(x: 0, y: 0, width: metalView!.frame.width/4, height: 12))
+    let statusBarHeight: CGFloat = 36
+    let barInset: CGFloat = 8
+    let initialBarWidth = metalView!.bounds.width - barInset * 2
+    
+    let statusBar = NSVisualEffectView()
+    statusBar.material = .hudWindow
+    statusBar.blendingMode = .withinWindow
+    statusBar.state = .followsWindowActiveState
+    statusBar.wantsLayer = true
+    statusBar.layer?.cornerRadius = 8
+    statusBar.layer?.masksToBounds = true
+    statusBar.frame = NSRect(x: barInset, y: barInset, width: initialBarWidth, height: statusBarHeight)
+    statusBar.autoresizingMask = [.width, .minYMargin]
+    statusBar.isHidden = true
+    metalView!.addSubview(statusBar)
+    statusBarView = statusBar
+    
+    progressIndicator = NSProgressIndicator()
     progressIndicator!.isIndeterminate = false
-    metalView!.addSubview(progressIndicator!)
-    progressIndicator!.isHidden = true
-    statusTextField = NSTextField(frame: NSRect(x: metalView!.frame.width/4, y: 0, width: 3*metalView!.frame.width/4, height: 16))
+    progressIndicator!.frame = NSRect(x: 8, y: (statusBarHeight - 12) / 2, width: initialBarWidth - 196, height: 12)
+    progressIndicator!.autoresizingMask = [.width, .maxXMargin]
+    statusBar.addSubview(progressIndicator!)
+    
+    statusTextField = NSTextField()
     statusTextField!.stringValue = "Ready"
     statusTextField!.isBordered = false
-    metalView!.addSubview(statusTextField!)
-    statusTextField!.isHidden = true
+    statusTextField!.isEditable = false
+    statusTextField!.drawsBackground = false
+    statusTextField!.font = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)
+    statusTextField!.textColor = .secondaryLabelColor
+    statusTextField!.frame = NSRect(x: initialBarWidth - 188, y: (statusBarHeight - 14) / 2, width: 180, height: 14)
+    statusTextField!.autoresizingMask = [.minXMargin]
+    statusBar.addSubview(statusTextField!)
     
     dataManager.controller = self
     
@@ -302,7 +327,7 @@ extension NSToolbarItem.Identifier {
     openFiles = Set<URL>()
     self.window.representedURL = nil
     self.window.title = "azul"
-    self.statusTextField!.isHidden = true
+    self.statusBarView?.isHidden = true
     self.updateLodSegments()
   }
   
@@ -386,8 +411,7 @@ extension NSToolbarItem.Identifier {
     let progressPerFile = 100.0/Double(urls.count)
     totalProgress = 0.0
     progressIndicator?.doubleValue = totalProgress
-    progressIndicator?.isHidden = false
-    statusTextField?.isHidden = false
+    statusBarView?.isHidden = false
     DispatchQueue.global().async(qos: .userInitiated) {
       for url in urls {
         
@@ -398,8 +422,7 @@ extension NSToolbarItem.Identifier {
             self.totalProgress += progressPerFile
             self.progressIndicator?.doubleValue = self.totalProgress
             if urls.last == url {
-              self.progressIndicator!.isHidden = true
-              self.statusTextField!.isHidden = true
+              self.statusBarView?.isHidden = true
             }
           }
           continue
@@ -411,8 +434,7 @@ extension NSToolbarItem.Identifier {
             self.totalProgress += progressPerFile
             self.progressIndicator?.doubleValue = self.totalProgress
             if urls.last == url {
-              self.progressIndicator!.isHidden = true
-              self.statusTextField!.isHidden = true
+              self.statusBarView?.isHidden = true
             }
           }
           continue
@@ -420,8 +442,7 @@ extension NSToolbarItem.Identifier {
         
         Swift.print("Loading " + url.path + "...")
         DispatchQueue.main.async {
-          self.statusTextField?.isHidden = false
-          self.progressIndicator?.isHidden = false
+          self.statusBarView?.isHidden = false
           self.statusTextField?.stringValue = "Loading " + url.path + "..."
         }
         url.path.utf8CString.withUnsafeBufferPointer { pointer in
@@ -432,8 +453,7 @@ extension NSToolbarItem.Identifier {
         DispatchQueue.main.async {
           self.totalProgress += progressPerFile*20.071734/75.165239
           self.progressIndicator?.doubleValue = self.totalProgress
-          self.statusTextField?.isHidden = false
-          self.progressIndicator?.isHidden = false
+          self.statusBarView?.isHidden = false
         }
         
         Swift.print("Clearing helpers...")
@@ -443,8 +463,7 @@ extension NSToolbarItem.Identifier {
         DispatchQueue.main.async {
           self.totalProgress += progressPerFile*0.51605/75.165239
           self.progressIndicator?.doubleValue = self.totalProgress
-          self.statusTextField?.isHidden = false
-          self.progressIndicator?.isHidden = false
+          self.statusBarView?.isHidden = false
         }
         
         Swift.print("Updating bounds...")
@@ -454,8 +473,7 @@ extension NSToolbarItem.Identifier {
         DispatchQueue.main.async {
           self.totalProgress += progressPerFile*0.158675/75.165239
           self.progressIndicator?.doubleValue = self.totalProgress
-          self.statusTextField?.isHidden = false
-          self.progressIndicator?.isHidden = false
+          self.statusBarView?.isHidden = false
         }
         
         Swift.print("Triangulating...")
@@ -465,8 +483,7 @@ extension NSToolbarItem.Identifier {
         DispatchQueue.main.async {
           self.totalProgress += progressPerFile*45.400172/75.165239
           self.progressIndicator?.doubleValue = self.totalProgress
-          self.statusTextField?.isHidden = false
-          self.progressIndicator?.isHidden = false
+          self.statusBarView?.isHidden = false
         }
         
         Swift.print("Generating edges...")
@@ -476,8 +493,7 @@ extension NSToolbarItem.Identifier {
         DispatchQueue.main.async {
           self.totalProgress += progressPerFile*1.150533/75.165239
           self.progressIndicator?.doubleValue = self.totalProgress
-          self.statusTextField?.isHidden = false
-          self.progressIndicator?.isHidden = false
+          self.statusBarView?.isHidden = false
         }
         
         Swift.print("Clearing polygons...")
@@ -487,8 +503,7 @@ extension NSToolbarItem.Identifier {
         DispatchQueue.main.async {
           self.totalProgress += progressPerFile*0.359982/75.165239
           self.progressIndicator?.doubleValue = self.totalProgress
-          self.statusTextField?.isHidden = false
-          self.progressIndicator?.isHidden = false
+          self.statusBarView?.isHidden = false
         }
         
         Swift.print("Making triangle buffers...")
@@ -498,8 +513,7 @@ extension NSToolbarItem.Identifier {
         DispatchQueue.main.async {
           self.totalProgress += progressPerFile*3.535023/75.165239
           self.progressIndicator?.doubleValue = self.totalProgress
-          self.statusTextField?.isHidden = false
-          self.progressIndicator?.isHidden = false
+          self.statusBarView?.isHidden = false
         }
         
         Swift.print("Making edge buffers...")
@@ -509,8 +523,7 @@ extension NSToolbarItem.Identifier {
         DispatchQueue.main.async {
           self.totalProgress += progressPerFile*2.085606/75.165239
           self.progressIndicator?.doubleValue = self.totalProgress
-          self.statusTextField?.isHidden = false
-          self.progressIndicator?.isHidden = false
+          self.statusBarView?.isHidden = false
         }
         
         Swift.print("Loading triangle buffers...")
@@ -524,8 +537,7 @@ extension NSToolbarItem.Identifier {
         DispatchQueue.main.async {
           self.totalProgress += progressPerFile*1.31523/75.165239
           self.progressIndicator?.doubleValue = self.totalProgress
-          self.statusTextField?.isHidden = false
-          self.progressIndicator?.isHidden = false
+          self.statusBarView?.isHidden = false
         }
         
         Swift.print("Loading edge buffers...")
@@ -535,8 +547,7 @@ extension NSToolbarItem.Identifier {
         DispatchQueue.main.async {
           self.totalProgress += progressPerFile*0.572072/75.165239
           self.progressIndicator?.doubleValue = self.totalProgress
-          self.statusTextField?.isHidden = false
-          self.progressIndicator?.isHidden = false
+          self.statusBarView?.isHidden = false
         }
         
         Swift.print("Regenerating bounding box buffer...")
@@ -546,8 +557,7 @@ extension NSToolbarItem.Identifier {
         DispatchQueue.main.async {
           self.totalProgress += progressPerFile*0.000162/75.165239
           self.progressIndicator?.doubleValue = self.totalProgress
-          self.statusTextField?.isHidden = false
-          self.progressIndicator?.isHidden = false
+          self.statusBarView?.isHidden = false
         }
         
         self.openFiles.insert(url)
@@ -573,7 +583,7 @@ extension NSToolbarItem.Identifier {
             self.window.title = "azul (\(self.openFiles.count) open files)"
           }
           if urls.last == url {
-            self.progressIndicator!.isHidden = true
+            self.statusBarView?.isHidden = true
             Swift.print("status message: \(self.dataManager.statusMessage()!)")
             self.statusTextField?.stringValue = self.dataManager.statusMessage()
             self.updateLodSegments()

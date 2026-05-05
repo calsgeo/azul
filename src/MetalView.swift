@@ -340,9 +340,13 @@ struct BufferWithColour {
     
     constants.modelViewProjectionMatrix = matrix_multiply(projectionMatrix, matrix_multiply(viewMatrix, modelMatrix))
     needsDisplay = true
-    controller!.progressIndicator!.setFrameSize(NSSize(width: self.frame.width/4, height: 12))
-    controller!.statusTextField!.setFrameOrigin(NSPoint(x: self.frame.width/4, y: 0))
-    controller!.statusTextField!.setFrameSize(NSSize(width: 3*self.frame.width/4, height: 16))
+    if let statusBar = controller?.statusBarView {
+      let barInset: CGFloat = 8
+      let barWidth = self.frame.width - barInset * 2
+      statusBar.frame = NSRect(x: barInset, y: barInset, width: barWidth, height: 36)
+      controller?.progressIndicator?.frame = NSRect(x: 8, y: 12, width: barWidth - 196, height: 12)
+      controller?.statusTextField?.frame = NSRect(x: barWidth - 188, y: 11, width: 180, height: 14)
+    }
   }
   
   @objc func depthAtCentre() -> Float {
