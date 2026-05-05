@@ -24,15 +24,15 @@
 //  NSLog(@"[TableCellView initWithFrame]");
   if (self = [super initWithFrame:frameRect]) {
     
-    checkBox = [[NSButton alloc] initWithFrame:NSMakeRect(0, 4, 14, 14)];
+    checkBox = [[NSButton alloc] initWithFrame:NSMakeRect(16, 4, 14, 14)];
     [checkBox setButtonType:NSButtonTypeSwitch];
     [checkBox setAllowsMixedState:YES];
     
-    image = [[NSImageView alloc] initWithFrame:NSMakeRect(17, 2, 16, 16)];
+    image = [[NSImageView alloc] initWithFrame:NSMakeRect(33, 2, 16, 16)];
     [image setImageScaling:NSImageScaleProportionallyUpOrDown];
     [image setImageAlignment:NSImageAlignCenter];
     
-    text = [[NSTextField alloc] initWithFrame:NSMakeRect(36, 3, 30000, 14)];
+    text = [[NSTextField alloc] initWithFrame:NSMakeRect(52, 3, 30000, 14)];
     [text setDrawsBackground:false];
     [text setBordered:false];
     [text setEditable:false];
