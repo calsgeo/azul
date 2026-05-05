@@ -208,7 +208,14 @@ extension NSToolbarItem.Identifier {
     
     // NSSplitViewController for the main horizontal split
     let sidebarVC = NSViewController()
-    sidebarVC.view = leftSplitView!
+    let sidebarEffectView = NSVisualEffectView()
+    sidebarEffectView.material = .sidebar
+    sidebarEffectView.blendingMode = .behindWindow
+    sidebarEffectView.state = .followsWindowActiveState
+    sidebarEffectView.addSubview(leftSplitView!)
+    leftSplitView!.frame = sidebarEffectView.bounds
+    leftSplitView!.autoresizingMask = [.width, .height]
+    sidebarVC.view = sidebarEffectView
     
     let contentVC = NSViewController()
     contentVC.view = metalView!
