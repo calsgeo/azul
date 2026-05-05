@@ -583,9 +583,11 @@ extension NSToolbarItem.Identifier {
             self.window.title = "azul (\(self.openFiles.count) open files)"
           }
           if urls.last == url {
-            self.statusBarView?.isHidden = true
             Swift.print("status message: \(self.dataManager.statusMessage()!)")
             self.statusTextField?.stringValue = self.dataManager.statusMessage()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+              self.statusBarView?.isHidden = true
+            }
             self.updateLodSegments()
           }
         }

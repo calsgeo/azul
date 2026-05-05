@@ -76,9 +76,12 @@ struct BufferWithColour {
   }
   
   func updateAppearance() {
-    clearColor = isDarkMode
-      ? MTLClearColorMake(0.0, 0.0, 0.0, 1.0)
-      : MTLClearColorMake(1.0, 1.0, 1.0, 1.0)
+    if isDarkMode {
+      let bg = NSColor.windowBackgroundColor.usingColorSpace(.sRGB)!
+      clearColor = MTLClearColorMake(Double(bg.redComponent), Double(bg.greenComponent), Double(bg.blueComponent), 1.0)
+    } else {
+      clearColor = MTLClearColorMake(1.0, 1.0, 1.0, 1.0)
+    }
     needsDisplay = true
   }
   
