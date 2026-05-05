@@ -32,24 +32,6 @@ struct ViewParameters: Codable {
   var viewBoundingBox: Bool
 }
 
-class SplitViewController: NSObject, NSSplitViewDelegate {
-  func splitView(_ splitView: NSSplitView, resizeSubviewsWithOldSize oldSize: NSSize) {
-    let dividerThickness = splitView.dividerThickness
-    var leftRect = splitView.subviews[0].frame
-    var rightRect = splitView.subviews[1].frame
-    let newFrame = splitView.frame
-    
-    leftRect.size.height = newFrame.size.height
-    leftRect.origin = CGPoint(x: 0, y: 0)
-    rightRect.size.width = newFrame.size.width - leftRect.size.width - dividerThickness
-    rightRect.size.height = newFrame.size.height
-    rightRect.origin.x = leftRect.size.width + dividerThickness
-    
-    splitView.subviews[0].frame = leftRect
-    splitView.subviews[1].frame = rightRect
-  }
-}
-
 class LeftSplitViewController: NSObject, NSSplitViewDelegate {
   func splitView(_ splitView: NSSplitView, effectiveRect proposedEffectiveRect: NSRect, forDrawnRect drawnRect: NSRect, ofDividerAt dividerIndex: Int) -> NSRect {
     if dividerIndex == 0 {
@@ -143,28 +125,17 @@ extension NSToolbarItem.Identifier {
   
   let dataManager = DataManagerWrapperWrapper()!
   let performanceHelper = PerformanceHelperWrapperWrapper()!
-  let splitViewController = SplitViewController()
+  let mainSplitViewController = NSSplitViewController()
   let leftSplitViewController = LeftSplitViewController()
   let searchFieldDelegate = SearchFieldDelegate()
 
   func applicationDidFinishLaunching(_ aNotification: Notification) {
     Swift.print("Controller.applicationDidFinishLaunching(Notification)")
     
-    splitView = NSSplitView(frame: window.contentView!.bounds)
-    splitView!.autoresizingMask = [.width, .height]
-    splitView!.dividerStyle = .paneSplitter
-    splitView!.isVertical = true
-    splitView!.addSubview(NSView())
-    splitView!.addSubview(NSView())
-    splitView!.adjustSubviews()
-    splitView!.setPosition(200, ofDividerAt: 0)
-    splitView!.delegate = splitViewController
-    
-    leftSplitView = NSSplitView(frame: splitView!.subviews[0].bounds)
+    leftSplitView = NSSplitView(frame: NSRect(x: 0, y: 0, width: 200, height: 600))
     leftSplitView!.dividerStyle = .thin
     leftSplitView!.addSubview(NSView())
     leftSplitView!.addSubview(NSView())
-    splitView!.subviews[0] = leftSplitView!
     leftSplitView!.adjustSubviews()
     leftSplitView!.setPosition(474, ofDividerAt: 0)
     leftSplitView!.delegate = leftSplitViewController
@@ -219,10 +190,9 @@ extension NSToolbarItem.Identifier {
     attributesTableView!.addTableColumn(attributeValuesColumn!)
     
     let defaultDevice = MTLCreateSystemDefaultDevice()
-    metalView = MetalView(frame: splitView!.subviews[1].frame, device: defaultDevice)
+    metalView = MetalView(frame: NSRect(x: 0, y: 0, width: 800, height: 600), device: defaultDevice)
     metalView!.controller = self
     metalView!.dataManager = dataManager
-    splitView!.subviews[1] = metalView!
     
     progressIndicator = NSProgressIndicator(frame: NSRect(x: 0, y: 0, width: metalView!.frame.width/4, height: 12))
     progressIndicator!.isIndeterminate = false
@@ -236,7 +206,24 @@ extension NSToolbarItem.Identifier {
     
     dataManager.controller = self
     
-    window.contentView!.addSubview(splitView!)
+    // NSSplitViewController for the main horizontal split
+    let sidebarVC = NSViewController()
+    sidebarVC.view = leftSplitView!
+    
+    let contentVC = NSViewController()
+    contentVC.view = metalView!
+    
+    let sidebarItem = NSSplitViewItem(sidebarWithViewController: sidebarVC)
+    sidebarItem.minimumThickness = 200
+    mainSplitViewController.addSplitViewItem(sidebarItem)
+    mainSplitViewController.addSplitViewItem(NSSplitViewItem(viewController: contentVC))
+    
+    splitView = mainSplitViewController.splitView
+    splitView!.autoresizingMask = [.width, .height]
+    
+    window.contentView!.addSubview(mainSplitViewController.view)
+    mainSplitViewController.view.frame = window.contentView!.bounds
+    mainSplitViewController.view.autoresizingMask = [.width, .height]
     window.makeFirstResponder(metalView)
     toggleViewEdgesMenuItem.state = .on
     window.minSize = NSSize(width: 400, height: 300)
@@ -373,20 +360,11 @@ extension NSToolbarItem.Identifier {
   }
   
   @IBAction func toggleSideBar(_ sender: NSMenuItem) {
-    if splitView!.subviews[0].bounds.size.width == 0 {
-      //      Swift.print("Open sidebar")
-      NSAnimationContext.runAnimationGroup({ (context) -> Void in
-        context.allowsImplicitAnimation = true
-        splitView!.setPosition(200, ofDividerAt: 0)
-      }, completionHandler: nil)
-      sender.title = "Hide Sidebar"
-    } else {
-      //      Swift.print("Close sidebar")
-      NSAnimationContext.runAnimationGroup({ (context) -> Void in
-        context.allowsImplicitAnimation = true
-        splitView!.setPosition(0, ofDividerAt: 0)
-      }, completionHandler: nil)
-      sender.title = "Show Sidebar"
+    NSAnimationContext.runAnimationGroup { context in
+      context.allowsImplicitAnimation = true
+      mainSplitViewController.toggleSidebar(sender)
+    } completionHandler: {
+      sender.title = self.mainSplitViewController.splitViewItems[0].isCollapsed ? "Show Sidebar" : "Hide Sidebar"
     }
   }
   
