@@ -112,6 +112,7 @@ extension NSToolbarItem.Identifier {
   let mainSplitViewController = NSSplitViewController()
   let searchFieldDelegate = SearchFieldDelegate()
   var pendingURLs = [URL]()
+  var preferencesWindow: NSWindow?
 
   func applicationDidFinishLaunching(_ aNotification: Notification) {
     Swift.print("Controller.applicationDidFinishLaunching(Notification)")
@@ -291,6 +292,7 @@ extension NSToolbarItem.Identifier {
     attributesTableView!.dataSource = dataManager
     attributesTableView!.delegate = dataManager
     
+    loadPreferences()
     if !pendingURLs.isEmpty {
       let urls = pendingURLs
       pendingURLs.removeAll()
@@ -967,6 +969,182 @@ extension NSToolbarItem.Identifier {
     }
   }
   
+  @IBAction func showPreferences(_ sender: Any) {
+    if let existing = preferencesWindow {
+      existing.makeKeyAndOrderFront(nil)
+      return
+    }
+
+    let window = NSWindow(
+      contentRect: NSRect(x: 0, y: 0, width: 380, height: 210),
+      styleMask: [.titled, .closable, .miniaturizable],
+      backing: .buffered,
+      defer: true
+    )
+    window.title = "Rendering Preferences"
+    window.isReleasedWhenClosed = false
+    window.level = .floating
+
+    let contentView = window.contentView!
+
+    // Light mode background
+    let lightLabel = NSTextField(labelWithString: "Light mode background:")
+    lightLabel.translatesAutoresizingMaskIntoConstraints = false
+    contentView.addSubview(lightLabel)
+
+    let lightWell = NSColorWell()
+    lightWell.translatesAutoresizingMaskIntoConstraints = false
+    lightWell.tag = 0
+    lightWell.action = #selector(preferencesBackgroundColorChanged(_:))
+    lightWell.target = self
+    if let colorData = UserDefaults.standard.data(forKey: "azulLightBackgroundColor"),
+       let color = try? NSKeyedUnarchiver.unarchivedObject(ofClass: NSColor.self, from: colorData) {
+      lightWell.color = color
+    } else {
+      lightWell.color = NSColor.white
+    }
+    contentView.addSubview(lightWell)
+
+    // Dark mode background
+    let darkLabel = NSTextField(labelWithString: "Dark mode background:")
+    darkLabel.translatesAutoresizingMaskIntoConstraints = false
+    contentView.addSubview(darkLabel)
+
+    let darkWell = NSColorWell()
+    darkWell.translatesAutoresizingMaskIntoConstraints = false
+    darkWell.tag = 1
+    darkWell.action = #selector(preferencesBackgroundColorChanged(_:))
+    darkWell.target = self
+    if let colorData = UserDefaults.standard.data(forKey: "azulDarkBackgroundColor"),
+       let color = try? NSKeyedUnarchiver.unarchivedObject(ofClass: NSColor.self, from: colorData) {
+      darkWell.color = color
+    } else {
+      darkWell.color = NSColor(calibratedWhite: 0.22, alpha: 1.0)
+    }
+    contentView.addSubview(darkWell)
+
+    // MSAA
+    let msaaLabel = NSTextField(labelWithString: "Anti-aliasing (MSAA):")
+    msaaLabel.translatesAutoresizingMaskIntoConstraints = false
+    contentView.addSubview(msaaLabel)
+
+    let msaaPopup = NSPopUpButton()
+    msaaPopup.translatesAutoresizingMaskIntoConstraints = false
+    msaaPopup.addItems(withTitles: ["1x", "2x", "4x"])
+    let currentSampleCount = UserDefaults.standard.integer(forKey: "azulSampleCount")
+    let sampleIndex: Int
+    switch currentSampleCount {
+    case 1: sampleIndex = 0
+    case 2: sampleIndex = 1
+    default: sampleIndex = 2
+    }
+    msaaPopup.selectItem(at: sampleIndex)
+    msaaPopup.action = #selector(preferencesMSAAChanged(_:))
+    msaaPopup.target = self
+    contentView.addSubview(msaaPopup)
+
+    // Reset button
+    let resetButton = NSButton(title: "Reset to Defaults", target: self, action: #selector(preferencesReset(_:)))
+    resetButton.translatesAutoresizingMaskIntoConstraints = false
+    resetButton.bezelStyle = .rounded
+    contentView.addSubview(resetButton)
+
+    // Layout
+    NSLayoutConstraint.activate([
+      lightLabel.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 20),
+      lightLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
+
+      lightWell.centerYAnchor.constraint(equalTo: lightLabel.centerYAnchor),
+      lightWell.leadingAnchor.constraint(equalTo: lightLabel.trailingAnchor, constant: 12),
+      lightWell.widthAnchor.constraint(equalToConstant: 60),
+      lightWell.heightAnchor.constraint(equalToConstant: 28),
+
+      darkLabel.topAnchor.constraint(equalTo: lightLabel.bottomAnchor, constant: 16),
+      darkLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
+
+      darkWell.centerYAnchor.constraint(equalTo: darkLabel.centerYAnchor),
+      darkWell.leadingAnchor.constraint(equalTo: darkLabel.trailingAnchor, constant: 12),
+      darkWell.widthAnchor.constraint(equalToConstant: 60),
+      darkWell.heightAnchor.constraint(equalToConstant: 28),
+
+      msaaLabel.topAnchor.constraint(equalTo: darkLabel.bottomAnchor, constant: 16),
+      msaaLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
+
+      msaaPopup.centerYAnchor.constraint(equalTo: msaaLabel.centerYAnchor),
+      msaaPopup.leadingAnchor.constraint(equalTo: msaaLabel.trailingAnchor, constant: 12),
+
+      resetButton.topAnchor.constraint(equalTo: msaaLabel.bottomAnchor, constant: 16),
+      resetButton.centerXAnchor.constraint(equalTo: contentView.centerXAnchor),
+    ])
+
+    window.center()
+    window.makeKeyAndOrderFront(nil)
+    preferencesWindow = window
+  }
+
+  @objc func preferencesBackgroundColorChanged(_ sender: NSColorWell) {
+    if sender.tag == 0 {
+      metalView?.customLightClearColor = sender.color
+      if let data = try? NSKeyedArchiver.archivedData(withRootObject: sender.color, requiringSecureCoding: false) {
+        UserDefaults.standard.set(data, forKey: "azulLightBackgroundColor")
+      }
+    } else {
+      metalView?.customDarkClearColor = sender.color
+      if let data = try? NSKeyedArchiver.archivedData(withRootObject: sender.color, requiringSecureCoding: false) {
+        UserDefaults.standard.set(data, forKey: "azulDarkBackgroundColor")
+      }
+    }
+  }
+
+  @objc func preferencesMSAAChanged(_ sender: NSPopUpButton) {
+    let titles = ["1", "2", "4"]
+    let index = sender.indexOfSelectedItem
+    let count = Int(titles[index])!
+    metalView?.msaaSampleCount = count
+    UserDefaults.standard.set(count, forKey: "azulSampleCount")
+  }
+
+  @objc func preferencesReset(_ sender: Any) {
+    UserDefaults.standard.removeObject(forKey: "azulLightBackgroundColor")
+    UserDefaults.standard.removeObject(forKey: "azulDarkBackgroundColor")
+    UserDefaults.standard.removeObject(forKey: "azulSampleCount")
+    metalView?.customLightClearColor = nil
+    metalView?.customDarkClearColor = nil
+    metalView?.msaaSampleCount = 4
+
+    // Update color wells in the preferences window
+    if let window = preferencesWindow, let contentView = window.contentView {
+      for subview in contentView.subviews {
+        if let well = subview as? NSColorWell {
+          if well.tag == 0 {
+            well.color = NSColor.white
+          } else {
+            well.color = NSColor(calibratedWhite: 0.22, alpha: 1.0)
+          }
+        }
+        if let popup = subview as? NSPopUpButton {
+          popup.selectItem(at: 2)
+        }
+      }
+    }
+  }
+
+  func loadPreferences() {
+    if let colorData = UserDefaults.standard.data(forKey: "azulLightBackgroundColor"),
+       let color = try? NSKeyedUnarchiver.unarchivedObject(ofClass: NSColor.self, from: colorData) {
+      metalView?.customLightClearColor = color
+    }
+    if let colorData = UserDefaults.standard.data(forKey: "azulDarkBackgroundColor"),
+       let color = try? NSKeyedUnarchiver.unarchivedObject(ofClass: NSColor.self, from: colorData) {
+      metalView?.customDarkClearColor = color
+    }
+    let sampleCount = UserDefaults.standard.integer(forKey: "azulSampleCount")
+    if sampleCount > 0 {
+      metalView?.msaaSampleCount = sampleCount
+    }
+    metalView?.updateAppearance()
+  }
+
   @IBAction func selectAll(_ sender: Any) {
     guard let outlineView = objectsSourceList else { return }
     let allRows = IndexSet(integersIn: 0..<outlineView.numberOfRows)

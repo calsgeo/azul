@@ -76,6 +76,22 @@ struct BufferWithColour {
   
   var viewEdges: Bool = true
   var viewBoundingBox: Bool = false
+  var library: MTLLibrary?
+  var customLightClearColor: NSColor? {
+    didSet { updateAppearance() }
+  }
+  var customDarkClearColor: NSColor? {
+    didSet { updateAppearance() }
+  }
+  @objc var msaaSampleCount: Int = 4 {
+    didSet {
+      guard msaaSampleCount != oldValue else { return }
+      sampleCount = msaaSampleCount
+      createMSAATextures(size: drawableSize)
+      recreatePipelines()
+      needsDisplay = true
+    }
+  }
   
   @objc var multipleSelection: Bool {
     NSEvent.modifierFlags.contains(.command) || NSEvent.modifierFlags.contains(.shift)
@@ -88,10 +104,18 @@ struct BufferWithColour {
   
   func updateAppearance() {
     if isDarkMode {
-      let bg = NSColor.windowBackgroundColor.usingColorSpace(.sRGB)!
-      clearColor = MTLClearColorMake(Double(bg.redComponent), Double(bg.greenComponent), Double(bg.blueComponent), 1.0)
+      if let custom = customDarkClearColor, let srgb = custom.usingColorSpace(.sRGB) {
+        clearColor = MTLClearColorMake(Double(srgb.redComponent), Double(srgb.greenComponent), Double(srgb.blueComponent), 1.0)
+      } else {
+        let bg = NSColor.windowBackgroundColor.usingColorSpace(.sRGB)!
+        clearColor = MTLClearColorMake(Double(bg.redComponent), Double(bg.greenComponent), Double(bg.blueComponent), 1.0)
+      }
     } else {
-      clearColor = MTLClearColorMake(1.0, 1.0, 1.0, 1.0)
+      if let custom = customLightClearColor, let srgb = custom.usingColorSpace(.sRGB) {
+        clearColor = MTLClearColorMake(Double(srgb.redComponent), Double(srgb.greenComponent), Double(srgb.blueComponent), 1.0)
+      } else {
+        clearColor = MTLClearColorMake(1.0, 1.0, 1.0, 1.0)
+      }
     }
     needsDisplay = true
   }
@@ -122,80 +146,14 @@ struct BufferWithColour {
     // Command queue
     commandQueue = device!.makeCommandQueue()
     
-    // Build pipeline descriptors
-    let library = device!.makeDefaultLibrary()!
+    // Store library
+    library = device!.makeDefaultLibrary()
     
-    let litPipelineDescriptor = MTLRenderPipelineDescriptor()
-    litPipelineDescriptor.vertexFunction = library.makeFunction(name: "vertexLit")
-    litPipelineDescriptor.fragmentFunction = library.makeFunction(name: "fragmentLit")
-    litPipelineDescriptor.colorAttachments[0].pixelFormat = colorPixelFormat
-    litPipelineDescriptor.colorAttachments[0].isBlendingEnabled = true
-    litPipelineDescriptor.colorAttachments[0].sourceRGBBlendFactor = .sourceAlpha
-    litPipelineDescriptor.colorAttachments[0].sourceAlphaBlendFactor = .sourceAlpha
-    litPipelineDescriptor.colorAttachments[0].destinationRGBBlendFactor = .oneMinusSourceAlpha
-    litPipelineDescriptor.colorAttachments[0].destinationAlphaBlendFactor = .oneMinusSourceAlpha
-    litPipelineDescriptor.depthAttachmentPixelFormat = depthStencilPixelFormat
-    litPipelineDescriptor.rasterSampleCount = sampleCount
-    
-    let unlitPipelineDescriptor = MTLRenderPipelineDescriptor()
-    unlitPipelineDescriptor.vertexFunction = library.makeFunction(name: "vertexUnlit")
-    unlitPipelineDescriptor.fragmentFunction = library.makeFunction(name: "fragmentUnlit")
-    unlitPipelineDescriptor.colorAttachments[0].pixelFormat = colorPixelFormat
-    unlitPipelineDescriptor.colorAttachments[0].isBlendingEnabled = false
-    unlitPipelineDescriptor.depthAttachmentPixelFormat = depthStencilPixelFormat
-    unlitPipelineDescriptor.rasterSampleCount = sampleCount
-    
-    let edgePipelineDescriptor = MTLRenderPipelineDescriptor()
-    edgePipelineDescriptor.vertexFunction = library.makeFunction(name: "vertexEdge")
-    edgePipelineDescriptor.fragmentFunction = library.makeFunction(name: "fragmentEdge")
-    edgePipelineDescriptor.colorAttachments[0].pixelFormat = colorPixelFormat
-    edgePipelineDescriptor.colorAttachments[0].isBlendingEnabled = false
-    edgePipelineDescriptor.depthAttachmentPixelFormat = depthStencilPixelFormat
-    edgePipelineDescriptor.rasterSampleCount = sampleCount
-    
-    // Create pipeline states (always compile from the offline-compiled metallib)
-    do {
-      litRenderPipelineState = try device!.makeRenderPipelineState(descriptor: litPipelineDescriptor)
-      unlitRenderPipelineState = try device!.makeRenderPipelineState(descriptor: unlitPipelineDescriptor)
-      edgeRenderPipelineState = try device!.makeRenderPipelineState(descriptor: edgePipelineDescriptor)
-    } catch {
-      Swift.print("Unable to compile render pipeline states: \(error)")
-      return
-    }
-    
-    // Picking pipeline
-    let pickingPipelineDescriptor = MTLRenderPipelineDescriptor()
-    pickingPipelineDescriptor.vertexFunction = library.makeFunction(name: "vertexPicking")
-    pickingPipelineDescriptor.fragmentFunction = library.makeFunction(name: "fragmentPicking")
-    pickingPipelineDescriptor.colorAttachments[0].pixelFormat = .rgba8Unorm
-    pickingPipelineDescriptor.depthAttachmentPixelFormat = depthStencilPixelFormat
-    pickingPipelineDescriptor.rasterSampleCount = 1
-    do {
-      pickingRenderPipelineState = try device!.makeRenderPipelineState(descriptor: pickingPipelineDescriptor)
-    } catch {
-      Swift.print("Unable to compile picking pipeline state: \(error)")
-    }
+    // Build pipelines
+    recreatePipelines()
     
     // Cache compiled pipeline states as a binary archive for faster launches
-    let fileManager = FileManager.default
-    let appSupportURL = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        .appendingPathComponent("azul", isDirectory: true)
-    let archiveURL = appSupportURL.appendingPathComponent("azul.metalar")
-    try? fileManager.createDirectory(at: appSupportURL, withIntermediateDirectories: true)
-    
-    if !fileManager.fileExists(atPath: archiveURL.path) {
-      if let archive = try? device!.makeBinaryArchive(descriptor: MTLBinaryArchiveDescriptor()) {
-        try? archive.addRenderPipelineFunctions(descriptor: litPipelineDescriptor)
-        try? archive.addRenderPipelineFunctions(descriptor: unlitPipelineDescriptor)
-        if let pickFunction = library.makeFunction(name: "pick") {
-          let pickDesc = MTLComputePipelineDescriptor()
-          pickDesc.computeFunction = pickFunction
-          try? archive.addComputePipelineFunctions(descriptor: pickDesc)
-        }
-        try? archive.serialize(to: archiveURL)
-        Swift.print("Cached binary archive to \(archiveURL.path)")
-      }
-    }
+    cachePipelineArchive()
     
     // Depth stencil
     let depthSencilDescriptor = MTLDepthStencilDescriptor()
@@ -240,6 +198,102 @@ struct BufferWithColour {
     self.enableSetNeedsDisplay = true
   }
   
+  func recreatePipelines() {
+    guard let library = library, let device = device else { return }
+
+    let litPipelineDescriptor = MTLRenderPipelineDescriptor()
+    litPipelineDescriptor.vertexFunction = library.makeFunction(name: "vertexLit")
+    litPipelineDescriptor.fragmentFunction = library.makeFunction(name: "fragmentLit")
+    litPipelineDescriptor.colorAttachments[0].pixelFormat = colorPixelFormat
+    litPipelineDescriptor.colorAttachments[0].isBlendingEnabled = true
+    litPipelineDescriptor.colorAttachments[0].sourceRGBBlendFactor = .sourceAlpha
+    litPipelineDescriptor.colorAttachments[0].sourceAlphaBlendFactor = .sourceAlpha
+    litPipelineDescriptor.colorAttachments[0].destinationRGBBlendFactor = .oneMinusSourceAlpha
+    litPipelineDescriptor.colorAttachments[0].destinationAlphaBlendFactor = .oneMinusSourceAlpha
+    litPipelineDescriptor.depthAttachmentPixelFormat = depthStencilPixelFormat
+    litPipelineDescriptor.rasterSampleCount = msaaSampleCount
+
+    let unlitPipelineDescriptor = MTLRenderPipelineDescriptor()
+    unlitPipelineDescriptor.vertexFunction = library.makeFunction(name: "vertexUnlit")
+    unlitPipelineDescriptor.fragmentFunction = library.makeFunction(name: "fragmentUnlit")
+    unlitPipelineDescriptor.colorAttachments[0].pixelFormat = colorPixelFormat
+    unlitPipelineDescriptor.colorAttachments[0].isBlendingEnabled = false
+    unlitPipelineDescriptor.depthAttachmentPixelFormat = depthStencilPixelFormat
+    unlitPipelineDescriptor.rasterSampleCount = msaaSampleCount
+
+    let edgePipelineDescriptor = MTLRenderPipelineDescriptor()
+    edgePipelineDescriptor.vertexFunction = library.makeFunction(name: "vertexEdge")
+    edgePipelineDescriptor.fragmentFunction = library.makeFunction(name: "fragmentEdge")
+    edgePipelineDescriptor.colorAttachments[0].pixelFormat = colorPixelFormat
+    edgePipelineDescriptor.colorAttachments[0].isBlendingEnabled = false
+    edgePipelineDescriptor.depthAttachmentPixelFormat = depthStencilPixelFormat
+    edgePipelineDescriptor.rasterSampleCount = msaaSampleCount
+
+    do {
+      litRenderPipelineState = try device.makeRenderPipelineState(descriptor: litPipelineDescriptor)
+      unlitRenderPipelineState = try device.makeRenderPipelineState(descriptor: unlitPipelineDescriptor)
+      edgeRenderPipelineState = try device.makeRenderPipelineState(descriptor: edgePipelineDescriptor)
+    } catch {
+      Swift.print("Unable to compile render pipeline states: \(error)")
+    }
+
+    let pickingPipelineDescriptor = MTLRenderPipelineDescriptor()
+    pickingPipelineDescriptor.vertexFunction = library.makeFunction(name: "vertexPicking")
+    pickingPipelineDescriptor.fragmentFunction = library.makeFunction(name: "fragmentPicking")
+    pickingPipelineDescriptor.colorAttachments[0].pixelFormat = .rgba8Unorm
+    pickingPipelineDescriptor.depthAttachmentPixelFormat = depthStencilPixelFormat
+    pickingPipelineDescriptor.rasterSampleCount = 1
+    do {
+      pickingRenderPipelineState = try device.makeRenderPipelineState(descriptor: pickingPipelineDescriptor)
+    } catch {
+      Swift.print("Unable to compile picking pipeline state: \(error)")
+    }
+  }
+
+  func cachePipelineArchive() {
+    guard let library = library, let device = device else { return }
+
+    let litPipelineDescriptor = MTLRenderPipelineDescriptor()
+    litPipelineDescriptor.vertexFunction = library.makeFunction(name: "vertexLit")
+    litPipelineDescriptor.fragmentFunction = library.makeFunction(name: "fragmentLit")
+    litPipelineDescriptor.colorAttachments[0].pixelFormat = colorPixelFormat
+    litPipelineDescriptor.colorAttachments[0].isBlendingEnabled = true
+    litPipelineDescriptor.colorAttachments[0].sourceRGBBlendFactor = .sourceAlpha
+    litPipelineDescriptor.colorAttachments[0].sourceAlphaBlendFactor = .sourceAlpha
+    litPipelineDescriptor.colorAttachments[0].destinationRGBBlendFactor = .oneMinusSourceAlpha
+    litPipelineDescriptor.colorAttachments[0].destinationAlphaBlendFactor = .oneMinusSourceAlpha
+    litPipelineDescriptor.depthAttachmentPixelFormat = depthStencilPixelFormat
+    litPipelineDescriptor.rasterSampleCount = msaaSampleCount
+
+    let unlitPipelineDescriptor = MTLRenderPipelineDescriptor()
+    unlitPipelineDescriptor.vertexFunction = library.makeFunction(name: "vertexUnlit")
+    unlitPipelineDescriptor.fragmentFunction = library.makeFunction(name: "fragmentUnlit")
+    unlitPipelineDescriptor.colorAttachments[0].pixelFormat = colorPixelFormat
+    unlitPipelineDescriptor.colorAttachments[0].isBlendingEnabled = false
+    unlitPipelineDescriptor.depthAttachmentPixelFormat = depthStencilPixelFormat
+    unlitPipelineDescriptor.rasterSampleCount = msaaSampleCount
+
+    let fileManager = FileManager.default
+    let appSupportURL = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        .appendingPathComponent("azul", isDirectory: true)
+    let archiveURL = appSupportURL.appendingPathComponent("azul.metalar")
+    try? fileManager.createDirectory(at: appSupportURL, withIntermediateDirectories: true)
+
+    if !fileManager.fileExists(atPath: archiveURL.path) {
+      if let archive = try? device.makeBinaryArchive(descriptor: MTLBinaryArchiveDescriptor()) {
+        try? archive.addRenderPipelineFunctions(descriptor: litPipelineDescriptor)
+        try? archive.addRenderPipelineFunctions(descriptor: unlitPipelineDescriptor)
+        if let pickFunction = library.makeFunction(name: "pick") {
+          let pickDesc = MTLComputePipelineDescriptor()
+          pickDesc.computeFunction = pickFunction
+          try? archive.addComputePipelineFunctions(descriptor: pickDesc)
+        }
+        try? archive.serialize(to: archiveURL)
+        Swift.print("Cached binary archive to \(archiveURL.path)")
+      }
+    }
+  }
+
   func createPickingTextures() {
     let w = Int(drawableSize.width)
     let h = Int(drawableSize.height)
@@ -263,6 +317,11 @@ struct BufferWithColour {
     return true
   }
   
+  override func viewDidMoveToWindow() {
+    super.viewDidMoveToWindow()
+    updateAppearance()
+  }
+
   override func viewDidChangeEffectiveAppearance() {
     updateAppearance()
   }
@@ -272,17 +331,22 @@ struct BufferWithColour {
     let h = Int(size.height)
     guard w > 0, h > 0 else { return }
     
-    let desc = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: colorPixelFormat, width: w, height: h, mipmapped: false)
-    desc.textureType = .type2DMultisample
-    desc.sampleCount = sampleCount
-    desc.usage = .renderTarget
-    msaaTexture = device!.makeTexture(descriptor: desc)
-    
-    let depthDesc = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: depthStencilPixelFormat, width: w, height: h, mipmapped: false)
-    depthDesc.textureType = .type2DMultisample
-    depthDesc.sampleCount = sampleCount
-    depthDesc.usage = .renderTarget
-    msaaDepthTexture = device!.makeTexture(descriptor: depthDesc)
+    if sampleCount > 1 {
+      let desc = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: colorPixelFormat, width: w, height: h, mipmapped: false)
+      desc.textureType = .type2DMultisample
+      desc.sampleCount = sampleCount
+      desc.usage = .renderTarget
+      msaaTexture = device!.makeTexture(descriptor: desc)
+      
+      let depthDesc = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: depthStencilPixelFormat, width: w, height: h, mipmapped: false)
+      depthDesc.textureType = .type2DMultisample
+      depthDesc.sampleCount = sampleCount
+      depthDesc.usage = .renderTarget
+      msaaDepthTexture = device!.makeTexture(descriptor: depthDesc)
+    } else {
+      msaaTexture = nil
+      msaaDepthTexture = nil
+    }
   }
   
   override func draw(_ dirtyRect: NSRect) {
@@ -292,19 +356,25 @@ struct BufferWithColour {
       return
     }
     
-    guard let msaaTexture = msaaTexture, let msaaDepthTexture = msaaDepthTexture else { return }
-    
     let commandBuffer = commandQueue!.makeCommandBuffer()!
     let renderPassDescriptor = MTLRenderPassDescriptor()
-    renderPassDescriptor.colorAttachments[0].texture = msaaTexture
-    renderPassDescriptor.colorAttachments[0].resolveTexture = currentDrawable!.texture
-    renderPassDescriptor.colorAttachments[0].storeAction = .multisampleResolve
+    if sampleCount > 1 {
+      guard let msaaTex = msaaTexture, let msaaDepthTex = msaaDepthTexture else { return }
+      renderPassDescriptor.colorAttachments[0].texture = msaaTex
+      renderPassDescriptor.colorAttachments[0].resolveTexture = currentDrawable!.texture
+      renderPassDescriptor.colorAttachments[0].storeAction = .multisampleResolve
+      renderPassDescriptor.depthAttachment.texture = msaaDepthTex
+      renderPassDescriptor.depthAttachment.storeAction = .dontCare
+    } else {
+      renderPassDescriptor.colorAttachments[0].texture = currentDrawable!.texture
+      renderPassDescriptor.colorAttachments[0].storeAction = .store
+      renderPassDescriptor.depthAttachment.texture = depthStencilTexture
+      renderPassDescriptor.depthAttachment.storeAction = .dontCare
+    }
     renderPassDescriptor.colorAttachments[0].clearColor = clearColor
     renderPassDescriptor.colorAttachments[0].loadAction = .clear
-    renderPassDescriptor.depthAttachment.texture = msaaDepthTexture
     renderPassDescriptor.depthAttachment.clearDepth = 1.0
     renderPassDescriptor.depthAttachment.loadAction = .clear
-    renderPassDescriptor.depthAttachment.storeAction = .dontCare
     let renderEncoder = commandBuffer.makeRenderCommandEncoder(descriptor: renderPassDescriptor)!
     
     renderEncoder.setFrontFacing(.counterClockwise)
