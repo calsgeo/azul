@@ -113,6 +113,8 @@ extension NSToolbarItem.Identifier {
   let searchFieldDelegate = SearchFieldDelegate()
   var pendingURLs = [URL]()
   var preferencesWindow: NSWindow?
+  var colourTypeWells: [NSColorWell] = []
+  var colourTypeNames: [String] = []
 
   func applicationDidFinishLaunching(_ aNotification: Notification) {
     Swift.print("Controller.applicationDidFinishLaunching(Notification)")
@@ -969,28 +971,38 @@ extension NSToolbarItem.Identifier {
     }
   }
   
-  @IBAction func showPreferences(_ sender: Any) {
+  func showPreferences(selectColoursTab: Bool = false) {
     if let existing = preferencesWindow {
       existing.makeKeyAndOrderFront(nil)
+      if selectColoursTab {
+        findTabView(in: existing.contentView)?.selectTabViewItem(at: 1)
+      }
       return
     }
 
     let window = NSWindow(
-      contentRect: NSRect(x: 0, y: 0, width: 380, height: 210),
-      styleMask: [.titled, .closable, .miniaturizable],
+      contentRect: NSRect(x: 0, y: 0, width: 420, height: 310),
+      styleMask: [.titled, .closable],
       backing: .buffered,
       defer: true
     )
-    window.title = "Rendering Preferences"
+    window.title = "Preferences"
     window.isReleasedWhenClosed = false
-    window.level = .floating
 
-    let contentView = window.contentView!
+    let tabView = NSTabView(frame: window.contentView!.bounds)
+    tabView.autoresizingMask = [.width, .height]
+    tabView.tabPosition = .top
+    window.contentView!.addSubview(tabView)
 
-    // Light mode background
+    // --- Rendering tab ---
+    let renderingTab = NSTabViewItem(identifier: "Rendering")
+    renderingTab.label = "Rendering"
+    let renderingView = NSView()
+    renderingTab.view = renderingView
+
     let lightLabel = NSTextField(labelWithString: "Light mode background:")
     lightLabel.translatesAutoresizingMaskIntoConstraints = false
-    contentView.addSubview(lightLabel)
+    renderingView.addSubview(lightLabel)
 
     let lightWell = NSColorWell()
     lightWell.translatesAutoresizingMaskIntoConstraints = false
@@ -1003,12 +1015,11 @@ extension NSToolbarItem.Identifier {
     } else {
       lightWell.color = NSColor.white
     }
-    contentView.addSubview(lightWell)
+    renderingView.addSubview(lightWell)
 
-    // Dark mode background
     let darkLabel = NSTextField(labelWithString: "Dark mode background:")
     darkLabel.translatesAutoresizingMaskIntoConstraints = false
-    contentView.addSubview(darkLabel)
+    renderingView.addSubview(darkLabel)
 
     let darkWell = NSColorWell()
     darkWell.translatesAutoresizingMaskIntoConstraints = false
@@ -1021,12 +1032,11 @@ extension NSToolbarItem.Identifier {
     } else {
       darkWell.color = NSColor(calibratedWhite: 0.22, alpha: 1.0)
     }
-    contentView.addSubview(darkWell)
+    renderingView.addSubview(darkWell)
 
-    // MSAA
     let msaaLabel = NSTextField(labelWithString: "Anti-aliasing (MSAA):")
     msaaLabel.translatesAutoresizingMaskIntoConstraints = false
-    contentView.addSubview(msaaLabel)
+    renderingView.addSubview(msaaLabel)
 
     let msaaPopup = NSPopUpButton()
     msaaPopup.translatesAutoresizingMaskIntoConstraints = false
@@ -1041,18 +1051,16 @@ extension NSToolbarItem.Identifier {
     msaaPopup.selectItem(at: sampleIndex)
     msaaPopup.action = #selector(preferencesMSAAChanged(_:))
     msaaPopup.target = self
-    contentView.addSubview(msaaPopup)
+    renderingView.addSubview(msaaPopup)
 
-    // Reset button
-    let resetButton = NSButton(title: "Reset to Defaults", target: self, action: #selector(preferencesReset(_:)))
-    resetButton.translatesAutoresizingMaskIntoConstraints = false
-    resetButton.bezelStyle = .rounded
-    contentView.addSubview(resetButton)
+    let renderingResetButton = NSButton(title: "Reset to Defaults", target: self, action: #selector(preferencesReset(_:)))
+    renderingResetButton.translatesAutoresizingMaskIntoConstraints = false
+    renderingResetButton.bezelStyle = .rounded
+    renderingView.addSubview(renderingResetButton)
 
-    // Layout
     NSLayoutConstraint.activate([
-      lightLabel.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 20),
-      lightLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
+      lightLabel.topAnchor.constraint(equalTo: renderingView.topAnchor, constant: 20),
+      lightLabel.leadingAnchor.constraint(equalTo: renderingView.leadingAnchor, constant: 20),
 
       lightWell.centerYAnchor.constraint(equalTo: lightLabel.centerYAnchor),
       lightWell.leadingAnchor.constraint(equalTo: lightLabel.trailingAnchor, constant: 12),
@@ -1060,7 +1068,7 @@ extension NSToolbarItem.Identifier {
       lightWell.heightAnchor.constraint(equalToConstant: 28),
 
       darkLabel.topAnchor.constraint(equalTo: lightLabel.bottomAnchor, constant: 16),
-      darkLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
+      darkLabel.leadingAnchor.constraint(equalTo: renderingView.leadingAnchor, constant: 20),
 
       darkWell.centerYAnchor.constraint(equalTo: darkLabel.centerYAnchor),
       darkWell.leadingAnchor.constraint(equalTo: darkLabel.trailingAnchor, constant: 12),
@@ -1068,18 +1076,104 @@ extension NSToolbarItem.Identifier {
       darkWell.heightAnchor.constraint(equalToConstant: 28),
 
       msaaLabel.topAnchor.constraint(equalTo: darkLabel.bottomAnchor, constant: 16),
-      msaaLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
+      msaaLabel.leadingAnchor.constraint(equalTo: renderingView.leadingAnchor, constant: 20),
 
       msaaPopup.centerYAnchor.constraint(equalTo: msaaLabel.centerYAnchor),
       msaaPopup.leadingAnchor.constraint(equalTo: msaaLabel.trailingAnchor, constant: 12),
 
-      resetButton.topAnchor.constraint(equalTo: msaaLabel.bottomAnchor, constant: 16),
-      resetButton.centerXAnchor.constraint(equalTo: contentView.centerXAnchor),
+      renderingResetButton.topAnchor.constraint(equalTo: msaaLabel.bottomAnchor, constant: 16),
+      renderingResetButton.centerXAnchor.constraint(equalTo: renderingView.centerXAnchor),
     ])
+
+    tabView.addTabViewItem(renderingTab)
+
+    // --- Object Type Colours tab ---
+    let coloursTab = NSTabViewItem(identifier: "Colours")
+    coloursTab.label = "Object Type Colours"
+    let coloursView = NSView()
+    coloursTab.view = coloursView
+
+    let scrollView = NSScrollView()
+    scrollView.hasVerticalScroller = true
+    scrollView.translatesAutoresizingMaskIntoConstraints = false
+    scrollView.borderType = .noBorder
+    coloursView.addSubview(scrollView)
+    NSLayoutConstraint.activate([
+      scrollView.leadingAnchor.constraint(equalTo: coloursView.leadingAnchor),
+      scrollView.trailingAnchor.constraint(equalTo: coloursView.trailingAnchor),
+      scrollView.topAnchor.constraint(equalTo: coloursView.topAnchor),
+      scrollView.bottomAnchor.constraint(equalTo: coloursView.bottomAnchor),
+    ])
+
+    let stackView = NSStackView()
+    stackView.translatesAutoresizingMaskIntoConstraints = false
+    stackView.orientation = .vertical
+    stackView.spacing = 4
+
+    let typeCount = dataManager.colourTypeCount()
+    colourTypeWells.removeAll()
+    colourTypeNames.removeAll()
+
+    for i in 0..<typeCount {
+      let typeName = dataManager.colourTypeName(at: i)!
+      var r: Float = 0, g: Float = 0, b: Float = 0, a: Float = 0
+      dataManager.getRed(&r, green: &g, blue: &b, alpha: &a, forColourTypeAt: i)
+
+      colourTypeNames.append(typeName)
+
+      let row = NSView()
+      row.translatesAutoresizingMaskIntoConstraints = false
+
+      let label = NSTextField(labelWithString: typeName)
+      label.translatesAutoresizingMaskIntoConstraints = false
+      row.addSubview(label)
+
+      let well = NSColorWell()
+      well.translatesAutoresizingMaskIntoConstraints = false
+      well.color = NSColor(calibratedRed: CGFloat(r), green: CGFloat(g), blue: CGFloat(b), alpha: CGFloat(a))
+      well.tag = colourTypeWells.count
+      well.action = #selector(typeColourChanged(_:))
+      well.target = self
+      row.addSubview(well)
+      colourTypeWells.append(well)
+
+      NSLayoutConstraint.activate([
+        label.leadingAnchor.constraint(equalTo: row.leadingAnchor, constant: 10),
+        label.centerYAnchor.constraint(equalTo: well.centerYAnchor),
+
+        well.centerYAnchor.constraint(equalTo: row.centerYAnchor),
+        well.trailingAnchor.constraint(equalTo: row.trailingAnchor, constant: -10),
+        well.widthAnchor.constraint(equalToConstant: 60),
+        well.heightAnchor.constraint(equalToConstant: 28),
+        row.heightAnchor.constraint(equalToConstant: 32),
+      ])
+
+      stackView.addArrangedSubview(row)
+    }
+
+    let resetButton = NSButton(title: "Reset to Defaults", target: self, action: #selector(resetTypeColours(_:)))
+    resetButton.bezelStyle = .rounded
+    stackView.addArrangedSubview(resetButton)
+
+    scrollView.documentView = stackView
+    stackView.widthAnchor.constraint(equalTo: scrollView.contentView.widthAnchor).isActive = true
+    tabView.addTabViewItem(coloursTab)
+
+    if selectColoursTab {
+      tabView.selectTabViewItem(at: 1)
+    }
 
     window.center()
     window.makeKeyAndOrderFront(nil)
     preferencesWindow = window
+  }
+
+  @IBAction func showPreferences(_ sender: Any) {
+    showPreferences(selectColoursTab: false)
+  }
+
+  @IBAction func showObjectTypeColours(_ sender: Any) {
+    showPreferences(selectColoursTab: true)
   }
 
   @objc func preferencesBackgroundColorChanged(_ sender: NSColorWell) {
@@ -1112,21 +1206,36 @@ extension NSToolbarItem.Identifier {
     metalView?.customDarkClearColor = nil
     metalView?.msaaSampleCount = 4
 
-    // Update color wells in the preferences window
-    if let window = preferencesWindow, let contentView = window.contentView {
-      for subview in contentView.subviews {
-        if let well = subview as? NSColorWell {
-          if well.tag == 0 {
-            well.color = NSColor.white
-          } else {
-            well.color = NSColor(calibratedWhite: 0.22, alpha: 1.0)
-          }
-        }
-        if let popup = subview as? NSPopUpButton {
-          popup.selectItem(at: 2)
-        }
+    if let window = preferencesWindow {
+      for subview in window.contentView!.subviews {
+        recursivelyUpdateRenderingControls(subview)
       }
     }
+  }
+
+  func recursivelyUpdateRenderingControls(_ view: NSView) {
+    for subview in view.subviews {
+      if let well = subview as? NSColorWell {
+        if well.tag == 0 {
+          well.color = NSColor.white
+        } else if well.tag == 1 {
+          well.color = NSColor(calibratedWhite: 0.22, alpha: 1.0)
+        }
+      }
+      if let popup = subview as? NSPopUpButton {
+        popup.selectItem(at: 2)
+      }
+      recursivelyUpdateRenderingControls(subview)
+    }
+  }
+
+  func findTabView(in view: NSView?) -> NSTabView? {
+    guard let view = view else { return nil }
+    for subview in view.subviews {
+      if let tabView = subview as? NSTabView { return tabView }
+      if let found = findTabView(in: subview) { return found }
+    }
+    return nil
   }
 
   func loadPreferences() {
@@ -1142,7 +1251,62 @@ extension NSToolbarItem.Identifier {
     if sampleCount > 0 {
       metalView?.msaaSampleCount = sampleCount
     }
+    if let storedColours = UserDefaults.standard.dictionary(forKey: "azulTypeColours") as? [String: [String: CGFloat]] {
+      for (typeName, components) in storedColours {
+        if let r = components["r"], let g = components["g"], let b = components["b"], let a = components["a"] {
+          typeName.withCString { ptr in
+            dataManager.setColourWithRed(Float(r), green: Float(g), blue: Float(b), alpha: Float(a), forType: ptr)
+          }
+        }
+      }
+    }
     metalView?.updateAppearance()
+  }
+
+  @objc func typeColourChanged(_ sender: NSColorWell) {
+    let index = sender.tag
+    guard index >= 0, index < colourTypeNames.count else { return }
+    let typeName = colourTypeNames[index]
+    let color = sender.color.usingColorSpace(.sRGB) ?? sender.color
+    let r = Float(color.redComponent)
+    let g = Float(color.greenComponent)
+    let b = Float(color.blueComponent)
+    let a = Float(color.alphaComponent)
+
+    typeName.withCString { ptr in
+      dataManager.setColourWithRed(r, green: g, blue: b, alpha: a, forType: ptr)
+    }
+
+    var storedColours = UserDefaults.standard.dictionary(forKey: "azulTypeColours") as? [String: [String: CGFloat]] ?? [:]
+    storedColours[typeName] = ["r": CGFloat(r), "g": CGFloat(g), "b": CGFloat(b), "a": CGFloat(a)]
+    UserDefaults.standard.set(storedColours, forKey: "azulTypeColours")
+
+    dataManager.regenerateTriangleBuffers(withMaximumSize: 16*1024*1024)
+    reloadTriangleBuffers()
+    updateVisibleStateBuffer()
+    updateSelectionStateBuffer()
+    dataManager.regenerateEdgeBuffers(withMaximumSize: 16*1024*1024)
+    reloadEdgeBuffers()
+    metalView?.needsDisplay = true
+  }
+
+  @objc func resetTypeColours(_ sender: Any) {
+    dataManager.resetTypeColours()
+    UserDefaults.standard.removeObject(forKey: "azulTypeColours")
+
+    for (i, well) in colourTypeWells.enumerated() {
+      var r: Float = 0, g: Float = 0, b: Float = 0, a: Float = 0
+      dataManager.getRed(&r, green: &g, blue: &b, alpha: &a, forColourTypeAt: i)
+      well.color = NSColor(calibratedRed: CGFloat(r), green: CGFloat(g), blue: CGFloat(b), alpha: CGFloat(a))
+    }
+
+    dataManager.regenerateTriangleBuffers(withMaximumSize: 16*1024*1024)
+    reloadTriangleBuffers()
+    updateVisibleStateBuffer()
+    updateSelectionStateBuffer()
+    dataManager.regenerateEdgeBuffers(withMaximumSize: 16*1024*1024)
+    reloadEdgeBuffers()
+    metalView?.needsDisplay = true
   }
 
   @IBAction func selectAll(_ sender: Any) {

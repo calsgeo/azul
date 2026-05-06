@@ -431,6 +431,57 @@ DataManager::DataManager() {
   selectedEdgesColour = std::tuple<float, float, float, float>(1.0, 0.0, 0.0, 1.0);
 }
 
+void DataManager::setTypeColour(const std::string &type, float r, float g, float b, float a) {
+  colourForType[type] = std::tuple<float, float, float, float>(r, g, b, a);
+}
+
+int DataManager::getTypeCount() {
+  return static_cast<int>(colourForType.size());
+}
+
+std::string DataManager::getTypeName(int index) {
+  auto it = colourForType.begin();
+  std::advance(it, index);
+  return it->first;
+}
+
+void DataManager::getTypeColour(int index, float &r, float &g, float &b, float &a) {
+  auto it = colourForType.begin();
+  std::advance(it, index);
+  r = std::get<0>(it->second);
+  g = std::get<1>(it->second);
+  b = std::get<2>(it->second);
+  a = std::get<3>(it->second);
+}
+
+void DataManager::resetTypeColours() {
+  colourForType.clear();
+  colourForType[""] = std::tuple<float, float, float, float>(0.75, 0.75, 0.75, 1.0);
+  colourForType["AuxiliaryTrafficArea"] = std::tuple<float, float, float, float>(0.7, 0.7, 0.7, 1.0);
+  colourForType["Bridge"] = std::tuple<float, float, float, float>(0.458823529411765, 0.458823529411765, 0.458823529411765, 1.0);
+  colourForType["Building"] = std::tuple<float, float, float, float>(1.0, 1.0, 1.0, 1.0);
+  colourForType["BuildingInstallation"] = std::tuple<float, float, float, float>(1.0, 1.0, 1.0, 1.0);
+  colourForType["BuildingPart"] = std::tuple<float, float, float, float>(1.0, 1.0, 1.0, 1.0);
+  colourForType["CityFurniture"] = std::tuple<float, float, float, float>(0.7, 0.7, 0.7, 1.0);
+  colourForType["Door"] = std::tuple<float, float, float, float>(0.482352941176471, 0.376470588235294, 0.231372549019608, 1.0);
+  colourForType["GenericCityObject"] = std::tuple<float, float, float, float>(0.7, 0.7, 0.7, 1.0);
+  colourForType["GroundSurface"] = std::tuple<float, float, float, float>(0.7, 0.7, 0.7, 1.0);
+  colourForType["LandUse"] = std::tuple<float, float, float, float>(0.3, 0.3, 0.3, 1.0);
+  colourForType["PlantCover"] = std::tuple<float, float, float, float>(0.02, 0.65, 0.16, 1.0);
+  colourForType["Railway"] = std::tuple<float, float, float, float>(0.7, 0.7, 0.7, 1.0);
+  colourForType["ReliefFeature"] = std::tuple<float, float, float, float>(0.85, 0.92, 0.48, 1.0);
+  colourForType["Road"] = std::tuple<float, float, float, float>(0.458823529411765, 0.458823529411765, 0.458823529411765, 1.0);
+  colourForType["RoofSurface"] = std::tuple<float, float, float, float>(1.0, 0.2, 0.2, 1.0);
+  colourForType["SolitaryVegetationObject"] = std::tuple<float, float, float, float>(0.4, 0.882352941176471, 0.333333333333333, 1.0);
+  colourForType["Track"] = std::tuple<float, float, float, float>(0.66, 0.49, 0.3, 1.0);
+  colourForType["TrafficArea"] = std::tuple<float, float, float, float>(0.7, 0.7, 0.7, 1.0);
+  colourForType["Tunnel"] = std::tuple<float, float, float, float>(0.458823529411765, 0.458823529411765, 0.458823529411765, 1.0);
+  colourForType["WallSurface"] = std::tuple<float, float, float, float>(1.0, 1.0, 1.0, 1.0);
+  colourForType["WaterBody"] = std::tuple<float, float, float, float>(0.36, 0.78, 1.0, 1.0);
+  colourForType["Window"] = std::tuple<float, float, float, float>(0.584313725490196, 0.917647058823529, 1.0, 0.3);
+  colourForType["TINRelief"] = std::tuple<float, float, float, float>(0.85, 0.92, 0.48, 1.0);
+}
+
 void DataManager::parse(const char *filePath) {
   //    std::cout << "Parsing " << filePath << "..." << std::endl;
   parsedFiles.push_back(AzulObject());

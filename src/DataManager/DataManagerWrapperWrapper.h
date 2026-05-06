@@ -114,6 +114,13 @@ struct DataManagerWrapper;
 - (void) toggleVisibility:(id)sender;
 - (void) toggleVisibilityForSelection:(NSOutlineView *)outlineView;
 
+// Type colours
+- (NSInteger) colourTypeCount;
+- (NSString *) colourTypeNameAtIndex:(NSInteger)index;
+- (void) getRed:(float *)r green:(float *)g blue:(float *)b alpha:(float *)a forColourTypeAtIndex:(NSInteger)index;
+- (void) setColourWithRed:(float)r green:(float)g blue:(float)b alpha:(float)a forType:(const char *)type;
+- (void) resetTypeColours;
+
 @end
 
 #endif /* DataManagerWrapperWrapper_h */

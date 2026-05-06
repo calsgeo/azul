@@ -160,6 +160,13 @@ public:
   simd_float4x4 matrix4x4_translation(const simd_float3 &shift);
   void addAzulObjectAndItsChildrenToCentroidComputation(const AzulObject &object, CentroidComputation &centroidComputation);
   
+  // Type colours
+  void setTypeColour(const std::string &type, float r, float g, float b, float a);
+  int getTypeCount();
+  std::string getTypeName(int index);
+  void getTypeColour(int index, float &r, float &g, float &b, float &a);
+  void resetTypeColours();
+
   // Debug
   void printParsedFiles();
 };

@@ -554,6 +554,26 @@ struct DataManagerWrapper {
   return statusMessage;
 }
 
+- (NSInteger) colourTypeCount {
+  return dataManagerWrapper->dataManager->getTypeCount();
+}
+
+- (NSString *) colourTypeNameAtIndex:(NSInteger)index {
+  return [NSString stringWithUTF8String:dataManagerWrapper->dataManager->getTypeName(static_cast<int>(index)).c_str()];
+}
+
+- (void) getRed:(float *)r green:(float *)g blue:(float *)b alpha:(float *)a forColourTypeAtIndex:(NSInteger)index {
+  dataManagerWrapper->dataManager->getTypeColour(static_cast<int>(index), *r, *g, *b, *a);
+}
+
+- (void) setColourWithRed:(float)r green:(float)g blue:(float)b alpha:(float)a forType:(const char *)type {
+  dataManagerWrapper->dataManager->setTypeColour(std::string(type), r, g, b, a);
+}
+
+- (void) resetTypeColours {
+  dataManagerWrapper->dataManager->resetTypeColours();
+}
+
 - (NSString *) objectIdForItem:(id)item {
   if (![item isKindOfClass:[AzulObjectIterator class]]) return @"";
   AzulObjectIterator *currentItem = item;

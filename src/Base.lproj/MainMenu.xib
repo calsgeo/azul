@@ -164,6 +164,12 @@
                                     <action selector="toggleViewBoundingBox:" target="Voe-Tx-rLC" id="LWi-dc-cg8"/>
                                 </connections>
                             </menuItem>
+                            <menuItem title="Object Type Colours…" keyEquivalent="C" id="fLk-zG-hT6">
+                                <modifierMask key="keyEquivalentModifierMask" command="YES" shift="YES"/>
+                                <connections>
+                                    <action selector="showObjectTypeColours:" target="Voe-Tx-rLC" id="aBc-De-FgH"/>
+                                </connections>
+                            </menuItem>
                             <menuItem isSeparatorItem="YES" id="whX-XN-hP6"/>
                             <menuItem title="Show Sidebar" keyEquivalent="s" id="kIP-vf-haE">
                                 <modifierMask key="keyEquivalentModifierMask" control="YES" command="YES"/>
