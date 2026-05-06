@@ -77,7 +77,9 @@ struct BufferWithColour {
   var viewEdges: Bool = true
   var viewBoundingBox: Bool = false
   
-  @objc var multipleSelection: Bool = false
+  @objc var multipleSelection: Bool {
+    NSEvent.modifierFlags.contains(.command) || NSEvent.modifierFlags.contains(.shift)
+  }
   var dragOverlay: CAShapeLayer?
   
   var isDarkMode: Bool {
@@ -828,11 +830,4 @@ struct BufferWithColour {
     }
   }
   
-  override func flagsChanged(with event: NSEvent) {
-    if event.modifierFlags.contains(.command) || event.modifierFlags.contains(.shift) {
-      multipleSelection = true
-    } else {
-      multipleSelection = false
-    }
-  }
 }
