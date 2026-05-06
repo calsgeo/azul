@@ -967,6 +967,12 @@ extension NSToolbarItem.Identifier {
     }
   }
   
+  @IBAction func selectAll(_ sender: Any) {
+    guard let outlineView = objectsSourceList else { return }
+    let allRows = IndexSet(integersIn: 0..<outlineView.numberOfRows)
+    outlineView.selectRowIndexes(allRows, byExtendingSelection: false)
+  }
+
   @objc func copySelectedObjectIds() {
     let pasteboard = NSPasteboard.general
     pasteboard.clearContents()

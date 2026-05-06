@@ -159,7 +159,7 @@
                             <menuItem isSeparatorItem="YES" id="c8d-e9f-g0h"/>
                             <menuItem title="Select All" keyEquivalent="a" id="uyl-h8-XO2">
                                 <connections>
-                                    <action selector="selectAll:" target="-1" id="AMl-WT-e6u"/>
+                                    <action selector="selectAll:" target="Voe-Tx-rLC" id="AMl-WT-e6u"/>
                                 </connections>
                             </menuItem>
                             <menuItem isSeparatorItem="YES" id="i1j-k2l-m3n"/>
