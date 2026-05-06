@@ -114,6 +114,8 @@ extension NSToolbarItem.Identifier {
     objectsScrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 200, height: 474))
     objectsScrollView!.translatesAutoresizingMaskIntoConstraints = false
     objectsScrollView!.hasVerticalScroller = true
+    objectsScrollView!.hasHorizontalScroller = false
+    objectsScrollView!.horizontalScrollElasticity = .none
     objectsScrollView!.wantsLayer = true
     objectsScrollView!.identifier = NSUserInterfaceItemIdentifier.init(rawValue: "ObjectsScrollView")
     leftSplitView!.addSubview(objectsScrollView!)
@@ -131,18 +133,22 @@ extension NSToolbarItem.Identifier {
 //    objectsSourceList!.layer!.backgroundColor = NSColor.secondarySelectedControlColor.cgColor
     objectsSourceList!.headerView = nil
     objectsSourceList!.allowsMultipleSelection = true
+    objectsSourceList!.autoresizingMask = .width
+    objectsSourceList!.columnAutoresizingStyle = .uniformColumnAutoresizingStyle
     objectsClipView!.documentView = objectsSourceList!
     
     objectsSourceListColumn = NSTableColumn(identifier: .init("Objects"))
     objectsSourceListColumn!.isEditable = false
-    objectsSourceListColumn!.minWidth = 200
     objectsSourceListColumn!.headerCell.stringValue = "Object"
+    objectsSourceListColumn!.resizingMask = .autoresizingMask
     objectsSourceList!.addTableColumn(objectsSourceListColumn!)
     objectsSourceList!.outlineTableColumn = objectsSourceListColumn
     
     attributesScrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 200, height: 126))
     attributesScrollView!.translatesAutoresizingMaskIntoConstraints = false
     attributesScrollView!.hasVerticalScroller = true
+    attributesScrollView!.hasHorizontalScroller = false
+    attributesScrollView!.horizontalScrollElasticity = .none
     attributesScrollView!.wantsLayer = true
     attributesScrollView!.identifier = NSUserInterfaceItemIdentifier.init(rawValue: "AttributesScrollView")
     leftSplitView!.addSubview(attributesScrollView!)
@@ -152,12 +158,16 @@ extension NSToolbarItem.Identifier {
     
     attributesTableView = NSTableView(frame: attributesScrollView!.bounds)
     attributesTableView!.usesAlternatingRowBackgroundColors = true
+    attributesTableView!.autoresizingMask = .width
+    attributesTableView!.columnAutoresizingStyle = .sequentialColumnAutoresizingStyle
     attributesClipView!.documentView = attributesTableView!
     
     attributeNamesColumn = NSTableColumn(identifier: .init("A"))
     attributeNamesColumn!.title = "Attribute"
+    attributeNamesColumn!.resizingMask = .autoresizingMask
     attributeValuesColumn = NSTableColumn(identifier: .init("V"))
     attributeValuesColumn!.title = "Value"
+    attributeValuesColumn!.resizingMask = .autoresizingMask
     attributesTableView!.addTableColumn(attributeNamesColumn!)
     attributesTableView!.addTableColumn(attributeValuesColumn!)
     
