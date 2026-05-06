@@ -69,6 +69,7 @@ extension NSToolbarItem.Identifier {
   var leftSplitView: NSSplitView?
   @objc var searchField: NSSearchField?
   @objc var lodSegmentedControl: NSSegmentedControl?
+  @objc var lodToolbarItem: NSToolbarItem?
   @objc var toggleEdgesToolbarItem: NSToolbarItem?
   var objectsScrollView: NSScrollView?
   var objectsClipView: NSClipView?
@@ -326,8 +327,9 @@ extension NSToolbarItem.Identifier {
       seg.action = #selector(lodSegmentChanged)
       lodItem.view = seg
       lodItem.image = NSImage(systemSymbolName: "square.3.layers.3d", accessibilityDescription: "Level of Detail")
-      lodItem.label = "Level of Detail"
+      lodItem.label = "LoD"
       lodSegmentedControl = seg
+      lodToolbarItem = lodItem
       return lodItem
       
     case .search:
@@ -823,6 +825,7 @@ extension NSToolbarItem.Identifier {
     
     if lods.isEmpty {
       control.isHidden = true
+      lodToolbarItem?.menuFormRepresentation = nil
       return
     }
     
@@ -838,6 +841,20 @@ extension NSToolbarItem.Identifier {
       dataManager.setLodFilter(pointer)
     }
     
+    // Build overflow menu representation
+    let menuItem = NSMenuItem(title: "LoD", action: nil, keyEquivalent: "")
+    let submenu = NSMenu(title: "LoD")
+    for lod in sortedLods {
+      let item = NSMenuItem(title: "\(lod)", action: #selector(lodMenuItemClicked(_:)), keyEquivalent: "")
+      item.target = self
+      submenu.addItem(item)
+    }
+    let highestItem = NSMenuItem(title: "Highest", action: #selector(lodMenuItemClicked(_:)), keyEquivalent: "")
+    highestItem.target = self
+    submenu.addItem(highestItem)
+    menuItem.submenu = submenu
+    lodToolbarItem?.menuFormRepresentation = menuItem
+    
     dataManager.regenerateTriangleBuffers(withMaximumSize: 16*1024*1024)
     reloadTriangleBuffers()
     updateSelectionStateBuffer()
@@ -850,6 +867,26 @@ extension NSToolbarItem.Identifier {
         objectsSourceList!.expandItem(item)
       }
     }
+  }
+  
+  @objc func lodMenuItemClicked(_ sender: NSMenuItem) {
+    let lodValue = sender.title
+    if lodValue == "Highest" {
+      "__highest__".withCString { pointer in
+        dataManager.setLodFilter(pointer)
+      }
+    } else {
+      lodValue.withCString { pointer in
+        dataManager.setLodFilter(pointer)
+      }
+    }
+    dataManager.regenerateTriangleBuffers(withMaximumSize: 16*1024*1024)
+    reloadTriangleBuffers()
+    updateSelectionStateBuffer()
+    dataManager.regenerateEdgeBuffers(withMaximumSize: 16*1024*1024)
+    reloadEdgeBuffers()
+    metalView!.needsDisplay = true
+    objectsSourceList!.reloadData()
   }
   
   @IBAction func copyObjectId(_ sender: NSMenuItem) {
