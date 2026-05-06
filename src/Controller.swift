@@ -151,6 +151,7 @@ extension NSToolbarItem.Identifier {
     attributesScrollView!.contentView = attributesClipView!
     
     attributesTableView = NSTableView(frame: attributesScrollView!.bounds)
+    attributesTableView!.usesAlternatingRowBackgroundColors = true
     attributesClipView!.documentView = attributesTableView!
     
     attributeNamesColumn = NSTableColumn(identifier: .init("A"))
@@ -258,7 +259,7 @@ extension NSToolbarItem.Identifier {
     
     // Unified toolbar with integrated title
     window.styleMask.insert(.unifiedTitleAndToolbar)
-    window.toolbarStyle = .unified
+    window.toolbarStyle = .unifiedCompact
     
     let toolbar = NSToolbar(identifier: "azul.toolbar")
     toolbar.delegate = self
