@@ -32,33 +32,6 @@ struct ViewParameters: Codable {
   var viewBoundingBox: Bool
 }
 
-class LeftSplitViewController: NSObject, NSSplitViewDelegate {
-  func splitView(_ splitView: NSSplitView, effectiveRect proposedEffectiveRect: NSRect, forDrawnRect drawnRect: NSRect, ofDividerAt dividerIndex: Int) -> NSRect {
-    if dividerIndex == 0 {
-      let effectiveRect = NSRect(x: 0, y: splitView.subviews[0].bounds.height-5, width: splitView.bounds.width, height: 10)
-      return effectiveRect
-    }
-    return NSZeroRect
-  }
-  
-  func splitView(_ splitView: NSSplitView, resizeSubviewsWithOldSize oldSize: NSSize) {
-    let dividerThickness = splitView.dividerThickness
-    var objectsRect = splitView.subviews[0].frame
-    var attributesRect = splitView.subviews[1].frame
-    let newFrame = splitView.frame
-
-    objectsRect.size.width = newFrame.size.width
-    objectsRect.origin = CGPoint(x: 0, y: 0)
-    objectsRect.size.height = newFrame.size.height - attributesRect.size.height - dividerThickness
-    
-    attributesRect.size.width = newFrame.size.width
-    attributesRect.origin.y = objectsRect.origin.y + objectsRect.size.height + dividerThickness
-
-    splitView.subviews[0].frame = objectsRect
-    splitView.subviews[1].frame = attributesRect
-  }
-}
-
 class SearchFieldDelegate: NSObject, NSSearchFieldDelegate {
   var controller: Controller?
   func controlTextDidChange(_ obj: Notification) {
@@ -127,7 +100,6 @@ extension NSToolbarItem.Identifier {
   let dataManager = DataManagerWrapperWrapper()!
   let performanceHelper = PerformanceHelperWrapperWrapper()!
   let mainSplitViewController = NSSplitViewController()
-  let leftSplitViewController = LeftSplitViewController()
   let searchFieldDelegate = SearchFieldDelegate()
 
   func applicationDidFinishLaunching(_ aNotification: Notification) {
@@ -135,20 +107,16 @@ extension NSToolbarItem.Identifier {
     
     leftSplitView = NSSplitView(frame: NSRect(x: 0, y: 0, width: 200, height: 600))
     leftSplitView!.dividerStyle = .thin
-    leftSplitView!.addSubview(NSView())
-    leftSplitView!.addSubview(NSView())
-    leftSplitView!.adjustSubviews()
-    leftSplitView!.setPosition(474, ofDividerAt: 0)
-    leftSplitView!.delegate = leftSplitViewController
     
-    objectsScrollView = NSScrollView(frame: leftSplitView!.subviews[0].bounds)
+    objectsScrollView = NSScrollView(frame: .zero)
+    objectsScrollView!.translatesAutoresizingMaskIntoConstraints = false
     objectsScrollView!.hasVerticalScroller = true
     objectsScrollView!.hasHorizontalScroller = true
     objectsScrollView!.wantsLayer = true
     objectsScrollView!.identifier = NSUserInterfaceItemIdentifier.init(rawValue: "ObjectsScrollView")
-    leftSplitView!.subviews[0] = objectsScrollView!
+    leftSplitView!.addSubview(objectsScrollView!)
     
-    objectsClipView = NSClipView(frame: leftSplitView!.subviews[0].bounds)
+    objectsClipView = NSClipView(frame: .zero)
     objectsScrollView!.contentView = objectsClipView!
     
     objectsSourceList = OutlineView(frame: objectsScrollView!.bounds)
@@ -170,14 +138,15 @@ extension NSToolbarItem.Identifier {
     objectsSourceList!.addTableColumn(objectsSourceListColumn!)
     objectsSourceList!.outlineTableColumn = objectsSourceListColumn
     
-    attributesScrollView = NSScrollView(frame: leftSplitView!.subviews[1].bounds)
+    attributesScrollView = NSScrollView(frame: .zero)
+    attributesScrollView!.translatesAutoresizingMaskIntoConstraints = false
     attributesScrollView!.hasVerticalScroller = true
     attributesScrollView!.hasHorizontalScroller = true
     attributesScrollView!.wantsLayer = true
     attributesScrollView!.identifier = NSUserInterfaceItemIdentifier.init(rawValue: "AttributesScrollView")
-    leftSplitView!.subviews[1] = attributesScrollView!
+    leftSplitView!.addSubview(attributesScrollView!)
     
-    attributesClipView = NSClipView(frame: leftSplitView!.subviews[1].bounds)
+    attributesClipView = NSClipView(frame: .zero)
     attributesScrollView!.contentView = attributesClipView!
     
     attributesTableView = NSTableView(frame: attributesScrollView!.bounds)
@@ -190,14 +159,23 @@ extension NSToolbarItem.Identifier {
     attributesTableView!.addTableColumn(attributeNamesColumn!)
     attributesTableView!.addTableColumn(attributeValuesColumn!)
     
+    NSLayoutConstraint.activate([
+      objectsScrollView!.leadingAnchor.constraint(equalTo: leftSplitView!.leadingAnchor),
+      objectsScrollView!.trailingAnchor.constraint(equalTo: leftSplitView!.trailingAnchor),
+      objectsScrollView!.topAnchor.constraint(equalTo: leftSplitView!.topAnchor),
+      
+      attributesScrollView!.leadingAnchor.constraint(equalTo: leftSplitView!.leadingAnchor),
+      attributesScrollView!.trailingAnchor.constraint(equalTo: leftSplitView!.trailingAnchor),
+      attributesScrollView!.bottomAnchor.constraint(equalTo: leftSplitView!.bottomAnchor),
+      attributesScrollView!.heightAnchor.constraint(equalToConstant: 126),
+    ])
+    leftSplitView!.setHoldingPriority(.defaultLow, forSubviewAt: 0)
+    leftSplitView!.setHoldingPriority(.defaultHigh - 1, forSubviewAt: 1)
+    
     let defaultDevice = MTLCreateSystemDefaultDevice()
     metalView = MetalView(frame: NSRect(x: 0, y: 0, width: 800, height: 600), device: defaultDevice)
     metalView!.controller = self
     metalView!.dataManager = dataManager
-    
-    let statusBarHeight: CGFloat = 36
-    let barInset: CGFloat = 8
-    let initialBarWidth = metalView!.bounds.width - barInset * 2
     
     let statusBar = NSVisualEffectView()
     statusBar.material = .hudWindow
@@ -206,16 +184,21 @@ extension NSToolbarItem.Identifier {
     statusBar.wantsLayer = true
     statusBar.layer?.cornerRadius = 8
     statusBar.layer?.masksToBounds = true
-    statusBar.frame = NSRect(x: barInset, y: barInset, width: initialBarWidth, height: statusBarHeight)
-    statusBar.autoresizingMask = [.width, .minYMargin]
+    statusBar.translatesAutoresizingMaskIntoConstraints = false
     statusBar.isHidden = true
     metalView!.addSubview(statusBar)
     statusBarView = statusBar
     
+    NSLayoutConstraint.activate([
+      statusBar.leadingAnchor.constraint(equalTo: metalView!.leadingAnchor, constant: 8),
+      statusBar.trailingAnchor.constraint(equalTo: metalView!.trailingAnchor, constant: -8),
+      statusBar.bottomAnchor.constraint(equalTo: metalView!.bottomAnchor, constant: -8),
+      statusBar.heightAnchor.constraint(equalToConstant: 36),
+    ])
+    
     progressIndicator = NSProgressIndicator()
     progressIndicator!.isIndeterminate = false
-    progressIndicator!.frame = NSRect(x: 8, y: (statusBarHeight - 12) / 2, width: initialBarWidth - 196, height: 12)
-    progressIndicator!.autoresizingMask = [.width, .maxXMargin]
+    progressIndicator!.translatesAutoresizingMaskIntoConstraints = false
     statusBar.addSubview(progressIndicator!)
     
     statusTextField = NSTextField()
@@ -225,9 +208,21 @@ extension NSToolbarItem.Identifier {
     statusTextField!.drawsBackground = false
     statusTextField!.font = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)
     statusTextField!.textColor = .secondaryLabelColor
-    statusTextField!.frame = NSRect(x: initialBarWidth - 188, y: (statusBarHeight - 14) / 2, width: 180, height: 14)
-    statusTextField!.autoresizingMask = [.minXMargin]
+    statusTextField!.translatesAutoresizingMaskIntoConstraints = false
     statusBar.addSubview(statusTextField!)
+    
+    NSLayoutConstraint.activate([
+      progressIndicator!.leadingAnchor.constraint(equalTo: statusBar.leadingAnchor, constant: 8),
+      progressIndicator!.centerYAnchor.constraint(equalTo: statusBar.centerYAnchor),
+      progressIndicator!.heightAnchor.constraint(equalToConstant: 12),
+      
+      statusTextField!.trailingAnchor.constraint(equalTo: statusBar.trailingAnchor, constant: -8),
+      statusTextField!.centerYAnchor.constraint(equalTo: statusBar.centerYAnchor),
+      statusTextField!.widthAnchor.constraint(equalToConstant: 180),
+      statusTextField!.heightAnchor.constraint(equalToConstant: 14),
+      
+      progressIndicator!.trailingAnchor.constraint(equalTo: statusTextField!.leadingAnchor, constant: -8),
+    ])
     
     dataManager.controller = self
     

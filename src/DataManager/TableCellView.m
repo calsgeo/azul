@@ -24,27 +24,48 @@
 //  NSLog(@"[TableCellView initWithFrame]");
   if (self = [super initWithFrame:frameRect]) {
     
-    checkBox = [[NSButton alloc] initWithFrame:NSMakeRect(16, 4, 14, 14)];
+    checkBox = [[NSButton alloc] initWithFrame:NSZeroRect];
+    checkBox.translatesAutoresizingMaskIntoConstraints = NO;
     [checkBox setButtonType:NSButtonTypeSwitch];
     [checkBox setAllowsMixedState:YES];
     
-    image = [[NSImageView alloc] initWithFrame:NSMakeRect(33, 2, 16, 16)];
+    image = [[NSImageView alloc] initWithFrame:NSZeroRect];
+    image.translatesAutoresizingMaskIntoConstraints = NO;
     [image setImageScaling:NSImageScaleProportionallyUpOrDown];
     [image setImageAlignment:NSImageAlignCenter];
     
-    text = [[NSTextField alloc] initWithFrame:NSMakeRect(52, 3, 30000, 14)];
+    text = [[NSTextField alloc] initWithFrame:NSZeroRect];
+    text.translatesAutoresizingMaskIntoConstraints = NO;
     [text setDrawsBackground:false];
     [text setBordered:false];
     [text setEditable:false];
     [text setFont:[NSFont systemFontOfSize:[NSFont smallSystemFontSize]]];
     
     self.identifier = @"TableCellView";
-    [self setAutoresizingMask:NSViewWidthSizable];
     [self setImageView:image];
     [self setTextField:text];
-    [self addSubview:[self imageView]];
+    [self addSubview:image];
     [self addSubview:checkBox];
-    [self addSubview:[self textField]];
+    [self addSubview:text];
+    
+    [NSLayoutConstraint activateConstraints:@[
+      // Checkbox: leading, centered vertically, fixed size
+      [checkBox.leadingAnchor constraintEqualToAnchor:self.leadingAnchor constant:16],
+      [checkBox.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
+      [checkBox.widthAnchor constraintEqualToConstant:14],
+      [checkBox.heightAnchor constraintEqualToConstant:14],
+      
+      // Image: trailing checkbox, centered vertically, fixed size
+      [image.leadingAnchor constraintEqualToAnchor:checkBox.trailingAnchor constant:3],
+      [image.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
+      [image.widthAnchor constraintEqualToConstant:16],
+      [image.heightAnchor constraintEqualToConstant:16],
+      
+      // Text: trailing image, fills remaining width, centered vertically
+      [text.leadingAnchor constraintEqualToAnchor:image.trailingAnchor constant:3],
+      [text.trailingAnchor constraintEqualToAnchor:self.trailingAnchor constant:-4],
+      [text.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
+    ]];
     
   } return self;
 }
