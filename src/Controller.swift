@@ -178,7 +178,10 @@ extension NSToolbarItem.Identifier {
       attributesScrollView!.leadingAnchor.constraint(equalTo: leftSplitView!.leadingAnchor),
       attributesScrollView!.trailingAnchor.constraint(equalTo: leftSplitView!.trailingAnchor),
     ])
-    leftSplitView!.setPosition(474, ofDividerAt: 0)
+    
+    DispatchQueue.main.async {
+      self.leftSplitView?.setPosition(474, ofDividerAt: 0)
+    }
     
     let defaultDevice = MTLCreateSystemDefaultDevice()
     metalView = MetalView(frame: NSRect(x: 0, y: 0, width: 800, height: 600), device: defaultDevice)
