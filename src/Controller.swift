@@ -101,6 +101,7 @@ extension NSToolbarItem.Identifier {
   let performanceHelper = PerformanceHelperWrapperWrapper()!
   let mainSplitViewController = NSSplitViewController()
   let searchFieldDelegate = SearchFieldDelegate()
+  var pendingURLs = [URL]()
 
   func applicationDidFinishLaunching(_ aNotification: Notification) {
     Swift.print("Controller.applicationDidFinishLaunching(Notification)")
@@ -270,6 +271,12 @@ extension NSToolbarItem.Identifier {
     objectsSourceList!.doubleAction = #selector(sourceListDoubleClick)
     attributesTableView!.dataSource = dataManager
     attributesTableView!.delegate = dataManager
+    
+    if !pendingURLs.isEmpty {
+      let urls = pendingURLs
+      pendingURLs.removeAll()
+      loadData(from: urls)
+    }
   }
   
   func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -402,6 +409,11 @@ extension NSToolbarItem.Identifier {
   }
   
   func loadData(from urls: [URL]) {
+    guard metalView != nil else {
+      pendingURLs.append(contentsOf: urls)
+      Swift.print("Deferred loading until after setup: \(urls)")
+      return
+    }
     self.performanceHelper.startTimer()
     
     let progressPerFile = 100.0/Double(urls.count)
@@ -523,9 +535,6 @@ extension NSToolbarItem.Identifier {
         }
         
         Swift.print("Loading triangle buffers...")
-        while self.metalView == nil {
-          Thread.sleep(forTimeInterval: 0.01)
-        }
         self.reloadTriangleBuffers()
         self.updateSelectionStateBuffer()
         self.performanceHelper.printTimeSpent()
