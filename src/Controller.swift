@@ -58,6 +58,7 @@ class OutlineView: NSOutlineView {
 extension NSToolbarItem.Identifier {
   static let lodSelector = NSToolbarItem.Identifier("azul.lodSelector")
   static let search = NSToolbarItem.Identifier("azul.search")
+  static let toggleEdges = NSToolbarItem.Identifier("azul.toggleEdges")
 }
 
 @main
@@ -68,6 +69,7 @@ extension NSToolbarItem.Identifier {
   var leftSplitView: NSSplitView?
   @objc var searchField: NSSearchField?
   @objc var lodSegmentedControl: NSSegmentedControl?
+  @objc var toggleEdgesToolbarItem: NSToolbarItem?
   var objectsScrollView: NSScrollView?
   var objectsClipView: NSClipView?
   @objc var objectsSourceList: OutlineView?
@@ -284,15 +286,26 @@ extension NSToolbarItem.Identifier {
   // MARK: - NSToolbarDelegate
   
   func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-    return [.lodSelector, .flexibleSpace, .search]
+    return [.toggleEdges, .lodSelector, .flexibleSpace, .search]
   }
-  
+
   func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-    return [.lodSelector, .search]
+    return [.toggleEdges, .lodSelector, .search]
   }
   
   func toolbar(_ toolbar: NSToolbar, itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier, willBeInsertedIntoToolbar flag: Bool) -> NSToolbarItem? {
     switch itemIdentifier {
+    case .toggleEdges:
+      let item = NSToolbarItem(itemIdentifier: itemIdentifier)
+      let edgesOn = metalView?.viewEdges ?? true
+      item.image = NSImage(systemSymbolName: edgesOn ? "square.dashed" : "square", accessibilityDescription: "Toggle edges")
+      item.label = "Edges"
+      item.target = self
+      item.action = #selector(toggleViewEdges(_:))
+      item.isBordered = true
+      toggleEdgesToolbarItem = item
+      return item
+
     case .lodSelector:
       let lodItem = NSToolbarItem(itemIdentifier: itemIdentifier)
       let seg = NSSegmentedControl()
@@ -302,6 +315,8 @@ extension NSToolbarItem.Identifier {
       seg.target = self
       seg.action = #selector(lodSegmentChanged)
       lodItem.view = seg
+      lodItem.image = NSImage(systemSymbolName: "square.3.layers.3d", accessibilityDescription: "Level of Detail")
+      lodItem.label = "Level of Detail"
       lodSegmentedControl = seg
       return lodItem
       
@@ -365,24 +380,19 @@ extension NSToolbarItem.Identifier {
     loadData(from: urls)
   }
   
-  @IBAction func toggleViewEdges(_ sender: NSMenuItem) {
-    if metalView!.viewEdges {
-      metalView!.viewEdges = false
-      sender.state = .off
-    } else {
-      metalView!.viewEdges = true
-      sender.state = .on
+  @IBAction func toggleViewEdges(_ sender: Any) {
+    metalView!.viewEdges.toggle()
+    if let menuItem = sender as? NSMenuItem {
+      menuItem.state = metalView!.viewEdges ? .on : .off
     }
+    toggleEdgesToolbarItem?.image = NSImage(systemSymbolName: metalView!.viewEdges ? "square.dashed" : "square", accessibilityDescription: "Toggle edges")
     metalView!.needsDisplay = true
   }
-  
-  @IBAction func toggleViewBoundingBox(_ sender: NSMenuItem) {
-    if metalView!.viewBoundingBox {
-      metalView!.viewBoundingBox = false
-      sender.state = .off
-    } else {
-      metalView!.viewBoundingBox = true
-      sender.state = .on
+
+  @IBAction func toggleViewBoundingBox(_ sender: Any) {
+    metalView!.viewBoundingBox.toggle()
+    if let menuItem = sender as? NSMenuItem {
+      menuItem.state = metalView!.viewBoundingBox ? .on : .off
     }
     metalView!.needsDisplay = true
   }
@@ -866,6 +876,9 @@ extension NSToolbarItem.Identifier {
       self.metalView!.projectionMatrix = deserialiseToMatrix4x4(matrix: viewParameters.projectionMatrix)
       self.metalView!.viewEdges = viewParameters.viewEdges
       self.metalView!.viewBoundingBox = viewParameters.viewBoundingBox
+      self.toggleViewEdgesMenuItem.state = viewParameters.viewEdges ? .on : .off
+      self.toggleViewBoundingBoxMenuItem.state = viewParameters.viewBoundingBox ? .on : .off
+      self.toggleEdgesToolbarItem?.image = NSImage(systemSymbolName: viewParameters.viewEdges ? "square.dashed" : "square", accessibilityDescription: "Toggle edges")
       
       self.metalView!.constants.modelMatrix = self.metalView!.modelMatrix
       self.metalView!.constants.modelViewProjectionMatrix = matrix_multiply(self.metalView!.projectionMatrix, matrix_multiply(self.metalView!.viewMatrix, self.metalView!.modelMatrix))
