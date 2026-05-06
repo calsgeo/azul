@@ -108,6 +108,7 @@
                                 </connections>
                             </menuItem>
                             <menuItem title="Save View Parameters…" keyEquivalent="s" id="pxx-59-PXV">
+                                <modifierMask key="keyEquivalentModifierMask" shift="YES" command="YES"/>
                                 <connections>
                                     <action selector="saveViewParameters:" target="Voe-Tx-rLC" id="3yb-4H-MdV"/>
                                 </connections>
@@ -125,35 +126,9 @@
                     <modifierMask key="keyEquivalentModifierMask"/>
                     <menu key="submenu" title="Edit" id="W48-6f-4Dl">
                         <items>
-                            <menuItem title="Undo" keyEquivalent="z" id="x3v-GG-iWU">
-                                <connections>
-                                    <action selector="undo:" target="-1" id="TkJ-z0-C78"/>
-                                </connections>
-                            </menuItem>
-                            <menuItem title="Redo" keyEquivalent="Z" id="a1b-c2d-e3f">
-                                <connections>
-                                    <action selector="redo:" target="-1" id="g4h-i5j-k6l"/>
-                                </connections>
-                            </menuItem>
-                            <menuItem isSeparatorItem="YES" id="m7n-o8p-q9r"/>
-                            <menuItem title="Cut" keyEquivalent="x" id="s0t-u1v-w2x">
-                                <connections>
-                                    <action selector="cut:" target="-1" id="y3z-a4b-c5d"/>
-                                </connections>
-                            </menuItem>
                             <menuItem title="Copy" keyEquivalent="c" id="Ruw-6m-B2m">
                                 <connections>
                                     <action selector="copy:" target="-1" id="VNm-Mi-diN"/>
-                                </connections>
-                            </menuItem>
-                            <menuItem title="Paste" keyEquivalent="v" id="e6f-g7h-i8j">
-                                <connections>
-                                    <action selector="paste:" target="-1" id="k9l-m0n-o1p"/>
-                                </connections>
-                            </menuItem>
-                            <menuItem title="Delete" id="q2r-s3t-u4v">
-                                <connections>
-                                    <action selector="delete:" target="-1" id="w5x-y6z-a7b"/>
                                 </connections>
                             </menuItem>
                             <menuItem isSeparatorItem="YES" id="c8d-e9f-g0h"/>
