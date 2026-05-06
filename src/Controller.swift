@@ -130,7 +130,6 @@ extension NSToolbarItem.Identifier {
     objectsSourceList!.indentationPerLevel = 16
     objectsSourceList!.indentationMarkerFollowsCell = false
     objectsSourceList!.wantsLayer = true
-//    objectsSourceList!.layer!.backgroundColor = NSColor.secondarySelectedControlColor.cgColor
     objectsSourceList!.headerView = nil
     objectsSourceList!.allowsMultipleSelection = true
     objectsSourceList!.autoresizingMask = .width
@@ -171,18 +170,15 @@ extension NSToolbarItem.Identifier {
     attributesTableView!.addTableColumn(attributeNamesColumn!)
     attributesTableView!.addTableColumn(attributeValuesColumn!)
     
+    // Only constrain the unmanaged axis (horizontal). NSSplitView handles vertical internally.
     NSLayoutConstraint.activate([
       objectsScrollView!.leadingAnchor.constraint(equalTo: leftSplitView!.leadingAnchor),
       objectsScrollView!.trailingAnchor.constraint(equalTo: leftSplitView!.trailingAnchor),
-      objectsScrollView!.topAnchor.constraint(equalTo: leftSplitView!.topAnchor),
       
       attributesScrollView!.leadingAnchor.constraint(equalTo: leftSplitView!.leadingAnchor),
       attributesScrollView!.trailingAnchor.constraint(equalTo: leftSplitView!.trailingAnchor),
-      attributesScrollView!.bottomAnchor.constraint(equalTo: leftSplitView!.bottomAnchor),
-      attributesScrollView!.heightAnchor.constraint(equalToConstant: 126),
     ])
-    leftSplitView!.setHoldingPriority(.defaultLow, forSubviewAt: 0)
-    leftSplitView!.setHoldingPriority(.defaultHigh - 1, forSubviewAt: 1)
+    leftSplitView!.setPosition(474, ofDividerAt: 0)
     
     let defaultDevice = MTLCreateSystemDefaultDevice()
     metalView = MetalView(frame: NSRect(x: 0, y: 0, width: 800, height: 600), device: defaultDevice)
