@@ -70,6 +70,7 @@ struct BufferWithColour {
   var viewBoundingBox: Bool = false
   
   @objc var multipleSelection: Bool = false
+  var dragOverlay: CAShapeLayer?
   
   var isDarkMode: Bool {
     effectiveAppearance.name.rawValue.contains("Dark")
@@ -204,6 +205,18 @@ struct BufferWithColour {
     // Allow dragging
     registerForDraggedTypes([NSPasteboard.PasteboardType.fileURL])
     
+    // Drag-and-drop visual overlay
+    let overlay = CAShapeLayer()
+    overlay.frame = bounds
+    overlay.path = CGPath(rect: bounds, transform: nil)
+    overlay.strokeColor = NSColor.controlAccentColor.withAlphaComponent(0.4).cgColor
+    overlay.fillColor = NSColor.controlAccentColor.withAlphaComponent(0.05).cgColor
+    overlay.lineWidth = 3
+    overlay.lineDashPattern = [10, 8]
+    overlay.isHidden = true
+    layer?.addSublayer(overlay)
+    dragOverlay = overlay
+    
     self.isPaused = true
     self.enableSetNeedsDisplay = true
   }
@@ -337,6 +350,12 @@ struct BufferWithColour {
   override func setFrameSize(_ newSize: NSSize) {
 //    Swift.print("MetalView.setFrameSize(NSSize)")
     super.setFrameSize(newSize)
+    
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
+    dragOverlay?.frame = bounds
+    dragOverlay?.path = CGPath(rect: bounds, transform: nil)
+    CATransaction.commit()
     createMSAATextures(size: drawableSize)
     createPickingTextures()
     projectionMatrix = matrix4x4_perspective(fieldOfView: fieldOfView, aspectRatio: Float(bounds.size.width / bounds.size.height), nearZ: 0.001, farZ: 100.0)
@@ -709,6 +728,7 @@ struct BufferWithColour {
     if let urls = sender.draggingPasteboard.readObjects(forClasses: [NSURL.self], options: [:]) as? [URL] {
       for url in urls {
         if acceptedFileTypes.contains(url.pathExtension) {
+          dragOverlay?.isHidden = false
           return .copy
         }
       }
@@ -716,7 +736,12 @@ struct BufferWithColour {
     return [];
   }
   
+  override func draggingExited(_ sender: NSDraggingInfo?) {
+    dragOverlay?.isHidden = true
+  }
+  
   override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+    dragOverlay?.isHidden = true
     if let urls = sender.draggingPasteboard.readObjects(forClasses: [NSURL.self], options: [:]) as? [URL] {
       controller!.loadData(from: urls)
     }
