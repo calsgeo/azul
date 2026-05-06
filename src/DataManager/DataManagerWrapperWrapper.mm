@@ -392,6 +392,7 @@ struct DataManagerWrapper {
 }
 
 - (NSInteger)numberOfRowsInTableView:(NSTableView *)tableView {
+  if ([[controller objectsSourceList] numberOfSelectedRows] > 1) return 1;
   NSInteger objectsRow = [[controller objectsSourceList] selectedRow];
   if (objectsRow == -1) return 0;
   AzulObjectIterator *currentItem = [[controller objectsSourceList] itemAtRow:objectsRow];
@@ -399,6 +400,34 @@ struct DataManagerWrapper {
 }
 
 - (NSView *)tableView:(NSTableView *)tableView viewForTableColumn:(NSTableColumn *)tableColumn row:(NSInteger)row {
+  if ([[controller objectsSourceList] numberOfSelectedRows] > 1) {
+    NSString *identifier = [[tableColumn identifier] isEqualToString:@"A"] ? @"AttributeNameCell" : @"AttributeValueCell";
+    NSTableCellView *result = [tableView makeViewWithIdentifier:identifier owner:self];
+    if (result == nil) {
+      result = [[NSTableCellView alloc] initWithFrame:NSZeroRect];
+      result.identifier = identifier;
+      
+      NSTextField *textField = [[NSTextField alloc] initWithFrame:NSZeroRect];
+      textField.bezeled = NO;
+      textField.drawsBackground = NO;
+      textField.editable = NO;
+      textField.selectable = YES;
+      textField.font = [NSFont systemFontOfSize:[NSFont smallSystemFontSize]];
+      textField.translatesAutoresizingMaskIntoConstraints = YES;
+      textField.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+      [result addSubview:textField];
+      result.textField = textField;
+    }
+    
+    if ([[tableColumn identifier] isEqualToString:@"A"]) {
+      result.textField.stringValue = @"Selection";
+    } else {
+      NSInteger count = [[controller objectsSourceList] numberOfSelectedRows];
+      result.textField.stringValue = [NSString stringWithFormat:@"%ld items selected", count];
+    }
+    return result;
+  }
+  
   NSInteger objectsRow = [[controller objectsSourceList] selectedRow];
   if (objectsRow == -1) return nil;
   AzulObjectIterator *currentItem = [[controller objectsSourceList] itemAtRow:objectsRow];
