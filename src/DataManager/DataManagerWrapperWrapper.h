@@ -28,7 +28,7 @@ struct DataManagerWrapper;
 
 @class Controller;
 
-@interface DataManagerWrapperWrapper: NSObject <NSOutlineViewDataSource, NSOutlineViewDelegate, NSTableViewDataSource> {
+@interface DataManagerWrapperWrapper: NSObject <NSOutlineViewDataSource, NSOutlineViewDelegate, NSTableViewDataSource, NSTableViewDelegate> {
   struct DataManagerWrapper *dataManagerWrapper;
 }
 
@@ -90,7 +90,7 @@ struct DataManagerWrapper;
 
 // Attributes table view
 - (NSInteger)numberOfRowsInTableView:(NSTableView *)tableView;
-- (id)tableView:(NSTableView *)tableView objectValueForTableColumn:(NSTableColumn *)tableColumn row:(NSInteger)row;
+- (NSView *)tableView:(NSTableView *)tableView viewForTableColumn:(NSTableColumn *)tableColumn row:(NSInteger)row;
 
 // Selection by clicking
 - (void) click;

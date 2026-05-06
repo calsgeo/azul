@@ -274,6 +274,7 @@ extension NSToolbarItem.Identifier {
     objectsSourceList!.delegate = dataManager
     objectsSourceList!.doubleAction = #selector(sourceListDoubleClick)
     attributesTableView!.dataSource = dataManager
+    attributesTableView!.delegate = dataManager
   }
   
   func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {

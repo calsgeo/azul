@@ -396,15 +396,34 @@ struct DataManagerWrapper {
   return [currentItem iterator]->attributes.size();
 }
 
-- (id)tableView:(NSTableView *)tableView objectValueForTableColumn:(NSTableColumn *)tableColumn row:(NSInteger)row {
+- (NSView *)tableView:(NSTableView *)tableView viewForTableColumn:(NSTableColumn *)tableColumn row:(NSInteger)row {
   NSInteger objectsRow = [[controller objectsSourceList] selectedRow];
-  if (objectsRow == -1) return 0;
+  if (objectsRow == -1) return nil;
   AzulObjectIterator *currentItem = [[controller objectsSourceList] itemAtRow:objectsRow];
+  
+  NSString *identifier = [[tableColumn identifier] isEqualToString:@"A"] ? @"AttributeNameCell" : @"AttributeValueCell";
+  NSTableCellView *result = [tableView makeViewWithIdentifier:identifier owner:self];
+  if (result == nil) {
+    result = [[NSTableCellView alloc] initWithFrame:NSZeroRect];
+    result.identifier = identifier;
+    
+    NSTextField *textField = [[NSTextField alloc] initWithFrame:NSZeroRect];
+    textField.bezeled = NO;
+    textField.drawsBackground = NO;
+    textField.editable = NO;
+    textField.selectable = YES;
+    textField.font = [NSFont systemFontOfSize:[NSFont smallSystemFontSize]];
+    textField.translatesAutoresizingMaskIntoConstraints = YES;
+    textField.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+    [result addSubview:textField];
+    result.textField = textField;
+  }
+  
   NSString *cellString;
   if ([[tableColumn identifier] isEqualToString:@"A"]) cellString = [NSString stringWithUTF8String:[currentItem iterator]->attributes[row].first.c_str()];
   else cellString = [NSString stringWithUTF8String:[currentItem iterator]->attributes[row].second.c_str()];
-  NSCell *cell = [[NSCell alloc] initTextCell:cellString];
-  return cell;
+  result.textField.stringValue = cellString;
+  return result;
 }
 
 - (void) updateSelectionStates {
