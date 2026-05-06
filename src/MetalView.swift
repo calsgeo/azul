@@ -755,7 +755,7 @@ struct BufferWithColour {
     case "b":
       controller!.toggleViewBoundingBox(controller!.toggleViewBoundingBoxMenuItem)
     case "c":
-      controller!.copyObjectId(controller!.copyObjectIdMenuItem)
+      controller!.copySelectedObjectIds()
     case "e":
       controller!.toggleViewEdges(controller!.toggleViewEdgesMenuItem)
     case "f":

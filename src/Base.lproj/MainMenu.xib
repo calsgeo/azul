@@ -14,7 +14,6 @@
         <customObject id="-3" userLabel="Application" customClass="NSObject"/>
         <customObject id="Voe-Tx-rLC" customClass="Controller" customModule="azul" customModuleProvider="target">
             <connections>
-                <outlet property="copyObjectIdMenuItem" destination="x3v-GG-iWU" id="AMl-WT-e6u"/>
                 <outlet property="findMenuItem" destination="O7C-wr-Qw2" id="ZPV-fu-AJH"/>
                 <outlet property="goHomeMenuItem" destination="t0b-aK-FgX" id="3Q2-YM-6JH"/>
                 <outlet property="loadViewParametersMenuItem" destination="m3d-YF-VIU" id="8nK-Vs-AQT"/>
@@ -126,18 +125,45 @@
                     <modifierMask key="keyEquivalentModifierMask"/>
                     <menu key="submenu" title="Edit" id="W48-6f-4Dl">
                         <items>
-                            <menuItem title="Copy Object Id" keyEquivalent="c" id="x3v-GG-iWU">
+                            <menuItem title="Undo" keyEquivalent="z" id="x3v-GG-iWU">
                                 <connections>
-                                    <action selector="copyObjectId:" target="Voe-Tx-rLC" id="TkJ-z0-C78"/>
+                                    <action selector="undo:" target="-1" id="TkJ-z0-C78"/>
                                 </connections>
                             </menuItem>
-                            <menuItem title="Select All" keyEquivalent="a" id="Ruw-6m-B2m">
+                            <menuItem title="Redo" keyEquivalent="Z" id="a1b-c2d-e3f">
                                 <connections>
-                                    <action selector="selectAll:" target="-1" id="VNm-Mi-diN"/>
+                                    <action selector="redo:" target="-1" id="g4h-i5j-k6l"/>
                                 </connections>
                             </menuItem>
-                            <menuItem isSeparatorItem="YES" id="uyl-h8-XO2"/>
-                            <menuItem title="Find..." keyEquivalent="f" id="O7C-wr-Qw2">
+                            <menuItem isSeparatorItem="YES" id="m7n-o8p-q9r"/>
+                            <menuItem title="Cut" keyEquivalent="x" id="s0t-u1v-w2x">
+                                <connections>
+                                    <action selector="cut:" target="-1" id="y3z-a4b-c5d"/>
+                                </connections>
+                            </menuItem>
+                            <menuItem title="Copy" keyEquivalent="c" id="Ruw-6m-B2m">
+                                <connections>
+                                    <action selector="copy:" target="-1" id="VNm-Mi-diN"/>
+                                </connections>
+                            </menuItem>
+                            <menuItem title="Paste" keyEquivalent="v" id="e6f-g7h-i8j">
+                                <connections>
+                                    <action selector="paste:" target="-1" id="k9l-m0n-o1p"/>
+                                </connections>
+                            </menuItem>
+                            <menuItem title="Delete" id="q2r-s3t-u4v">
+                                <connections>
+                                    <action selector="delete:" target="-1" id="w5x-y6z-a7b"/>
+                                </connections>
+                            </menuItem>
+                            <menuItem isSeparatorItem="YES" id="c8d-e9f-g0h"/>
+                            <menuItem title="Select All" keyEquivalent="a" id="uyl-h8-XO2">
+                                <connections>
+                                    <action selector="selectAll:" target="-1" id="AMl-WT-e6u"/>
+                                </connections>
+                            </menuItem>
+                            <menuItem isSeparatorItem="YES" id="i1j-k2l-m3n"/>
+                            <menuItem title="Find…" keyEquivalent="f" id="O7C-wr-Qw2">
                                 <connections>
                                     <action selector="focusOnSearchBar:" target="Voe-Tx-rLC" id="cWz-my-LHN"/>
                                 </connections>

@@ -45,6 +45,7 @@ class SearchFieldDelegate: NSObject, NSSearchFieldDelegate {
 
 class OutlineView: NSOutlineView {
   var controller: Controller?
+  
   override func keyDown(with event: NSEvent) {
     switch event.charactersIgnoringModifiers![(event.charactersIgnoringModifiers?.startIndex)!] {
     case " ":
@@ -52,6 +53,10 @@ class OutlineView: NSOutlineView {
     default:
       super.keyDown(with: event)
     }
+  }
+  
+  @IBAction func copy(_ sender: Any) {
+    controller?.copySelectedObjectIds()
   }
 }
 
@@ -944,7 +949,7 @@ extension NSToolbarItem.Identifier {
     }
   }
   
-  @IBAction func copyObjectId(_ sender: NSMenuItem) {
+  @objc func copySelectedObjectIds() {
     let pasteboard = NSPasteboard.general
     pasteboard.clearContents()
     pasteboard.declareTypes([NSPasteboard.PasteboardType.string], owner: self)
