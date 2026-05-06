@@ -19,7 +19,7 @@ Xcode Cloud uses `ci_scripts/ci_pre_xcodebuild.sh` to install pinned dependency 
 - **Entry point**: `src/Controller.swift` (`@NSApplicationMain` app delegate)
 - **Swift → C++ bridge**: `DataManagerWrapperWrapper.{h,mm}` + `PerformanceHelperWrapperWrapper.{h,mm}` expose C++ `DataManager` to Swift via Objective-C++. The bridging header (Swift→ObjC) is `src/Azul-Bridging-Header.h`. The `.mm` files also import `"azul-Swift.h"` (Xcode-generated ObjC→Swift header) to call back into Swift types.
 - **C++ core**: `src/DataManager/DataManager.cpp` owns all data, file parsing, triangulation, edge generation, selection, LOD filtering. Parsing helpers in `src/DataManager/*ParsingHelper.hpp`.
-- **Rendering**: `src/MetalView.swift` (MTKView subclass) + `src/Shaders.metal`. 4x MSAA. Lit/unlit/picking pipelines cached as binary archive (`azul.metalar`).
+- **Rendering**: `src/MetalView.swift` (MTKView subclass) + `src/Shaders.metal`. MSAA configurable (1/2/4x). Lit/unlit/picking pipelines cached as binary archive (`azul.metalar`).
 - **UI**: Menu bar loaded from `src/Base.lproj/MainMenu.xib` (XIB); all other UI (NSSplitView, NSOutlineView sidebar, NSTableView attributes) is programmatic. App icon and CityGML type icons in `src/Assets.xcassets/`; document type icons in `src/Icons/`.
 
 ## Dependencies (prebuilt, gitignored)
@@ -82,7 +82,11 @@ This ordering matters — it's the exact sequence in `Controller.swift:loadData(
 
 - Functions bridging to Swift return C types (`float *`, `const char *`); Swift side wraps with `UnsafeBufferPointer`/`Data`.
 - Colour = `(r, g, b, a)` float tuple. `a == 1.0` renders opaque first, `a < 1.0` renders second (transparent overlay).
-- Selection overlay colour is yellow (`(1,1,0,1)`) applied in the fragment shader.
+- Selection overlay colour is configurable via Preferences (default yellow). Passed as `selectionColour` in the `Constants` Metal struct.
+- Selected edges colour is configurable via Preferences (default red). Stored in `DataManager::selectedEdgesColour`, baked into edge buffers on regeneration.
+- Type/semantic surface colours are configurable via Preferences. Stored in `DataManager::colourForType` map; overrides persisted in UserDefaults `azulTypeColours` as `[type: [r, g, b, a]]`.
+- Preferences window has three tabbed panels: Rendering, Selection, Semantic Surfaces. All settings persist in UserDefaults.
+- UserDefaults keys: `azulLightBackgroundColor`, `azulDarkBackgroundColor`, `azulSampleCount`, `azulSelectionColour`, `azulSelectedEdgesColour`, `azulTypeColours`.
 - Object picking uses a dedicated GPU-only render pass (`vertexPicking`/`fragmentPicking`) that encodes `objectId` into pixel bytes.
 - `selectionStateCount` on GPU side = `objectsById.size()`; represents number of selectable flat objects.
 - LOD filter is a string match; empty string = no filter. LOD detected from objects with type `"LoD"` (id = lod string) or type starting with `"lod"` + digits.

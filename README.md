@@ -15,12 +15,14 @@ The current version of azul is for macOS 13 and higher and supports both Apple S
 * New file (clear view): n or cmd+n
 * Open file (import): o or cmd+o
 * Load view (camera) parameters: l or cmd+l
-* Save view (camera) parameters: s or cmd+s
+* Save view (camera) parameters: shift+cmd+s
 * Copy selected object ids: c or cmd+c
 * Find objects: f or cmd+f
 * Filter by level of detail: click LoD segment in sidebar
 * Show bounding box: b or cmd+shift+b
 * Show edges: e or cmd+shift+e
+* Preferences: cmd+,
+* Object type colours: shift+cmd+c
 
 * Show sidebar: cmd+ctrl+s
 * Go full screen: cmd+ctrl+f
@@ -55,7 +57,7 @@ azul is written in a mix of C++17, Swift 5, Objective-C 2 and Objective-C++. The
 * Improved search with live viewing of matching objects
 * Way to navigate xlinks / implicit parent-child relationships
 * Use status bar to indicate actions, success/failure
-* Customising colours, more complex materials
+* More complex materials
 * Materials and textures (loaded from files)
 * Shifting the rotation point out of the data plane
 * Using a rotation point at a visible object in the centre (good for zooming in and rotating)
