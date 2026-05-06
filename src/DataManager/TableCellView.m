@@ -40,6 +40,8 @@
     [text setBordered:false];
     [text setEditable:false];
     [text setFont:[NSFont systemFontOfSize:[NSFont smallSystemFontSize]]];
+    text.usesSingleLineMode = YES;
+    text.lineBreakMode = NSLineBreakByTruncatingTail;
     
     self.identifier = @"TableCellView";
     [self setImageView:image];

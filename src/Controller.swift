@@ -108,7 +108,7 @@ extension NSToolbarItem.Identifier {
     leftSplitView = NSSplitView(frame: NSRect(x: 0, y: 0, width: 200, height: 600))
     leftSplitView!.dividerStyle = .thin
     
-    objectsScrollView = NSScrollView(frame: .zero)
+    objectsScrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 200, height: 474))
     objectsScrollView!.translatesAutoresizingMaskIntoConstraints = false
     objectsScrollView!.hasVerticalScroller = true
     objectsScrollView!.hasHorizontalScroller = true
@@ -138,7 +138,7 @@ extension NSToolbarItem.Identifier {
     objectsSourceList!.addTableColumn(objectsSourceListColumn!)
     objectsSourceList!.outlineTableColumn = objectsSourceListColumn
     
-    attributesScrollView = NSScrollView(frame: .zero)
+    attributesScrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 200, height: 126))
     attributesScrollView!.translatesAutoresizingMaskIntoConstraints = false
     attributesScrollView!.hasVerticalScroller = true
     attributesScrollView!.hasHorizontalScroller = true
