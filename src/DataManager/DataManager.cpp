@@ -283,7 +283,6 @@ void DataManager::putAzulObjectAndItsChildrenIntoTriangleBuffers(const AzulObjec
   }
   
   if (object.triangles.empty()) return;
-  if (object.visible == 'N') return;
   if (lodFilter == "__highest__") {
     if (!underMatchingLod && object.lodMatch != 'Y') return;
   } else if (!lodFilter.empty() && !underMatchingLod && !directlyMatchesLodFilter(object)) return;
@@ -315,9 +314,10 @@ void DataManager::putAzulObjectAndItsChildrenIntoTriangleBuffers(const AzulObjec
     currentBuffer = lastTriangleBufferOfType[typeWithColour];
   }
   
-  // Assign a unique objectId for selection tracking
+  // Assign a unique objectId for selection and visibility tracking
   int objectId = static_cast<int>(objectsById.size());
   objectsById.push_back(const_cast<AzulObject *>(&object));
+  const_cast<AzulObject &>(object).objectId = objectId;
   
   // Push vertices and indices into the buffer
   std::uint32_t vertexIndex = static_cast<std::uint32_t>(currentBuffer->triangles.size() / 7);
@@ -345,7 +345,6 @@ void DataManager::putAzulObjectAndItsChildrenIntoEdgeBuffers(const AzulObject &o
   if (object.edges.empty()) return;
   std::list<EdgeBuffer>::iterator currentBuffer;
   
-  if (object.visible == 'N') return;
   if (lodFilter == "__highest__") {
     if (!underMatchingLod && object.lodMatch != 'Y') return;
   } else if (!lodFilter.empty() && !underMatchingLod && !directlyMatchesLodFilter(object)) return;
@@ -387,7 +386,7 @@ void DataManager::putAzulObjectAndItsChildrenIntoEdgeBuffers(const AzulObject &o
   for (auto const &edge: object.edges) {
     for (int pointIndex = 0; pointIndex < 2; ++pointIndex) {
       for (int coordinate = 0; coordinate < 3; ++coordinate) currentBuffer->edges.push_back((edge.points[pointIndex].coordinates[coordinate]-midCoordinates[coordinate])/maxRange);
-      currentBuffer->edges.push_back(0.0); // to match Metal float3 16 byte size
+      currentBuffer->edges.push_back(static_cast<float>(object.objectId));
     }
   }
 }
@@ -492,10 +491,12 @@ void DataManager::regenerateTriangleBuffers(long maxBufferSize) {
   for (auto &file: parsedFiles) putAzulObjectAndItsChildrenIntoTriangleBuffers(file, defaultType, maxBufferSize);
   std::cout << "Created " << triangleBuffers.size() << " triangle buffers with " << objectsById.size() << " objects" << std::endl;
   
-  // Initialize selection states from current object states
+  // Initialize selection and visibility states from current object states
   selectionStates.resize(objectsById.size());
+  visibleStates.resize(objectsById.size());
   for (int i = 0; i < objectsById.size(); ++i) {
     selectionStates[i] = objectsById[i]->selected ? 1.0f : 0.0f;
+    visibleStates[i] = objectsById[i]->visible != 'N' ? 1.0f : 0.0f;
   }
 }
 
@@ -520,6 +521,7 @@ void DataManager::clear() {
   lastTriangleBufferOfType.clear();
   objectsById.clear();
   selectionStates.clear();
+  visibleStates.clear();
   edgeBuffers.clear();
   lastEdgeBufferBySelection.clear();
   
@@ -546,6 +548,21 @@ const float *DataManager::getSelectionStateData() {
 
 int DataManager::getSelectionStateCount() {
   return static_cast<int>(selectionStates.size());
+}
+
+void DataManager::updateVisibleStates() {
+  visibleStates.resize(objectsById.size());
+  for (int i = 0; i < objectsById.size(); ++i) {
+    visibleStates[i] = objectsById[i]->visible != 'N' ? 1.0f : 0.0f;
+  }
+}
+
+const float *DataManager::getVisibleStateData() {
+  return visibleStates.data();
+}
+
+int DataManager::getVisibleStateCount() {
+  return static_cast<int>(visibleStates.size());
 }
 
 bool DataManager::containsObject(AzulObject &parent, AzulObject *target) {

@@ -584,6 +584,7 @@ extension NSToolbarItem.Identifier {
         
         Swift.print("Loading triangle buffers...")
         self.reloadTriangleBuffers()
+        self.updateVisibleStateBuffer()
         self.updateSelectionStateBuffer()
         self.performanceHelper.printTimeSpent()
         self.performanceHelper.printMemoryUsage()
@@ -809,6 +810,14 @@ extension NSToolbarItem.Identifier {
     let data = Data(bytes: UnsafeRawPointer(ptr), count: count * MemoryLayout<Float>.size)
     metalView!.updateSelectionStateBuffer(data)
   }
+  
+  @objc func updateVisibleStateBuffer() {
+    let count = Int(dataManager.visibleStateCount())
+    guard count > 0 else { return }
+    guard let ptr = dataManager.visibleStateData() else { return }
+    let data = Data(bytes: UnsafeRawPointer(ptr), count: count * MemoryLayout<Float>.size)
+    metalView!.updateVisibleStateBuffer(data)
+  }
 
   func applicationWillTerminate(_ aNotification: Notification) {
     Swift.print("Controller.applicationWillTerminate(Notification)")
@@ -839,6 +848,7 @@ extension NSToolbarItem.Identifier {
     }
     dataManager.regenerateTriangleBuffers(withMaximumSize: 16*1024*1024)
     self.reloadTriangleBuffers()
+    self.updateVisibleStateBuffer()
     self.updateSelectionStateBuffer()
     dataManager.regenerateEdgeBuffers(withMaximumSize: 16*1024*1024)
     self.reloadEdgeBuffers()
@@ -907,6 +917,7 @@ extension NSToolbarItem.Identifier {
     
     dataManager.regenerateTriangleBuffers(withMaximumSize: 16*1024*1024)
     reloadTriangleBuffers()
+    updateVisibleStateBuffer()
     updateSelectionStateBuffer()
     dataManager.regenerateEdgeBuffers(withMaximumSize: 16*1024*1024)
     reloadEdgeBuffers()
@@ -934,6 +945,7 @@ extension NSToolbarItem.Identifier {
     }
     dataManager.regenerateTriangleBuffers(withMaximumSize: 16*1024*1024)
     reloadTriangleBuffers()
+    updateVisibleStateBuffer()
     updateSelectionStateBuffer()
     dataManager.regenerateEdgeBuffers(withMaximumSize: 16*1024*1024)
     reloadEdgeBuffers()

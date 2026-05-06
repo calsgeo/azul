@@ -29,6 +29,11 @@ struct Vertex {
   var position: SIMD3<Float>
 }
 
+struct EdgeVertex {
+  var px, py, pz: Float
+  var objectId: Float
+}
+
 struct VertexWithNormal {
   var px, py, pz: Float
   var objectId: Float
@@ -51,6 +56,7 @@ struct BufferWithColour {
   var commandQueue: MTLCommandQueue?
   var litRenderPipelineState: MTLRenderPipelineState?
   var unlitRenderPipelineState: MTLRenderPipelineState?
+  var edgeRenderPipelineState: MTLRenderPipelineState?
   var depthStencilState: MTLDepthStencilState?
   
   var msaaTexture: MTLTexture?
@@ -61,6 +67,8 @@ struct BufferWithColour {
   var boundingBoxBuffer: MTLBuffer?
   var selectionStateBuffer: MTLBuffer?
   var selectionStateCount: Int = 0
+  var visibleStateBuffer: MTLBuffer?
+  var visibleStateCount: Int = 0
   
   var pickingRenderPipelineState: MTLRenderPipelineState?
   var pickingTexture: MTLTexture?
@@ -135,10 +143,19 @@ struct BufferWithColour {
     unlitPipelineDescriptor.depthAttachmentPixelFormat = depthStencilPixelFormat
     unlitPipelineDescriptor.rasterSampleCount = sampleCount
     
+    let edgePipelineDescriptor = MTLRenderPipelineDescriptor()
+    edgePipelineDescriptor.vertexFunction = library.makeFunction(name: "vertexEdge")
+    edgePipelineDescriptor.fragmentFunction = library.makeFunction(name: "fragmentEdge")
+    edgePipelineDescriptor.colorAttachments[0].pixelFormat = colorPixelFormat
+    edgePipelineDescriptor.colorAttachments[0].isBlendingEnabled = false
+    edgePipelineDescriptor.depthAttachmentPixelFormat = depthStencilPixelFormat
+    edgePipelineDescriptor.rasterSampleCount = sampleCount
+    
     // Create pipeline states (always compile from the offline-compiled metallib)
     do {
       litRenderPipelineState = try device!.makeRenderPipelineState(descriptor: litPipelineDescriptor)
       unlitRenderPipelineState = try device!.makeRenderPipelineState(descriptor: unlitPipelineDescriptor)
+      edgeRenderPipelineState = try device!.makeRenderPipelineState(descriptor: edgePipelineDescriptor)
     } catch {
       Swift.print("Unable to compile render pipeline states: \(error)")
       return
@@ -298,6 +315,12 @@ struct BufferWithColour {
       var zero: Float = 0
       renderEncoder.setFragmentBytes(&zero, length: MemoryLayout<Float>.size, index: 2)
     }
+    if let visBuffer = visibleStateBuffer, visibleStateCount > 0 {
+      renderEncoder.setFragmentBuffer(visBuffer, offset: 0, index: 3)
+    } else {
+      var one: Float = 1
+      renderEncoder.setFragmentBytes(&one, length: MemoryLayout<Float>.size, index: 3)
+    }
 
     for triangleBuffer in triangleBuffers {
       if triangleBuffer.colour.w == 1.0 {
@@ -319,9 +342,14 @@ struct BufferWithColour {
       }
     }
     
-    renderEncoder.setRenderPipelineState(unlitRenderPipelineState!)
-    
     if viewEdges {
+      renderEncoder.setRenderPipelineState(edgeRenderPipelineState!)
+      if let visBuffer = visibleStateBuffer, visibleStateCount > 0 {
+        renderEncoder.setFragmentBuffer(visBuffer, offset: 0, index: 2)
+      } else {
+        var one: Float = 1
+        renderEncoder.setFragmentBytes(&one, length: MemoryLayout<Float>.size, index: 2)
+      }
       for edgeBuffer in edgeBuffers {
         renderEncoder.setVertexBuffer(edgeBuffer.buffer, offset:0, index:0)
         var edgeColour = edgeBuffer.colour
@@ -330,8 +358,10 @@ struct BufferWithColour {
         }
         constants.colour = edgeColour
         renderEncoder.setVertexBytes(&constants, length: MemoryLayout<Constants>.size, index: 1)
-        renderEncoder.drawPrimitives(type: .line, vertexStart: 0, vertexCount: edgeBuffer.buffer.length/MemoryLayout<Vertex>.size)
+        renderEncoder.setFragmentBytes(&constants, length: MemoryLayout<Constants>.size, index: 0)
+        renderEncoder.drawPrimitives(type: .line, vertexStart: 0, vertexCount: edgeBuffer.buffer.length/MemoryLayout<EdgeVertex>.size)
       }
+      renderEncoder.setRenderPipelineState(unlitRenderPipelineState!)
     }
     
     if viewBoundingBox && boundingBoxBuffer != nil {
@@ -658,6 +688,12 @@ struct BufferWithColour {
                                     height: Double(colorTex.height),
                                     znear: 0, zfar: 1))
     encoder.setVertexBytes(&constants, length: MemoryLayout<Constants>.size, index: 1)
+    if let visBuffer = visibleStateBuffer, visibleStateCount > 0 {
+      encoder.setFragmentBuffer(visBuffer, offset: 0, index: 2)
+    } else {
+      var one: Float = 1
+      encoder.setFragmentBytes(&one, length: MemoryLayout<Float>.size, index: 2)
+    }
     
     for triangleBuffer in triangleBuffers {
       encoder.setVertexBuffer(triangleBuffer.buffer, offset: 0, index: 0)
@@ -682,6 +718,23 @@ struct BufferWithColour {
     let result: Int32 = pixelValue == 0 ? -1 : Int32(bitPattern: pixelValue) - 1
     Swift.print("pickObject: pixelValue=\(pixelValue) result=\(result)")
     return result
+  }
+  
+  @objc func updateVisibleStateBuffer(_ data: Data) {
+    visibleStateCount = data.count / MemoryLayout<Float>.size
+    guard visibleStateCount > 0 else {
+      visibleStateBuffer = nil
+      return
+    }
+    if visibleStateBuffer?.length ?? 0 >= data.count {
+      data.withUnsafeBytes { ptr in
+        visibleStateBuffer!.contents().copyMemory(from: ptr.baseAddress!, byteCount: data.count)
+      }
+    } else {
+      visibleStateBuffer = data.withUnsafeBytes { ptr in
+        device!.makeBuffer(bytes: ptr.baseAddress!, length: data.count, options: [])
+      }
+    }
   }
   
   @objc func updateSelectionStateBuffer(_ data: Data) {

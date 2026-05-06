@@ -78,6 +78,7 @@ struct AzulObject {
   std::string type;
   std::string id;
   bool selected;
+  int objectId;
   char visible; // 'Y'es, 'N'o, 'P'artly
   char matchesSearch; // 'Y'es, 'N'o, 'U'nknown
   char lodMatch; // 'Y'es, 'N'o, 'U'nknown
@@ -89,6 +90,7 @@ struct AzulObject {
   
   AzulObject() {
     selected = false;
+    objectId = -1;
     visible = 'Y';
     matchesSearch = 'U';
     lodMatch = 'U';
@@ -98,6 +100,7 @@ struct AzulObject {
     type = other.type;
     id = other.id;
     selected = other.selected;
+    objectId = other.objectId;
     visible = other.visible;
     matchesSearch = other.matchesSearch;
     lodMatch = other.lodMatch;

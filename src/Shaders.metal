@@ -44,6 +44,11 @@ struct VertexIn {
   float3 position;
 };
 
+struct VertexEdgeIn {
+  packed_float3 position;
+  float objectId;
+};
+
 struct VertexOutLit {
   float4 position [[position]];
   float3 worldNormal;
@@ -54,6 +59,11 @@ struct VertexOutLit {
 struct VertexOutUnlit {
   float4 position [[position]];
   float4 colour;
+};
+
+struct VertexEdgeOut {
+  float4 position [[position]];
+  float objectId;
 };
 
 vertex VertexOutLit vertexLit(const device VertexWithNormalIn *vertices [[buffer(0)]],
@@ -83,12 +93,14 @@ vertex VertexOutUnlit vertexUnlit(const device VertexIn *vertices [[buffer(0)]],
 
 fragment half4 fragmentLit(VertexOutLit fragmentIn [[stage_in]],
                             constant Constants &uniforms [[buffer(0)]],
-                            const device float *selectionStates [[buffer(2)]]) {
+                            const device float *selectionStates [[buffer(2)]],
+                            const device float *visibleStates [[buffer(3)]]) {
   
   float3 normalDirection = normalize(fragmentIn.worldNormal);
   float3 viewDirection = normalize(float3(uniforms.viewMatrixInverse * float4(0.0, 0.0, 0.0, 1.0) - float4(fragmentIn.worldPosition, 1.0)));
   float3 lightDirection = normalize(float3(uniforms.viewMatrixInverse * float4(lightDirectionInCamera, 0.0)));
   int objectId = int(fragmentIn.objectId);
+  if (visibleStates[objectId] < 0.5) discard_fragment();
   float selected = selectionStates[objectId];
   float3 baseColour = mix(float3(uniforms.colour.r, uniforms.colour.g, uniforms.colour.b), selectionColour, selected);
   
@@ -110,6 +122,23 @@ fragment half4 fragmentUnlit(VertexOutUnlit fragmentIn [[stage_in]]) {
   return half4(fragmentIn.colour);
 }
 
+vertex VertexEdgeOut vertexEdge(const device VertexEdgeIn *vertices [[buffer(0)]],
+                                 constant Constants &uniforms [[buffer(1)]],
+                                 uint VertexId [[vertex_id]]) {
+  VertexEdgeOut out;
+  out.position = uniforms.modelViewProjectionMatrix * float4(vertices[VertexId].position, 1.0);
+  out.objectId = vertices[VertexId].objectId;
+  return out;
+}
+
+fragment half4 fragmentEdge(VertexEdgeOut fragmentIn [[stage_in]],
+                             constant Constants &uniforms [[buffer(0)]],
+                             const device float *visibleStates [[buffer(2)]]) {
+  int objectId = int(fragmentIn.objectId);
+  if (visibleStates[objectId] < 0.5) discard_fragment();
+  return half4(uniforms.colour);
+}
+
 struct VertexOutPicking {
   float4 position [[position]];
   float objectId;
@@ -125,7 +154,10 @@ vertex VertexOutPicking vertexPicking(const device VertexWithNormalIn *vertices 
   return out;
 }
 
-fragment half4 fragmentPicking(VertexOutPicking fragmentIn [[stage_in]]) {
+fragment half4 fragmentPicking(VertexOutPicking fragmentIn [[stage_in]],
+                                const device float *visibleStates [[buffer(2)]]) {
+  int objectId = int(fragmentIn.objectId);
+  if (visibleStates[objectId] < 0.5) discard_fragment();
   uint id = uint(fragmentIn.objectId) + 1;
   return half4(
     half(id & 0xFF) / 255.0h,

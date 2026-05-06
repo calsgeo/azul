@@ -430,6 +430,18 @@ struct DataManagerWrapper {
   dataManagerWrapper->dataManager->updateSelectionStates();
 }
 
+- (void) updateVisibleStates {
+  dataManagerWrapper->dataManager->updateVisibleStates();
+}
+
+- (const float *) visibleStateData {
+  return dataManagerWrapper->dataManager->getVisibleStateData();
+}
+
+- (int) visibleStateCount {
+  return dataManagerWrapper->dataManager->getVisibleStateCount();
+}
+
 - (const float *) selectionStateData {
   return dataManagerWrapper->dataManager->getSelectionStateData();
 }
@@ -460,11 +472,9 @@ struct DataManagerWrapper {
     currentItem = [outlineView parentForItem:currentItem];
   }
   
-  dataManagerWrapper->dataManager->regenerateTriangleBuffers(16*1024*1024);
-  [controller reloadTriangleBuffers];
+  dataManagerWrapper->dataManager->updateVisibleStates();
+  [controller updateVisibleStateBuffer];
   [controller updateSelectionStateBuffer];
-  dataManagerWrapper->dataManager->regenerateEdgeBuffers(16*1024*1024);
-  [controller reloadEdgeBuffers];
   [[controller metalView] setNeedsDisplay:YES];
   
 //  [[controller attributesTableView] reloadData];
@@ -500,11 +510,9 @@ struct DataManagerWrapper {
     }];
   }
   
-  dataManagerWrapper->dataManager->regenerateTriangleBuffers(16*1024*1024);
-  [controller reloadTriangleBuffers];
+  dataManagerWrapper->dataManager->updateVisibleStates();
+  [controller updateVisibleStateBuffer];
   [controller updateSelectionStateBuffer];
-  dataManagerWrapper->dataManager->regenerateEdgeBuffers(16*1024*1024);
-  [controller reloadEdgeBuffers];
   [[controller metalView] setNeedsDisplay:YES];
   
 //  [[controller attributesTableView] reloadData];

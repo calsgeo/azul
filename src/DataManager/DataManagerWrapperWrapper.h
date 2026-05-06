@@ -105,6 +105,11 @@ struct DataManagerWrapper;
 - (const float *) selectionStateData;
 - (int) selectionStateCount;
 
+// Visibility state (GPU-based)
+- (void) updateVisibleStates;
+- (const float *) visibleStateData;
+- (int) visibleStateCount;
+
 // Toggling visibility
 - (void) toggleVisibility:(id)sender;
 - (void) toggleVisibilityForSelection:(NSOutlineView *)outlineView;

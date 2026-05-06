@@ -86,8 +86,9 @@ public:
   std::map<std::string, std::list<TriangleBuffer>::iterator> lastTriangleBufferOfType;
   std::map<bool, std::list<EdgeBuffer>::iterator> lastEdgeBufferBySelection;
   
-  // Selection state
+  // Selection & visibility state
   std::vector<float> selectionStates;
+  std::vector<float> visibleStates;
   std::vector<AzulObject *> objectsById;
   
   // Iterators for access from Swift
@@ -144,6 +145,9 @@ public:
   // Visibility
   void setVisible(AzulObject &object, char visible);
   void checkVisibility(AzulObject &object);
+  void updateVisibleStates();
+  const float *getVisibleStateData();
+  int getVisibleStateCount();
   
   // Search
   void clearSearch();
