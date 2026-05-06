@@ -60,7 +60,7 @@ extension NSToolbarItem.Identifier {
   static let search = NSToolbarItem.Identifier("azul.search")
 }
 
-@NSApplicationMain
+@main
 @objc class Controller: NSObject, NSApplicationDelegate, NSToolbarDelegate {
 
   @IBOutlet weak var window: NSWindow!
@@ -112,7 +112,6 @@ extension NSToolbarItem.Identifier {
     objectsScrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 200, height: 474))
     objectsScrollView!.translatesAutoresizingMaskIntoConstraints = false
     objectsScrollView!.hasVerticalScroller = true
-    objectsScrollView!.hasHorizontalScroller = true
     objectsScrollView!.wantsLayer = true
     objectsScrollView!.identifier = NSUserInterfaceItemIdentifier.init(rawValue: "ObjectsScrollView")
     leftSplitView!.addSubview(objectsScrollView!)
@@ -142,7 +141,6 @@ extension NSToolbarItem.Identifier {
     attributesScrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 200, height: 126))
     attributesScrollView!.translatesAutoresizingMaskIntoConstraints = false
     attributesScrollView!.hasVerticalScroller = true
-    attributesScrollView!.hasHorizontalScroller = true
     attributesScrollView!.wantsLayer = true
     attributesScrollView!.identifier = NSUserInterfaceItemIdentifier.init(rawValue: "AttributesScrollView")
     leftSplitView!.addSubview(attributesScrollView!)
@@ -303,7 +301,6 @@ extension NSToolbarItem.Identifier {
       seg.selectedSegment = 0
       seg.target = self
       seg.action = #selector(lodSegmentChanged)
-      seg.segmentStyle = .separated
       lodItem.view = seg
       lodSegmentedControl = seg
       return lodItem
@@ -419,7 +416,11 @@ extension NSToolbarItem.Identifier {
     let progressPerFile = 100.0/Double(urls.count)
     totalProgress = 0.0
     progressIndicator?.doubleValue = totalProgress
+    statusBarView?.alphaValue = 0
     statusBarView?.isHidden = false
+    NSAnimationContext.runAnimationGroup { _ in
+      statusBarView?.animator().alphaValue = 1
+    }
     DispatchQueue.global().async(qos: .userInitiated) {
       for url in urls {
         
@@ -591,7 +592,12 @@ extension NSToolbarItem.Identifier {
             Swift.print("status message: \(self.dataManager.statusMessage()!)")
             self.statusTextField?.stringValue = self.dataManager.statusMessage()
             DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-              self.statusBarView?.isHidden = true
+              NSAnimationContext.runAnimationGroup { _ in
+                self.statusBarView?.animator().alphaValue = 0
+              } completionHandler: {
+                self.statusBarView?.isHidden = true
+                self.statusBarView?.alphaValue = 1
+              }
             }
             self.updateLodSegments()
           }
