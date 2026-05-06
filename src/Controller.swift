@@ -269,11 +269,12 @@ extension NSToolbarItem.Identifier {
     
     // Unified toolbar with integrated title
     window.styleMask.insert(.unifiedTitleAndToolbar)
-    window.toolbarStyle = .unifiedCompact
+    window.toolbarStyle = .unified
     
     let toolbar = NSToolbar(identifier: "azul.toolbar")
     toolbar.delegate = self
-    toolbar.allowsUserCustomization = false
+    toolbar.allowsUserCustomization = true
+    toolbar.displayMode = .iconOnly
     toolbar.autosavesConfiguration = false
     window.toolbar = toolbar
     
