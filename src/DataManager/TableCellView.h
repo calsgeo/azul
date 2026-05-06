@@ -27,6 +27,7 @@
 @property (nonatomic, strong) NSButton *checkBox;
 
 - (TableCellView *)initWithFrame:(NSRect)frameRect;
+- (void)prepareForReuse;
 
 @end
 

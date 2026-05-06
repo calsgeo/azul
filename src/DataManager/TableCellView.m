@@ -38,6 +38,7 @@
     [text setEditable:false];
     [text setFont:[NSFont systemFontOfSize:[NSFont smallSystemFontSize]]];
     
+    self.identifier = @"TableCellView";
     [self setAutoresizingMask:NSViewWidthSizable];
     [self setImageView:image];
     [self setTextField:text];
@@ -46,6 +47,15 @@
     [self addSubview:[self textField]];
     
   } return self;
+}
+
+- (void)prepareForReuse {
+  [super prepareForReuse];
+  [checkBox setState:NSControlStateValueOff];
+  [checkBox setAction:nil];
+  [checkBox setTarget:nil];
+  [[self imageView] setImage:nil];
+  [[self textField] setStringValue:@""];
 }
 
 @end

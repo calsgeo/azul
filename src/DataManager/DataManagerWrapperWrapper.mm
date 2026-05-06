@@ -203,40 +203,40 @@ struct DataManagerWrapper {
     return nil;
   } AzulObjectIterator *currentItem = item;
   
+  TableCellView *result = [outlineView makeViewWithIdentifier:@"TableCellView" owner:self];
+  if (result == nil) {
+    result = [[TableCellView alloc] initWithFrame:NSZeroRect];
+  }
+  
   // Files
   if ([outlineView parentForItem:item] == nil) {
     NSString *filePath = [NSString stringWithUTF8String:[currentItem iterator]->id.c_str()];
     NSString *filename = [[filePath lastPathComponent] stringByDeletingPathExtension];
     NSString *fileExtension = [[filePath lastPathComponent] pathExtension];
     NSImage *fileIcon = [[NSWorkspace sharedWorkspace] iconForContentType:[UTType typeWithFilenameExtension:fileExtension]];
-    TableCellView *result = [[TableCellView alloc] init];
     [[result imageView] setImage:fileIcon];
-    if ([currentItem iterator]->visible == 'Y') [[result checkBox] setState:NSControlStateValueOn];
-    else if ([currentItem iterator]->visible == 'N') [[result checkBox] setState:NSControlStateValueOff];
-    else [[result checkBox] setState:NSControlStateValueMixed];
-//    std::cout << "Visibility: " << [currentItem iterator]->visible << std::endl;
     [[result textField] setStringValue:filename];
-    [[result checkBox] setAction:@selector(toggleVisibility:)];
-    [[result checkBox] setTarget:self];
-    return result;
   }
   
   // Objects
-  NSString *objectType = [NSString stringWithUTF8String:[currentItem iterator]->type.c_str()];
-  NSMutableString *stringToPut = [NSMutableString stringWithString:objectType];
-  if ([currentItem iterator]->id.size() > 0) {
-  NSString *objectId = [NSString stringWithUTF8String:[currentItem iterator]->id.c_str()];
-    [stringToPut appendString:@" ("];
-    [stringToPut appendString:objectId];
-    [stringToPut appendString:@")"];
-  } NSImage *objectIcon = [NSImage imageNamed:objectType];
-  TableCellView *result = [[TableCellView alloc] init];
-  if (objectIcon != nil) [[result imageView] setImage:objectIcon];
+  else {
+    NSString *objectType = [NSString stringWithUTF8String:[currentItem iterator]->type.c_str()];
+    NSMutableString *stringToPut = [NSMutableString stringWithString:objectType];
+    if ([currentItem iterator]->id.size() > 0) {
+    NSString *objectId = [NSString stringWithUTF8String:[currentItem iterator]->id.c_str()];
+      [stringToPut appendString:@" ("];
+      [stringToPut appendString:objectId];
+      [stringToPut appendString:@")"];
+    } NSImage *objectIcon = [NSImage imageNamed:objectType];
+    if (objectIcon != nil) [[result imageView] setImage:objectIcon];
+    else [[result imageView] setImage:nil];
+    [[result textField] setStringValue:stringToPut];
+  }
+  
   if ([currentItem iterator]->visible == 'Y') [[result checkBox] setState:NSControlStateValueOn];
   else if ([currentItem iterator]->visible == 'N') [[result checkBox] setState:NSControlStateValueOff];
   else [[result checkBox] setState:NSControlStateValueMixed];
 //  std::cout << "Visibility: " << [currentItem iterator]->visible << std::endl;
-  [[result textField] setStringValue:stringToPut];
   [[result checkBox] setAction:@selector(toggleVisibility:)];
   [[result checkBox] setTarget:self];
   return result;
@@ -425,7 +425,7 @@ struct DataManagerWrapper {
     return;
   } NSButton *checkBox = sender;
   TableCellView *toggledTableCellView = (TableCellView *)[checkBox superview];
-  NSOutlineView *outlineView = (NSOutlineView *)[[toggledTableCellView superview] superview];
+  NSOutlineView *outlineView = [self.controller objectsSourceList];
   
   NSInteger toggledItemRow = [outlineView rowForView:toggledTableCellView];
   AzulObjectIterator *toggledItem = [outlineView itemAtRow:toggledItemRow];
