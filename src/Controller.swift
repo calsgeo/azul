@@ -99,6 +99,8 @@ extension NSToolbarItem.Identifier {
   @IBOutlet weak var loadViewParametersMenuItem: NSMenuItem!
   @IBOutlet weak var saveViewParametersMenuItem: NSMenuItem!
   @IBOutlet weak var toggleFullScreenMenuItem: NSMenuItem!
+  var lodMenuItem: NSMenuItem?
+  var currentLodFilter: String = "__highest__"
   
   let dataManager = DataManagerWrapperWrapper()!
   let performanceHelper = PerformanceHelperWrapperWrapper()!
@@ -289,10 +291,27 @@ extension NSToolbarItem.Identifier {
       pendingURLs.removeAll()
       loadData(from: urls)
     }
+    setupViewMenu()
   }
   
   func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
     return true
+  }
+  
+  func setupViewMenu() {
+    guard let mainMenu = NSApp.mainMenu else { return }
+    for item in mainMenu.items {
+      guard item.title == "View", let viewMenu = item.submenu else { continue }
+      let lodMenuItem = NSMenuItem(title: "Level of Detail", action: nil, keyEquivalent: "")
+      let lodSubmenu = NSMenu(title: "Level of Detail")
+      let placeholder = NSMenuItem(title: "None", action: nil, keyEquivalent: "")
+      placeholder.isEnabled = false
+      lodSubmenu.addItem(placeholder)
+      lodMenuItem.submenu = lodSubmenu
+      viewMenu.insertItem(lodMenuItem, at: 2)
+      self.lodMenuItem = lodMenuItem
+      break
+    }
   }
   
   // MARK: - NSToolbarDelegate
@@ -802,11 +821,13 @@ extension NSToolbarItem.Identifier {
   
   @objc func lodSegmentChanged(_ sender: NSSegmentedControl) {
     if sender.selectedSegment == sender.segmentCount - 1 {
+      currentLodFilter = "__highest__"
       "__highest__".withCString { pointer in
         dataManager.setLodFilter(pointer)
       }
     } else {
       guard let lodValue = sender.label(forSegment: sender.selectedSegment) else { return }
+      currentLodFilter = lodValue
       lodValue.withCString { pointer in
         dataManager.setLodFilter(pointer)
       }
@@ -818,6 +839,7 @@ extension NSToolbarItem.Identifier {
     self.reloadEdgeBuffers()
     metalView!.needsDisplay = true
     objectsSourceList!.reloadData()
+    updateLodMenuStates()
   }
   
   func updateLodSegments() {
@@ -827,9 +849,16 @@ extension NSToolbarItem.Identifier {
     if lods.isEmpty {
       control.isHidden = true
       lodToolbarItem?.menuFormRepresentation = nil
+      let emptyMenu = NSMenu(title: "Level of Detail")
+      let noneItem = NSMenuItem(title: "None", action: nil, keyEquivalent: "")
+      noneItem.isEnabled = false
+      emptyMenu.addItem(noneItem)
+      lodMenuItem?.submenu = emptyMenu
+      lodMenuItem?.isHidden = true
       return
     }
     
+    lodMenuItem?.isHidden = false
     control.isHidden = false
     let sortedLods = lods.sorted()
     control.segmentCount = 1 + sortedLods.count
@@ -838,6 +867,7 @@ extension NSToolbarItem.Identifier {
     }
     control.setLabel("Highest", forSegment: sortedLods.count)
     control.selectedSegment = sortedLods.count
+    currentLodFilter = "__highest__"
     "__highest__".withCString { pointer in
       dataManager.setLodFilter(pointer)
     }
@@ -856,6 +886,20 @@ extension NSToolbarItem.Identifier {
     menuItem.submenu = submenu
     lodToolbarItem?.menuFormRepresentation = menuItem
     
+    // Build View menu submenu
+    let viewSubmenu = NSMenu(title: "Level of Detail")
+    for lod in sortedLods {
+      let item = NSMenuItem(title: "\(lod)", action: #selector(lodMenuItemClicked(_:)), keyEquivalent: "")
+      item.target = self
+      item.state = currentLodFilter == lod ? .on : .off
+      viewSubmenu.addItem(item)
+    }
+    let viewHighestItem = NSMenuItem(title: "Highest", action: #selector(lodMenuItemClicked(_:)), keyEquivalent: "")
+    viewHighestItem.target = self
+    viewHighestItem.state = .on
+    viewSubmenu.addItem(viewHighestItem)
+    lodMenuItem?.submenu = viewSubmenu
+    
     dataManager.regenerateTriangleBuffers(withMaximumSize: 16*1024*1024)
     reloadTriangleBuffers()
     updateSelectionStateBuffer()
@@ -873,10 +917,12 @@ extension NSToolbarItem.Identifier {
   @objc func lodMenuItemClicked(_ sender: NSMenuItem) {
     let lodValue = sender.title
     if lodValue == "Highest" {
+      currentLodFilter = "__highest__"
       "__highest__".withCString { pointer in
         dataManager.setLodFilter(pointer)
       }
     } else {
+      currentLodFilter = lodValue
       lodValue.withCString { pointer in
         dataManager.setLodFilter(pointer)
       }
@@ -888,6 +934,14 @@ extension NSToolbarItem.Identifier {
     reloadEdgeBuffers()
     metalView!.needsDisplay = true
     objectsSourceList!.reloadData()
+    updateLodMenuStates()
+  }
+  
+  func updateLodMenuStates() {
+    guard let submenu = lodMenuItem?.submenu else { return }
+    for item in submenu.items {
+      item.state = (item.title == "Highest" && currentLodFilter == "__highest__") || currentLodFilter == item.title ? .on : .off
+    }
   }
   
   @IBAction func copyObjectId(_ sender: NSMenuItem) {
