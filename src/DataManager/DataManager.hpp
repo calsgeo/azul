@@ -162,6 +162,8 @@ public:
   
   // Type colours
   void setTypeColour(const std::string &type, float r, float g, float b, float a);
+  void setSelectedEdgesColour(float r, float g, float b, float a);
+  void getSelectedEdgesColour(float &r, float &g, float &b, float &a);
   int getTypeCount();
   std::string getTypeName(int index);
   void getTypeColour(int index, float &r, float &g, float &b, float &a);

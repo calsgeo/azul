@@ -1089,7 +1089,7 @@ extension NSToolbarItem.Identifier {
 
     // --- Object Type Colours tab ---
     let coloursTab = NSTabViewItem(identifier: "Colours")
-    coloursTab.label = "Object Type Colours"
+    coloursTab.label = "Semantic Surfaces"
     let coloursView = NSView()
     coloursTab.view = coloursView
 
@@ -1158,6 +1158,74 @@ extension NSToolbarItem.Identifier {
     scrollView.documentView = stackView
     stackView.widthAnchor.constraint(equalTo: scrollView.contentView.widthAnchor).isActive = true
     tabView.addTabViewItem(coloursTab)
+
+    // --- Selection tab ---
+    let selectionTab = NSTabViewItem(identifier: "Selection")
+    selectionTab.label = "Selection"
+    let selectionView = NSView()
+    selectionTab.view = selectionView
+
+    let selHighlightLabel = NSTextField(labelWithString: "Selection highlight colour:")
+    selHighlightLabel.translatesAutoresizingMaskIntoConstraints = false
+    selectionView.addSubview(selHighlightLabel)
+
+    let selHighlightWell = NSColorWell()
+    selHighlightWell.translatesAutoresizingMaskIntoConstraints = false
+    selHighlightWell.tag = 0
+    selHighlightWell.action = #selector(selectionColourChanged(_:))
+    selHighlightWell.target = self
+    if let colorData = UserDefaults.standard.data(forKey: "azulSelectionColour"),
+       let color = try? NSKeyedUnarchiver.unarchivedObject(ofClass: NSColor.self, from: colorData) {
+      selHighlightWell.color = color
+    } else {
+      selHighlightWell.color = NSColor.yellow
+    }
+    selectionView.addSubview(selHighlightWell)
+
+    let selEdgesLabel = NSTextField(labelWithString: "Selected edges colour:")
+    selEdgesLabel.translatesAutoresizingMaskIntoConstraints = false
+    selectionView.addSubview(selEdgesLabel)
+
+    let selEdgesWell = NSColorWell()
+    selEdgesWell.translatesAutoresizingMaskIntoConstraints = false
+    selEdgesWell.tag = 1
+    selEdgesWell.action = #selector(selectionEdgesColourChanged(_:))
+    selEdgesWell.target = self
+    if let colorData = UserDefaults.standard.data(forKey: "azulSelectedEdgesColour"),
+       let color = try? NSKeyedUnarchiver.unarchivedObject(ofClass: NSColor.self, from: colorData) {
+      selEdgesWell.color = color
+    } else {
+      selEdgesWell.color = NSColor.red
+    }
+    selectionView.addSubview(selEdgesWell)
+
+    let selResetButton = NSButton(title: "Reset to Defaults", target: self, action: #selector(selectionReset(_:)))
+    selResetButton.translatesAutoresizingMaskIntoConstraints = false
+    selResetButton.bezelStyle = .rounded
+    selectionView.addSubview(selResetButton)
+
+    NSLayoutConstraint.activate([
+      selHighlightLabel.topAnchor.constraint(equalTo: selectionView.topAnchor, constant: 20),
+      selHighlightLabel.leadingAnchor.constraint(equalTo: selectionView.leadingAnchor, constant: 20),
+
+      selHighlightWell.centerYAnchor.constraint(equalTo: selHighlightLabel.centerYAnchor),
+      selHighlightWell.leadingAnchor.constraint(equalTo: selHighlightLabel.trailingAnchor, constant: 12),
+      selHighlightWell.widthAnchor.constraint(equalToConstant: 60),
+      selHighlightWell.heightAnchor.constraint(equalToConstant: 28),
+
+      selEdgesLabel.topAnchor.constraint(equalTo: selHighlightLabel.bottomAnchor, constant: 16),
+      selEdgesLabel.leadingAnchor.constraint(equalTo: selectionView.leadingAnchor, constant: 20),
+
+      selEdgesWell.centerYAnchor.constraint(equalTo: selEdgesLabel.centerYAnchor),
+      selEdgesWell.leadingAnchor.constraint(equalTo: selEdgesLabel.trailingAnchor, constant: 12),
+      selEdgesWell.widthAnchor.constraint(equalToConstant: 60),
+      selEdgesWell.heightAnchor.constraint(equalToConstant: 28),
+
+      selResetButton.topAnchor.constraint(equalTo: selEdgesLabel.bottomAnchor, constant: 16),
+      selResetButton.centerXAnchor.constraint(equalTo: selectionView.centerXAnchor),
+    ])
+
+    tabView.addTabViewItem(selectionTab)
 
     if selectColoursTab {
       tabView.selectTabViewItem(at: 1)
@@ -1260,6 +1328,16 @@ extension NSToolbarItem.Identifier {
         }
       }
     }
+    if let colorData = UserDefaults.standard.data(forKey: "azulSelectionColour"),
+       let color = try? NSKeyedUnarchiver.unarchivedObject(ofClass: NSColor.self, from: colorData),
+       let srgb = color.usingColorSpace(.sRGB) {
+      metalView?.selectionColour = SIMD4<Float>(Float(srgb.redComponent), Float(srgb.greenComponent), Float(srgb.blueComponent), Float(srgb.alphaComponent))
+    }
+    if let colorData = UserDefaults.standard.data(forKey: "azulSelectedEdgesColour"),
+       let color = try? NSKeyedUnarchiver.unarchivedObject(ofClass: NSColor.self, from: colorData),
+       let srgb = color.usingColorSpace(.sRGB) {
+      dataManager.setSelectedEdgesColourWithRed(Float(srgb.redComponent), green: Float(srgb.greenComponent), blue: Float(srgb.blueComponent), alpha: Float(srgb.alphaComponent))
+    }
     metalView?.updateAppearance()
   }
 
@@ -1288,6 +1366,55 @@ extension NSToolbarItem.Identifier {
     dataManager.regenerateEdgeBuffers(withMaximumSize: 16*1024*1024)
     reloadEdgeBuffers()
     metalView?.needsDisplay = true
+  }
+
+  @objc func selectionColourChanged(_ sender: NSColorWell) {
+    let color = sender.color.usingColorSpace(.sRGB) ?? sender.color
+    metalView?.selectionColour = SIMD4<Float>(Float(color.redComponent), Float(color.greenComponent), Float(color.blueComponent), Float(color.alphaComponent))
+    if let data = try? NSKeyedArchiver.archivedData(withRootObject: sender.color, requiringSecureCoding: false) {
+      UserDefaults.standard.set(data, forKey: "azulSelectionColour")
+    }
+  }
+
+  @objc func selectionEdgesColourChanged(_ sender: NSColorWell) {
+    let color = sender.color.usingColorSpace(.sRGB) ?? sender.color
+    let r = Float(color.redComponent), g = Float(color.greenComponent), b = Float(color.blueComponent), a = Float(color.alphaComponent)
+    dataManager.setSelectedEdgesColourWithRed(r, green: g, blue: b, alpha: a)
+    if let data = try? NSKeyedArchiver.archivedData(withRootObject: sender.color, requiringSecureCoding: false) {
+      UserDefaults.standard.set(data, forKey: "azulSelectedEdgesColour")
+    }
+    dataManager.regenerateEdgeBuffers(withMaximumSize: 16*1024*1024)
+    reloadEdgeBuffers()
+    metalView?.needsDisplay = true
+  }
+
+  @objc func selectionReset(_ sender: Any) {
+    UserDefaults.standard.removeObject(forKey: "azulSelectionColour")
+    UserDefaults.standard.removeObject(forKey: "azulSelectedEdgesColour")
+    metalView?.selectionColour = SIMD4<Float>(1.0, 1.0, 0.0, 1.0)
+    dataManager.setSelectedEdgesColourWithRed(1.0, green: 0.0, blue: 0.0, alpha: 1.0)
+    dataManager.regenerateEdgeBuffers(withMaximumSize: 16*1024*1024)
+    reloadEdgeBuffers()
+    metalView?.needsDisplay = true
+
+    if let window = preferencesWindow {
+      for subview in window.contentView!.subviews {
+        recursivelyUpdateSelectionControls(subview)
+      }
+    }
+  }
+
+  func recursivelyUpdateSelectionControls(_ view: NSView) {
+    for subview in view.subviews {
+      if let well = subview as? NSColorWell {
+        if well.tag == 0 {
+          well.color = NSColor.yellow
+        } else if well.tag == 1 {
+          well.color = NSColor.red
+        }
+      }
+      recursivelyUpdateSelectionControls(subview)
+    }
   }
 
   @objc func resetTypeColours(_ sender: Any) {

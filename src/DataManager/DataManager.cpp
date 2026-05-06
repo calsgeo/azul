@@ -431,6 +431,17 @@ DataManager::DataManager() {
   selectedEdgesColour = std::tuple<float, float, float, float>(1.0, 0.0, 0.0, 1.0);
 }
 
+void DataManager::setSelectedEdgesColour(float r, float g, float b, float a) {
+  selectedEdgesColour = std::tuple<float, float, float, float>(r, g, b, a);
+}
+
+void DataManager::getSelectedEdgesColour(float &r, float &g, float &b, float &a) {
+  r = std::get<0>(selectedEdgesColour);
+  g = std::get<1>(selectedEdgesColour);
+  b = std::get<2>(selectedEdgesColour);
+  a = std::get<3>(selectedEdgesColour);
+}
+
 void DataManager::setTypeColour(const std::string &type, float r, float g, float b, float a) {
   colourForType[type] = std::tuple<float, float, float, float>(r, g, b, a);
 }

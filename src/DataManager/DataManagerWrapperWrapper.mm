@@ -554,6 +554,14 @@ struct DataManagerWrapper {
   return statusMessage;
 }
 
+- (void) setSelectedEdgesColourWithRed:(float)r green:(float)g blue:(float)b alpha:(float)a {
+  dataManagerWrapper->dataManager->setSelectedEdgesColour(r, g, b, a);
+}
+
+- (void) getSelectedEdgesColourRed:(float *)r green:(float *)g blue:(float *)b alpha:(float *)a {
+  dataManagerWrapper->dataManager->getSelectedEdgesColour(*r, *g, *b, *a);
+}
+
 - (NSInteger) colourTypeCount {
   return dataManagerWrapper->dataManager->getTypeCount();
 }

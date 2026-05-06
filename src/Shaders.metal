@@ -23,6 +23,7 @@ struct Constants {
   float3x3 modelMatrixInverseTransposed;
   float4x4 viewMatrixInverse;
   float4 colour;
+  float4 selectionColour;
 };
 
 constant float3 ambientLightIntensity(0.6, 0.6, 0.6);
@@ -31,7 +32,6 @@ constant float3 specularLightIntensity(0.2, 0.2, 0.2);
 constant float3 lightDirectionInCamera(0.267, 0.802, -0.535);
 constant float3 skyColour(0.65, 0.7, 0.85);
 constant float3 groundColour(0.35, 0.3, 0.25);
-constant float3 selectionColour(1.0, 1.0, 0.0);
 constant float shininess = 32.0;
 
 struct VertexWithNormalIn {
@@ -102,7 +102,7 @@ fragment half4 fragmentLit(VertexOutLit fragmentIn [[stage_in]],
   int objectId = int(fragmentIn.objectId);
   if (visibleStates[objectId] < 0.5) discard_fragment();
   float selected = selectionStates[objectId];
-  float3 baseColour = mix(float3(uniforms.colour.r, uniforms.colour.g, uniforms.colour.b), selectionColour, selected);
+  float3 baseColour = mix(float3(uniforms.colour.r, uniforms.colour.g, uniforms.colour.b), float3(uniforms.selectionColour.r, uniforms.selectionColour.g, uniforms.selectionColour.b), selected);
   
   float hemiWeight = 0.5 + 0.5 * normalDirection.y;
   float3 ambient = mix(groundColour, skyColour, hemiWeight) * baseColour * ambientLightIntensity;

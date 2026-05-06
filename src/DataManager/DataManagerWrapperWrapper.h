@@ -114,6 +114,10 @@ struct DataManagerWrapper;
 - (void) toggleVisibility:(id)sender;
 - (void) toggleVisibilityForSelection:(NSOutlineView *)outlineView;
 
+// Selection colours
+- (void) setSelectedEdgesColourWithRed:(float)r green:(float)g blue:(float)b alpha:(float)a;
+- (void) getSelectedEdgesColourRed:(float *)r green:(float *)g blue:(float *)b alpha:(float *)a;
+
 // Type colours
 - (NSInteger) colourTypeCount;
 - (NSString *) colourTypeNameAtIndex:(NSInteger)index;
