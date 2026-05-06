@@ -823,6 +823,12 @@ extension NSToolbarItem.Identifier {
     Swift.print("Controller.applicationWillTerminate(Notification)")
   }
   
+  @IBAction func showHelp(_ sender: Any) {
+    if let url = URL(string: "https://github.com/tudelft3d/azul") {
+      NSWorkspace.shared.open(url)
+    }
+  }
+
   @objc func sourceListDoubleClick(_ sender: Any?) {
     dataManager.sourceListDoubleClick()
     
