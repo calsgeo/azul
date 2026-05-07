@@ -33,7 +33,16 @@
 
 struct DataManagerWrapper;
 
+#if TARGET_OS_OSX
 @class Controller;
+#else
+@class MainViewController;
+#endif
+
+// Exposed to Swift for iOS tree navigation
+@interface AzulObjectIterator: NSObject
+@property (nonatomic) int depth;
+@end
 
 #if TARGET_OS_OSX
 @interface DataManagerWrapperWrapper: NSObject <NSOutlineViewDataSource, NSOutlineViewDelegate, NSTableViewDataSource, NSTableViewDelegate> {
@@ -43,7 +52,11 @@ struct DataManagerWrapper;
   struct DataManagerWrapper *dataManagerWrapper;
 }
 
+#if TARGET_OS_OSX
 @property Controller *controller;
+#else
+@property (weak) MainViewController *controller;
+#endif
 
 // Life cycle
 - (id) init;
@@ -128,6 +141,22 @@ struct DataManagerWrapper;
 - (void) updateVisibleStates;
 - (const float *) visibleStateData;
 - (int) visibleStateCount;
+
+// iOS tree navigation
+#if !TARGET_OS_OSX
+- (NSInteger) numberOfParsedFiles;
+- (id) iteratorForFileAtIndex:(NSInteger)index;
+- (BOOL) isItemExpandable:(id)item;
+- (NSInteger) numberOfChildrenOfItem:(id)item;
+- (id) childOfItem:(id)item atIndex:(NSInteger)index;
+- (NSString *) typeOfItem:(id)item;
+- (NSString *) identifierOfItem:(id)item;
+- (char) visibleStateOfItem:(id)item;
+- (NSInteger) numberOfAttributesOfItem:(id)item;
+- (NSString *) attributeKeyOfItem:(id)item atIndex:(NSInteger)index;
+- (NSString *) attributeValueOfItem:(id)item atIndex:(NSInteger)index;
+- (void) setVisibleState:(char)visible forItem:(id)item;
+#endif
 
 // Selection colours
 - (void) setSelectedEdgesColourWithRed:(float)r green:(float)g blue:(float)b alpha:(float)a;

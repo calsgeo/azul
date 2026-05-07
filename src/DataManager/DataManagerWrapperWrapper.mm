@@ -18,13 +18,15 @@
 #import "DataManager.hpp"
 #if TARGET_OS_OSX
 #import "azul-Swift.h"
+#else
+#import "azul_iOS-Swift.h"
 #endif
 
 struct DataManagerWrapper {
   DataManager *dataManager;
 };
 
-@interface AzulObjectIterator: NSObject
+@interface AzulObjectIterator()
 @property std::vector<AzulObject>::iterator iterator;
 @end
 
@@ -592,5 +594,87 @@ struct DataManagerWrapper {
   if ([currentItem iterator]->id.empty()) return @"";
   return [NSString stringWithUTF8String:[currentItem iterator]->id.c_str()];
 }
+
+#if !TARGET_OS_OSX
+// MARK: iOS tree navigation
+
+- (NSInteger) numberOfParsedFiles {
+  return dataManagerWrapper->dataManager->parsedFiles.size();
+}
+
+- (id) iteratorForFileAtIndex:(NSInteger)index {
+  AzulObjectIterator *item = [[AzulObjectIterator alloc] init];
+  item.iterator = dataManagerWrapper->dataManager->parsedFiles.begin() + index;
+  item.depth = 0;
+  return item;
+}
+
+- (BOOL) isItemExpandable:(id)item {
+  if (![item isKindOfClass:[AzulObjectIterator class]]) return NO;
+  AzulObjectIterator *currentItem = item;
+  return dataManagerWrapper->dataManager->isExpandable(*[currentItem iterator]);
+}
+
+- (NSInteger) numberOfChildrenOfItem:(id)item {
+  if (![item isKindOfClass:[AzulObjectIterator class]]) return 0;
+  AzulObjectIterator *currentItem = item;
+  return dataManagerWrapper->dataManager->numberOfChildren(*[currentItem iterator]);
+}
+
+- (id) childOfItem:(id)item atIndex:(NSInteger)index {
+  if (![item isKindOfClass:[AzulObjectIterator class]]) return nil;
+  AzulObjectIterator *currentItem = item;
+  AzulObjectIterator *child = [[AzulObjectIterator alloc] init];
+  child.iterator = dataManagerWrapper->dataManager->child(*[currentItem iterator], index);
+  child.depth = [currentItem depth] + 1;
+  return child;
+}
+
+- (NSString *) typeOfItem:(id)item {
+  if (![item isKindOfClass:[AzulObjectIterator class]]) return @"";
+  AzulObjectIterator *currentItem = item;
+  if ([currentItem iterator]->type.empty()) return @"";
+  return [NSString stringWithUTF8String:[currentItem iterator]->type.c_str()];
+}
+
+- (NSString *) identifierOfItem:(id)item {
+  return [self objectIdForItem:item];
+}
+
+- (char) visibleStateOfItem:(id)item {
+  if (![item isKindOfClass:[AzulObjectIterator class]]) return 'N';
+  AzulObjectIterator *currentItem = item;
+  return [currentItem iterator]->visible;
+}
+
+- (NSInteger) numberOfAttributesOfItem:(id)item {
+  if (![item isKindOfClass:[AzulObjectIterator class]]) return 0;
+  AzulObjectIterator *currentItem = item;
+  return [currentItem iterator]->attributes.size();
+}
+
+- (NSString *) attributeKeyOfItem:(id)item atIndex:(NSInteger)index {
+  if (![item isKindOfClass:[AzulObjectIterator class]]) return @"";
+  AzulObjectIterator *currentItem = item;
+  if (index < 0 || index >= (NSInteger)[currentItem iterator]->attributes.size()) return @"";
+  return [NSString stringWithUTF8String:[currentItem iterator]->attributes[index].first.c_str()];
+}
+
+- (NSString *) attributeValueOfItem:(id)item atIndex:(NSInteger)index {
+  if (![item isKindOfClass:[AzulObjectIterator class]]) return @"";
+  AzulObjectIterator *currentItem = item;
+  if (index < 0 || index >= (NSInteger)[currentItem iterator]->attributes.size()) return @"";
+  return [NSString stringWithUTF8String:[currentItem iterator]->attributes[index].second.c_str()];
+}
+
+- (void) setVisibleState:(char)visible forItem:(id)item {
+  if (![item isKindOfClass:[AzulObjectIterator class]]) return;
+  AzulObjectIterator *currentItem = item;
+  dataManagerWrapper->dataManager->setVisible(*[currentItem iterator], visible);
+  dataManagerWrapper->dataManager->updateVisibleStates();
+  [self.controller updateVisibleStateBuffer];
+  [self.controller updateSelectionStateBuffer];
+}
+#endif
 
 @end

@@ -41,9 +41,12 @@ class MainViewController: UIViewController, MTKViewDelegate {
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .systemBackground
+        dataManager.controller = self
         setupMetal()
         setupFloatingButtons()
-        setupGestures()
+        if metalView != nil {
+            setupGestures()
+        }
     }
 
     override func viewDidLayoutSubviews() {
@@ -55,7 +58,21 @@ class MainViewController: UIViewController, MTKViewDelegate {
     func setupMetal() {
         device = MTLCreateSystemDefaultDevice()
         guard device != nil else {
-            fatalError("Metal is not supported on this device")
+            let label = UILabel()
+            label.text = "Metal not available on simulator.\nRun on a real device to see the 3D view."
+            label.textAlignment = .center
+            label.numberOfLines = 0
+            label.textColor = .white
+            label.font = .systemFont(ofSize: 14)
+            label.translatesAutoresizingMaskIntoConstraints = false
+            view.addSubview(label)
+            NSLayoutConstraint.activate([
+                label.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+                label.centerYAnchor.constraint(equalTo: view.centerYAnchor),
+                label.leadingAnchor.constraint(greaterThanOrEqualTo: view.leadingAnchor, constant: 40),
+                label.trailingAnchor.constraint(lessThanOrEqualTo: view.trailingAnchor, constant: -40),
+            ])
+            return
         }
         commandQueue = device.makeCommandQueue()
 
@@ -72,6 +89,7 @@ class MainViewController: UIViewController, MTKViewDelegate {
     }
 
     func updateCamera() {
+        guard metalView != nil else { return }
         let aspect = Float(metalView.drawableSize.width / metalView.drawableSize.height)
         var projection = matrix4x4_perspective(fieldOfView: fieldOfView * .pi / 180.0,
                                                 aspectRatio: aspect,
@@ -232,6 +250,13 @@ class MainViewController: UIViewController, MTKViewDelegate {
         }
     }
 
+    // MARK: Buffer updates (called from ObjC++ bridge)
+    @objc func updateVisibleStateBuffer() {
+    }
+
+    @objc func updateSelectionStateBuffer() {
+    }
+
     @objc func handleTap(_ gesture: UITapGestureRecognizer) {
         let location = gesture.location(in: metalView)
         let width = Float(metalView.drawableSize.width)
@@ -288,14 +313,16 @@ class MainViewController: UIViewController, MTKViewDelegate {
     @objc func showObjects() {
         let objectsVC = ObjectListViewController()
         objectsVC.dataManager = dataManager
+        objectsVC.delegate = self
         objectsVC.title = "Objects"
 
-        if UIDevice.current.userInterfaceIdiom == .pad {
-            objectsVC.modalPresentationStyle = .popover
-            objectsVC.popoverPresentationController?.sourceView = objectsButton
-            objectsVC.popoverPresentationController?.permittedArrowDirections = .down
+        let nav = UINavigationController(rootViewController: objectsVC)
+        nav.modalPresentationStyle = UIDevice.current.userInterfaceIdiom == .pad ? .popover : .pageSheet
+        if let popover = nav.popoverPresentationController {
+            popover.sourceView = objectsButton
+            popover.permittedArrowDirections = .down
         }
-        present(objectsVC, animated: true)
+        present(nav, animated: true)
     }
 
     @objc func toggleEdges() {
@@ -318,6 +345,24 @@ class MainViewController: UIViewController, MTKViewDelegate {
 
     override var prefersStatusBarHidden: Bool { true }
     override var prefersHomeIndicatorAutoHidden: Bool { true }
+}
+
+// MARK: ObjectListViewControllerDelegate
+extension MainViewController: ObjectListViewControllerDelegate {
+    func objectListDidSelectItem(_ item: AzulObjectIterator) {
+        let attrsVC = AttributeTableViewController()
+        attrsVC.dataManager = dataManager
+        let ident = dataManager.identifier(ofItem: item) ?? ""
+        attrsVC.title = ident.isEmpty
+            ? (dataManager.type(ofItem: item) ?? "")
+            : ident
+        attrsVC.selectedItem = item
+        attrsVC.tableView.reloadData()
+
+        if let nav = presentedViewController as? UINavigationController {
+            nav.pushViewController(attrsVC, animated: true)
+        }
+    }
 }
 
 // MARK: UIDocumentPickerDelegate
