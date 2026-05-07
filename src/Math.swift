@@ -27,6 +27,34 @@ func matrix4x4_perspective(fieldOfView: Float, aspectRatio: Float, nearZ: Float,
                        vector4(0.0, 0.0, zs*nearZ, 0.0))
 }
 
+func matrix4x4_perspective_constrain_width(fieldOfView: Float, aspectRatio: Float, nearZ: Float, farZ: Float) -> matrix_float4x4 {
+  let xs: Float = 1.0 / tanf(fieldOfView*0.5)
+  let ys: Float = xs * aspectRatio
+  let zs: Float = farZ / (nearZ-farZ)
+  return simd_float4x4(vector4(xs, 0.0, 0.0, 0.0),
+                       vector4(0.0, ys, 0.0, 0.0),
+                       vector4(0.0, 0.0, zs, -1.0),
+                       vector4(0.0, 0.0, zs*nearZ, 0.0))
+}
+
+func matrix4x4_perspective_shorter_dim(fieldOfView: Float, width: Float, height: Float, nearZ: Float, farZ: Float) -> matrix_float4x4 {
+  let aspect = width / height
+  let zs: Float = farZ / (nearZ-farZ)
+  let xs: Float
+  let ys: Float
+  if aspect >= 1 {
+    ys = 1.0 / tanf(fieldOfView*0.5)
+    xs = ys / aspect
+  } else {
+    xs = 1.0 / tanf(fieldOfView*0.5)
+    ys = xs * aspect
+  }
+  return simd_float4x4(vector4(xs, 0.0, 0.0, 0.0),
+                       vector4(0.0, ys, 0.0, 0.0),
+                       vector4(0.0, 0.0, zs, -1.0),
+                       vector4(0.0, 0.0, zs*nearZ, 0.0))
+}
+
 func matrix4x4_look_at(eye: SIMD3<Float>, centre: SIMD3<Float>, up: SIMD3<Float>) -> matrix_float4x4 {
   let z = normalize(eye-centre)
   let x = normalize(cross(up, z))

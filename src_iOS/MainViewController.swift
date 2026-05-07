@@ -50,16 +50,13 @@ class MainViewController: UIViewController, MTKViewDelegate {
     var projectionMatrix = matrix_identity_float4x4
 
     // MARK: Scene state
-    var showingEdges = true
-    var showingBBox = true
+    var showingBBox = false
     var selectionColour = SIMD4<Float>(1.0, 1.0, 0.0, 1.0)
     let depthFormat = MTLPixelFormat.depth32Float
 
     // MARK: Floating buttons
     var openButton: UIButton!
     var objectsButton: UIButton!
-    var edgesButton: UIButton!
-    var bboxButton: UIButton!
     var homeButton: UIButton!
 
     // MARK: Gesture state
@@ -148,7 +145,7 @@ class MainViewController: UIViewController, MTKViewDelegate {
         modelShiftBackMatrix = matrix4x4_translation(shift: centre)
         modelMatrix = matrix_multiply(matrix_multiply(modelShiftBackMatrix, modelRotationMatrix), modelTranslationToCentreOfRotationMatrix)
         viewMatrix = matrix4x4_look_at(eye: eye, centre: centre, up: SIMD3<Float>(0.0, 1.0, 0.0))
-        projectionMatrix = matrix4x4_perspective(fieldOfView: fieldOfView, aspectRatio: Float(metalView.bounds.size.width / metalView.bounds.size.height), nearZ: 0.001, farZ: 100.0)
+        projectionMatrix = matrix4x4_perspective_shorter_dim(fieldOfView: fieldOfView, width: Float(metalView.bounds.size.width), height: Float(metalView.bounds.size.height), nearZ: 0.001, farZ: 100.0)
         constants.modelMatrix = modelMatrix
         constants.modelViewProjectionMatrix = matrix_multiply(projectionMatrix, matrix_multiply(viewMatrix, modelMatrix))
         constants.modelMatrixInverseTransposed = matrix_upper_left_3x3(matrix: modelMatrix).inverse.transpose
@@ -254,8 +251,7 @@ class MainViewController: UIViewController, MTKViewDelegate {
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
         createDepthTexture(size: size)
         createPickingTextures()
-        let aspect = Float(size.width / size.height)
-        projectionMatrix = matrix4x4_perspective(fieldOfView: fieldOfView, aspectRatio: aspect, nearZ: 0.001, farZ: 100.0)
+        projectionMatrix = matrix4x4_perspective_shorter_dim(fieldOfView: fieldOfView, width: Float(size.width), height: Float(size.height), nearZ: 0.001, farZ: 100.0)
         constants.modelViewProjectionMatrix = matrix_multiply(projectionMatrix, matrix_multiply(viewMatrix, modelMatrix))
     }
 
@@ -312,23 +308,21 @@ class MainViewController: UIViewController, MTKViewDelegate {
         }
 
         // Edges
-        if showingEdges {
-            encoder.setRenderPipelineState(edgeRenderPipelineState!)
-            if let visBuffer = visibleStateBuffer, visibleStateCount > 0 {
-                encoder.setFragmentBuffer(visBuffer, offset: 0, index: 2)
-            } else {
-                var one: Float = 1
-                encoder.setFragmentBytes(&one, length: MemoryLayout<Float>.size, index: 2)
-            }
-            for eb in edgeBuffers {
-                encoder.setVertexBuffer(eb.buffer, offset: 0, index: 0)
-                constants.colour = eb.colour
-                encoder.setVertexBytes(&constants, length: MemoryLayout<Constants>.size, index: 1)
-                encoder.setFragmentBytes(&constants, length: MemoryLayout<Constants>.size, index: 0)
-                encoder.drawPrimitives(type: .line, vertexStart: 0, vertexCount: eb.buffer.length / MemoryLayout<EdgeVertex>.size)
-            }
-            encoder.setRenderPipelineState(unlitRenderPipelineState!)
+        encoder.setRenderPipelineState(edgeRenderPipelineState!)
+        if let visBuffer = visibleStateBuffer, visibleStateCount > 0 {
+            encoder.setFragmentBuffer(visBuffer, offset: 0, index: 2)
+        } else {
+            var one: Float = 1
+            encoder.setFragmentBytes(&one, length: MemoryLayout<Float>.size, index: 2)
         }
+        for eb in edgeBuffers {
+            encoder.setVertexBuffer(eb.buffer, offset: 0, index: 0)
+            constants.colour = eb.colour
+            encoder.setVertexBytes(&constants, length: MemoryLayout<Constants>.size, index: 1)
+            encoder.setFragmentBytes(&constants, length: MemoryLayout<Constants>.size, index: 0)
+            encoder.drawPrimitives(type: .line, vertexStart: 0, vertexCount: eb.buffer.length / MemoryLayout<EdgeVertex>.size)
+        }
+        encoder.setRenderPipelineState(unlitRenderPipelineState!)
 
         // Bounding box
         if showingBBox, let bb = boundingBoxBuffer {
@@ -654,8 +648,9 @@ class MainViewController: UIViewController, MTKViewDelegate {
         if gesture.state == .changed {
             let mag: Float = 1.0 + Float(gesture.scale - 1.0)
             fieldOfView = 2.0 * atanf(tanf(0.5 * fieldOfView) / mag)
-            let aspect = Float(metalView.drawableSize.width / metalView.drawableSize.height)
-            projectionMatrix = matrix4x4_perspective(fieldOfView: fieldOfView, aspectRatio: aspect, nearZ: 0.001, farZ: 100.0)
+            let w = Float(metalView.drawableSize.width)
+            let h = Float(metalView.drawableSize.height)
+            projectionMatrix = matrix4x4_perspective_shorter_dim(fieldOfView: fieldOfView, width: w, height: h, nearZ: 0.001, farZ: 100.0)
             updateConstants()
             gesture.scale = 1.0
         }
@@ -686,16 +681,9 @@ class MainViewController: UIViewController, MTKViewDelegate {
         let buttonConfig = UIImage.SymbolConfiguration(pointSize: 18, weight: .medium)
         openButton = makeFloatingButton(systemName: "folder.fill", config: buttonConfig, action: #selector(openFile))
         objectsButton = makeFloatingButton(systemName: "list.bullet", config: buttonConfig, action: #selector(showObjects))
-        edgesButton = makeFloatingButton(systemName: "square.dashed", config: buttonConfig, action: #selector(toggleEdges))
-        bboxButton = makeFloatingButton(systemName: "rectangle.center.inset.filled", config: buttonConfig, action: #selector(toggleBBox))
         homeButton = makeFloatingButton(systemName: "house.fill", config: buttonConfig, action: #selector(goHome))
 
-        let topStack = UIStackView(arrangedSubviews: [openButton])
-        topStack.spacing = 8
-        topStack.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(topStack)
-
-        let bottomStack = UIStackView(arrangedSubviews: [objectsButton, edgesButton, bboxButton, homeButton])
+        let bottomStack = UIStackView(arrangedSubviews: [openButton, objectsButton, homeButton])
         bottomStack.axis = .horizontal
         bottomStack.spacing = 12
         bottomStack.distribution = .equalSpacing
@@ -703,8 +691,6 @@ class MainViewController: UIViewController, MTKViewDelegate {
         view.addSubview(bottomStack)
 
         NSLayoutConstraint.activate([
-            topStack.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 8),
-            topStack.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 12),
             bottomStack.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -12),
             bottomStack.centerXAnchor.constraint(equalTo: view.centerXAnchor),
         ])
@@ -750,16 +736,6 @@ class MainViewController: UIViewController, MTKViewDelegate {
         present(nav, animated: true)
     }
 
-    @objc func toggleEdges() {
-        showingEdges.toggle()
-        edgesButton.tintColor = showingEdges ? .white : .systemGray
-    }
-
-    @objc func toggleBBox() {
-        showingBBox.toggle()
-        bboxButton.tintColor = showingBBox ? .white : .systemGray
-    }
-
     @objc func goHome() {
         fieldOfView = 1.047197551196598
         modelTranslationToCentreOfRotationMatrix = matrix_identity_float4x4
@@ -767,8 +743,7 @@ class MainViewController: UIViewController, MTKViewDelegate {
         modelShiftBackMatrix = matrix4x4_translation(shift: centre)
         modelMatrix = matrix_multiply(matrix_multiply(modelShiftBackMatrix, modelRotationMatrix), modelTranslationToCentreOfRotationMatrix)
         viewMatrix = matrix4x4_look_at(eye: eye, centre: centre, up: SIMD3<Float>(0.0, 1.0, 0.0))
-        let aspect = Float(metalView.drawableSize.width / metalView.drawableSize.height)
-        projectionMatrix = matrix4x4_perspective(fieldOfView: fieldOfView, aspectRatio: aspect, nearZ: 0.001, farZ: 100.0)
+        projectionMatrix = matrix4x4_perspective_shorter_dim(fieldOfView: fieldOfView, width: Float(metalView.drawableSize.width), height: Float(metalView.drawableSize.height), nearZ: 0.001, farZ: 100.0)
         updateConstants()
     }
 
