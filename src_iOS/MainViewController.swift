@@ -591,7 +591,7 @@ class MainViewController: UIViewController, MTKViewDelegate {
         pan.minimumNumberOfTouches = 1; pan.maximumNumberOfTouches = 1
         metalView.addGestureRecognizer(pan)
 
-        let twoFingerPan = UIPanGestureRecognizer(target: self, action: #selector(handleTwoFingerPan(_:)))
+        let twoFingerPan = UIPanGestureRecognizer(target: self, action: #selector(handleOrbit(_:)))
         twoFingerPan.minimumNumberOfTouches = 2
         metalView.addGestureRecognizer(twoFingerPan)
 
@@ -627,16 +627,6 @@ class MainViewController: UIViewController, MTKViewDelegate {
 
     @objc func handlePan(_ gesture: UIPanGestureRecognizer) {
         let translation = gesture.translation(in: metalView)
-        let delta = CGPoint(x: translation.x - lastPanTranslation.x, y: translation.y - lastPanTranslation.y)
-        lastPanTranslation = translation
-        if gesture.state == .began { lastPanTranslation = .zero }
-        else if gesture.state == .changed {
-            orbit(angleX: Float(delta.y) * 0.005, angleY: Float(delta.x) * 0.005)
-        } else if gesture.state == .ended || gesture.state == .cancelled { lastPanTranslation = .zero }
-    }
-
-    @objc func handleTwoFingerPan(_ gesture: UIPanGestureRecognizer) {
-        let translation = gesture.translation(in: metalView)
         if gesture.state == .changed {
             let forward = normalize(centre - eye)
             let right = normalize(cross(forward, SIMD3<Float>(0, 1, 0)))
@@ -648,6 +638,16 @@ class MainViewController: UIViewController, MTKViewDelegate {
             updateConstants()
         }
         gesture.setTranslation(.zero, in: metalView)
+    }
+
+    @objc func handleOrbit(_ gesture: UIPanGestureRecognizer) {
+        let translation = gesture.translation(in: metalView)
+        let delta = CGPoint(x: translation.x - lastPanTranslation.x, y: translation.y - lastPanTranslation.y)
+        lastPanTranslation = translation
+        if gesture.state == .began { lastPanTranslation = .zero }
+        else if gesture.state == .changed {
+            orbit(angleX: Float(delta.y) * 0.005, angleY: Float(delta.x) * 0.005)
+        } else if gesture.state == .ended || gesture.state == .cancelled { lastPanTranslation = .zero }
     }
 
     @objc func handlePinch(_ gesture: UIPinchGestureRecognizer) {
