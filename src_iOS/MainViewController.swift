@@ -700,7 +700,7 @@ class MainViewController: UIViewController, MTKViewDelegate {
     // MARK: Floating buttons
     func setupFloatingButtons() {
         let buttonConfig = UIImage.SymbolConfiguration(pointSize: 18, weight: .medium)
-        openButton = makeFloatingButton(systemName: "folder.fill", config: buttonConfig, action: #selector(openFile))
+        openButton = makeFloatingButton(systemName: "doc", config: buttonConfig, action: #selector(openFile))
         objectsButton = makeFloatingButton(systemName: "list.bullet", config: buttonConfig, action: #selector(showObjects))
         homeButton = makeFloatingButton(systemName: "house.fill", config: buttonConfig, action: #selector(goHome))
 
