@@ -35,27 +35,23 @@ MetalView.swift (MTKView subclass)
   └── GPU-based picking
 ```
 
-### iOS (target)
+### iOS (current)
 ```
-AppDelegate.swift (UIApplicationDelegate)
-  └── SceneDelegate.swift (UISceneDelegate)
-        └── MainViewController.swift
-              ├── MTKView (full-screen 3D rendering)
-              ├── Floating UI buttons (Open, Objects, Edges, BBox, Home)
-              ├── UIGestureRecognizer camera controls
-              │     ├── UIPanGestureRecognizer (orbit)
-              │     ├── UIPinchGestureRecognizer (zoom)
-              │     ├── UIRotationGestureRecognizer (twist)
-              │     └── UITapGestureRecognizer (select)
-              ├── UIDocumentPickerViewController (file loading)
-              ├── ObjectListViewController (popover/modal)
-              │     └── UITableView with expandable cells
-              └── AttributeTableViewController (popover/modal)
-                    └── UITableView (key-value attributes)
+AppDelegate.swift (UIApplicationDelegate) — window managed directly (no scenes)
+  └── MainViewController.swift
+        ├── MTKView (full-screen, continuous rendering)
+        ├── Floating UI buttons (Open, Objects, Edges, BBox, Home)
+        ├── UIGestureRecognizer camera controls (wired, no visual feedback yet)
+        ├── UIDocumentPickerViewController (file loading)
+        ├── ObjectListViewController (popover/modal)
+        │     └── UITableView with expandable cells
+        └── AttributeTableViewController (popover/modal)
+              └── UITableView (key-value attributes)
 
 DataManagerWrapperWrapper (ObjC++ bridge)
   ├── #if TARGET_OS_OSX — macOS outline/table methods
-  └── #if !TARGET_OS_OSX — iOS UITableViewDataSource/Delegate (Phase 2)
+  └── #if !TARGET_OS_OSX — iOS tree navigation methods
+        └── visibleItems / expand/collapse via AzulObjectIterator depth
 
 DataManager (C++17) — UNCHANGED
 Metal Shaders (Shaders.metal) — UNCHANGED
@@ -73,19 +69,17 @@ Metal Shaders (Shaders.metal) — UNCHANGED
 | `libgmp.a` | `libs src/gmp-6.3.0/` | `libs-ios/libgmp.a` (923 KB) |
 | `libmpfr.a` | `libs src/mpfr-4.2.2/` | `libs-ios/libmpfr.a` (856 KB) |
 | `libboost_thread.a` | `libs src/boost_1_91_0/` | `libs-ios/libboost_thread.a` (1.0 MB) |
-| `libboost_chrono.a` | (Boost dependency) | `libs-ios/libboost_chrono.a` |
-| `libboost_date_time.a` | (Boost dependency) | `libs-ios/libboost_date_time.a` |
-| `libboost_atomic.a` | (Boost dependency) | `libs-ios/libboost_atomic.a` |
-| `libboost_container.a` | (Boost dependency) | `libs-ios/libboost_container.a` |
-| `libboost_exception.a` | (Boost dependency) | `libs-ios/libboost_exception.a` |
+| `libboost_chrono.a`, `libboost_date_time.a`, `libboost_atomic.a`, `libboost_container.a`, `libboost_exception.a` | (Boost deps) | `libs-ios/` |
+
+**iOS simulator libs also available in** `libs-ios-sim/` (separate from device libs since both use `arm64`; lipo cannot combine them).
 
 **Build methods:**
 - **GMP**: `./configure --host=arm64-apple-ios --build=arm64-apple-darwin --disable-assembly --disable-shared --enable-static` with `CC="clang -target arm64-apple-ios13.0 -isysroot $(SDK_PATH)"`
 - **MPFR**: Same approach, with `--with-gmp=/path/to/gmp-install`
 - **pugixml**: Direct `clang++ -arch arm64 -isysroot $(SDK_PATH)` compilation of single `.cpp`
-- **Boost**: `b2 toolset=darwin-ios variant=release link=static threading=multi address-model=64 architecture=arm --with-thread`
+- **Boost**: `b2 toolset=darwin cxxflags="..." linkflags="..." variant=release link=static --with-thread`
 
-**iOS Xcode target** (`azul-iOS`) created in `azul.xcodeproj`.
+**Xcode target** — Created `azul-iOS` target in existing `azul.xcodeproj`.
 
 ### ✅ Phase 1 — iOS UI Shell (Complete)
 
@@ -93,61 +87,93 @@ Metal Shaders (Shaders.metal) — UNCHANGED
 
 | File | Purpose |
 |------|---------|
-| `AppDelegate.swift` | `@main` entry point, `UIApplicationDelegate` |
-| `SceneDelegate.swift` | `UISceneDelegate`, creates window with `MainViewController`, handles `openURLContexts` |
-| `MainViewController.swift` | Root VC: full-screen MTKView, floating buttons, gesture recognizers, file loading |
-| `ObjectListViewController.swift` | Expandable `UITableView` stub (popover on iPad, modal on iPhone) |
-| `AttributeTableViewController.swift` | Attributes `UITableView` stub |
+| `AppDelegate.swift` | `@main` entry point, creates window directly (not via UISceneDelegate due to Info.plist generation issues) |
+| `SceneDelegate.swift` | (Created but not used — UISceneDelegate requires proper Info.plist scene manifest) |
+| `MainViewController.swift` | Root VC: full-screen MTKView, floating buttons, gesture recognizers, file loading pipeline |
+| `ObjectListViewController.swift` | Expandable `UITableView` for object hierarchy (popover on iPad, modal on iPhone) |
+| `AttributeTableViewController.swift` | Attributes `UITableView` |
 | `Azul-Bridging-Header.h` | Imports `DataManagerWrapperWrapper.h`, `PerformanceHelperWrapperWrapper.h` |
 
 **Modified bridge files:**
 
 | File | Change |
 |------|--------|
-| `DataManager/DataManagerWrapperWrapper.h` | `#if TARGET_OS_OSX` around AppKit protocol conformances |
-| `DataManager/DataManagerWrapperWrapper.mm` | `#if TARGET_OS_OSX` around AppKit method implementations; conditional `azul-Swift.h` import |
-| `DataManager/TableCellView.h` | Wrapped entire header in `#if TARGET_OS_OSX` |
-| `DataManager/TableCellView.m` | Wrapped entire implementation in `#if TARGET_OS_OSX` |
+| `DataManager/DataManagerWrapperWrapper.h` | `#if TARGET_OS_OSX` around AppKit protocols; exposed `AzulObjectIterator` to Swift; added iOS tree navigation method declarations |
+| `DataManager/DataManagerWrapperWrapper.mm` | `#if TARGET_OS_OSX` around AppKit methods; added `depth` to `AzulObjectIterator`; implemented iOS tree navigation (12 methods) |
+| `DataManager/TableCellView.h` | Wrapped in `#if TARGET_OS_OSX` |
+| `DataManager/TableCellView.m` | Wrapped in `#if TARGET_OS_OSX` |
 
-**Build status:** Both macOS and iOS targets build successfully.
+**Key learnings:**
+- Simulator on Apple Silicon supports Metal (`MTLCreateSystemDefaultDevice()` returns a valid device)
+- MTKView needs `isPaused = false` to render continuously on iOS (different default than macOS)
+- iOS Info.plist generation via `GENERATE_INFOPLIST_FILE = YES` doesn't produce proper `UISceneConfigurations` — easier to have `AppDelegate` create the window directly
+- Simulator and device static libraries both use `arm64` but are incompatible — store in separate directories (`libs-ios/` vs `libs-ios-sim/`)
+- Swift debug builds produce `azul-iOS.debug.dylib` that must be bundled in `Frameworks/` for `simctl install` to work
 
-### ⏳ Phase 2 — iOS Data Source Bridge (Next)
+### ✅ Phase 2 — iOS Data Source Bridge (Complete)
 
-Rewrite `DataManagerWrapperWrapper.mm` to expose iOS `UITableViewDataSource`/`UITableViewDelegate` methods. Key changes:
+**Data flow:**
+```
+ObjectListViewController
+  ├── calls dataManager.numberOfParsedFiles(), iteratorForFile(at:)
+  ├── walks tree with child(ofItem:at:), tracks expanded items in Set<AzulObjectIterator>
+  ├── builds flat visibleRows array with depth
+  └── renders cells with type name, identifier, chevron (expandable) or UISwitch (leaf)
 
-1. Add `#if !TARGET_OS_OSX` sections with `UITableViewDataSource` conformances
-2. Create iOS-specific table cell (or reuse `UITableViewCell` default styles)
-3. Implement expandable hierarchy for object tree (custom indentation + tap-to-expand)
-4. Wire up `ObjectListViewController` and `AttributeTableViewController` to real data
-5. Handle visibility toggling (with `UISwitch` accessory views)
-6. Handle selection → camera focus (double-tap equivalent)
+AttributeTableViewController
+  ├── receives selected AzulObjectIterator from delegate
+  └── renders attributes via numberOfAttributes(ofItem:), attributeKey(ofItem:at:), attributeValue(ofItem:at:)
+
+MainViewController
+  └── conforms to ObjectListViewControllerDelegate, pushes attribute VC on selection
+```
+
+**Tree navigation methods added to bridge:**
+
+| ObjC method | Swift name | Returns |
+|-------------|-----------|---------|
+| `numberOfParsedFiles` | `numberOfParsedFiles()` | `Int` |
+| `iteratorForFileAtIndex:` | `iteratorForFile(at:)` | `AzulObjectIterator` |
+| `isItemExpandable:` | `isItemExpandable(_:)` | `Bool` |
+| `numberOfChildrenOfItem:` | `numberOfChildren(ofItem:)` | `Int` |
+| `childOfItem:atIndex:` | `child(ofItem:at:)` | `AzulObjectIterator` |
+| `typeOfItem:` | `type(ofItem:)` | `String?` |
+| `identifierOfItem:` | `identifier(ofItem:)` | `String?` |
+| `visibleStateOfItem:` | `visibleState(ofItem:)` | `Int8` (char) |
+| `setVisibleState:forItem:` | `setVisibleState(_:forItem:)` | — |
+| `numberOfAttributesOfItem:` | `numberOfAttributes(ofItem:)` | `Int` |
+| `attributeKeyOfItem:atIndex:` | `attributeKey(ofItem:at:)` | `String?` |
+| `attributeValueOfItem:atIndex:` | `attributeValue(ofItem:at:)` | `String?` |
+
+**`AzulObjectIterator`** — exposed to Swift via the main header. Stores `depth` for indentation. Uses pointer-based `isEqual:`/`hash` for Set tracking.
+
+**State stubs:** `MainViewController` has `@objc updateVisibleStateBuffer()` and `@objc updateSelectionStateBuffer()` — called from bridge when visibility changes, currently empty (wired up in Phase 3).
 
 ### 🔲 Phase 3 — iOS Rendering & Gestures
 
-Port `MetalView.swift` for iOS. Key changes:
+Port the full Metal rendering pipeline from `MetalView.swift`. Key tasks:
 
-1. Strip out `NSEvent`-based camera controls → already done in `MainViewController.swift`
-2. Add Metal pipeline states (lit, unlit, edge, picking) from macOS MetalView
-3. Wire up triangle/edge buffers from DataManager
-4. Implement `draw(in:)` with proper rendering
-5. Implement GPU-based picking with `UITapGestureRecognizer`
-6. Port drag-and-drop → `UIDropInteraction`
+1. Add Metal pipeline states (lit, unlit, edge, picking) — reuse Shaders.metal as-is
+2. Wire up triangle/edge buffers from DataManager to GPU
+3. Implement `draw(in:)` with actual rendering commands
+4. Implement GPU-based picking with `UITapGestureRecognizer`
+5. Connect camera state updates to projection/view matrices on GPU
+6. Make `updateVisibleStateBuffer()` and `updateSelectionStateBuffer()` functional
 
-### 🔲 Phase 4 — File Handling, Menus & Polish
+### 🔲 Phase 4 — Polish
 
 1. Configure `Info.plist` for document types (`CFBundleDocumentTypes`)
 2. Handle file access via security-scoped URLs
-3. Port remaining menu actions (Help, About)
-4. Add app icon for iOS (asset catalog)
-5. Orientation support
-6. Adaptive layout for iPhone vs iPad
+3. Orientation support
+4. Adaptive layout for iPhone vs iPad
+5. Better MTKView clear color on the black screen issue
 
 ### 🔲 Phase 5 — Testing & Performance
 
-1. Test on device (simulator doesn't support Metal well)
+1. Test on device (simulator rendering works but may differ)
 2. Profile memory/performance
-3. Handle memory warnings
-4. Touch interaction tuning
+3. Touch interaction tuning
+4. Add app icon for iOS (asset catalog)
 
 ## Cross-Platform Compatibility
 
@@ -160,21 +186,20 @@ Port `MetalView.swift` for iOS. Key changes:
 | simdjson | `simdjson.{cpp,h}` |
 | Metal shaders | `Shaders.metal` |
 | Math helpers | `Math.swift` |
-| Performance helper | `PerformanceHelper.hpp` |
-| Performance wrapper | `PerformanceHelperWrapperWrapper.{h,mm}` |
+| Performance helper | `PerformanceHelper.hpp`, `PerformanceHelperWrapperWrapper.{h,mm}` |
 
 ### Conditionally compiled (`#if TARGET_OS_OSX`)
 | Component | Files |
 |-----------|-------|
 | ObjC++ bridge (data sources) | `DataManagerWrapperWrapper.{h,mm}` |
 | macOS table cell | `TableCellView.{h,m}` |
-| Swift imports | `Controller.swift`, `MetalView.swift` (excluded from iOS target) |
+| Swift files | `Controller.swift`, `MetalView.swift` (excluded from iOS target) |
 
 ### iOS-only
 | File | Purpose |
 |------|---------|
-| `src_iOS/AppDelegate.swift` | iOS entry point |
-| `src_iOS/SceneDelegate.swift` | Scene/window management |
+| `src_iOS/AppDelegate.swift` | iOS entry point, window management |
+| `src_iOS/SceneDelegate.swift` | (Unused — created for future scene-based setup) |
 | `src_iOS/MainViewController.swift` | Root view controller |
 | `src_iOS/ObjectListViewController.swift` | Object hierarchy browser |
 | `src_iOS/AttributeTableViewController.swift` | Attribute inspector |
@@ -182,21 +207,26 @@ Port `MetalView.swift` for iOS. Key changes:
 
 ## Key Design Decisions
 
-**UI Layout**: Full-screen 3D view on all devices. Sidebar and attributes shown as slide-over panels (popovers on iPad, modal on iPhone).
+**UI Layout**: Full-screen 3D view on all devices. Sidebar and attributes shown as popovers/modal sheets.
 
-**Object hierarchy**: Expandable `UITableView` cells with indentation and tap-to-expand, mimicking `NSOutlineView` behavior.
+**Object hierarchy**: Expandable `UITableView` with indentation and tap-to-expand. Flat array of visible items rebuilt on expand/collapse. Depth stored in `AzulObjectIterator.depth`.
 
-**Toolbar**: Minimal floating buttons overlaid on the 3D view (`UIButton` with SF Symbols). Most options in action sheets or context menus.
+**Toolbar**: Minimal floating `UIButton`s overlaid on the 3D view using SF Symbols.
 
-**Preferences**: Skipped for now — use default values everywhere. Can be added later as a dedicated view controller.
+**File loading**: Files app integration via `UIDocumentPickerViewController`.
 
-**File loading**: Files app integration via `UIDocumentPickerViewController`. Users open files from Files app or other apps via the share sheet.
+**Window management**: AppDelegate creates `UIWindow` directly (avoids `UISceneDelegate` Info.plist configuration issues).
 
 **Target devices**: Both iPhone and iPad with adaptive layout.
 
 ## Dependencies
 
-All static libraries built as iOS arm64 slices in `libs-ios/`. Headers in `include/` are shared with macOS target.
+### Static libraries
+All libraries built in two variants:
+- `libs-ios/` — iOS device (`arm64-apple-ios`, built with `iphoneos` SDK)
+- `libs-ios-sim/` — iOS simulator (`arm64-apple-ios-simulator`, built with `iphonesimulator` SDK)
+
+Headers in `include/` are shared with macOS target.
 
 | Library | iOS Build Complexity |
 |---------|---------------------|
