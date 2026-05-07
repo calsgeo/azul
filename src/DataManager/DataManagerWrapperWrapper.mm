@@ -157,6 +157,14 @@ struct DataManagerWrapper {
   return dataManagerWrapper->dataManager->setBestHitFromObjectId(objectId);
 }
 
+- (id) bestHitObjectIterator {
+  if (dataManagerWrapper->dataManager->bestHitFile == dataManagerWrapper->dataManager->parsedFiles.end()) return nil;
+  if (dataManagerWrapper->dataManager->bestHitObject == dataManagerWrapper->dataManager->bestHitFile->children.end()) return nil;
+  AzulObjectIterator *item = [[AzulObjectIterator alloc] init];
+  item.iterator = dataManagerWrapper->dataManager->bestHitObject;
+  return item;
+}
+
 - (BOOL) edgeBufferIteratorEnded {
   return dataManagerWrapper->dataManager->currentEdgeBuffer == dataManagerWrapper->dataManager->edgeBuffers.end();
 }

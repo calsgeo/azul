@@ -673,7 +673,27 @@ class MainViewController: UIViewController, MTKViewDelegate {
         let location = gesture.location(in: metalView)
         let objectId = pickObject(at: location)
         if objectId >= 0 {
-            let _ = dataManager.setBestHitFromObjectId(objectId)
+            dataManager.setBestHitFromObjectId(objectId)
+            dataManager.updateSelectionStates()
+            updateSelectionStateBuffer()
+            dataManager.updateVisibleStates()
+            updateVisibleStateBuffer()
+
+            if let hitItem = dataManager.bestHitObjectIterator() as? AzulObjectIterator {
+                let attrsVC = AttributeTableViewController()
+                attrsVC.dataManager = dataManager
+                let ident = dataManager.identifier(ofItem: hitItem) ?? ""
+                attrsVC.title = ident.isEmpty ? (dataManager.type(ofItem: hitItem) ?? "") : ident
+                attrsVC.selectedItem = hitItem
+                attrsVC.tableView.reloadData()
+                let nav = UINavigationController(rootViewController: attrsVC)
+                nav.modalPresentationStyle = .popover
+                if let popover = nav.popoverPresentationController {
+                    popover.sourceView = objectsButton ?? openButton ?? view
+                    popover.permittedArrowDirections = .down
+                }
+                present(nav, animated: true)
+            }
         }
     }
 

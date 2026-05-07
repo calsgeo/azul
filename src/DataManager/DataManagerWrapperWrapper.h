@@ -131,6 +131,7 @@ struct DataManagerWrapper;
 
 // Picking
 - (int) setBestHitFromObjectId:(int)objectId;
+- (id) bestHitObjectIterator;
 
 // Selection state (GPU-based)
 - (void) updateSelectionStates;
