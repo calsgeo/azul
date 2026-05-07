@@ -98,11 +98,19 @@ struct DataManagerWrapper {
 }
 
 - (const float *) currentTriangleBufferWithSize:(long *)bytes {
+  if (dataManagerWrapper->dataManager->currentTriangleBuffer->triangles.empty()) {
+    *bytes = 0;
+    return nullptr;
+  }
   *bytes = dataManagerWrapper->dataManager->currentTriangleBuffer->triangles.size()*sizeof(float);
   return &dataManagerWrapper->dataManager->currentTriangleBuffer->triangles.front();
 }
 
 - (const unsigned int *) currentTriangleBufferIndicesWithSize:(long *)bytes {
+  if (dataManagerWrapper->dataManager->currentTriangleBuffer->indices.empty()) {
+    *bytes = 0;
+    return nullptr;
+  }
   *bytes = dataManagerWrapper->dataManager->currentTriangleBuffer->indices.size()*sizeof(unsigned int);
   return dataManagerWrapper->dataManager->currentTriangleBuffer->indices.data();
 }
@@ -129,6 +137,10 @@ struct DataManagerWrapper {
 }
 
 - (const float *) currentEdgeBufferWithSize:(long *)bytes {
+  if (dataManagerWrapper->dataManager->currentEdgeBuffer->edges.empty()) {
+    *bytes = 0;
+    return nullptr;
+  }
   *bytes = dataManagerWrapper->dataManager->currentEdgeBuffer->edges.size()*sizeof(float);
   return &dataManagerWrapper->dataManager->currentEdgeBuffer->edges.front();
 }
@@ -466,30 +478,6 @@ struct DataManagerWrapper {
   return result;
 }
 
-- (void) updateSelectionStates {
-  dataManagerWrapper->dataManager->updateSelectionStates();
-}
-
-- (void) updateVisibleStates {
-  dataManagerWrapper->dataManager->updateVisibleStates();
-}
-
-- (const float *) visibleStateData {
-  return dataManagerWrapper->dataManager->getVisibleStateData();
-}
-
-- (int) visibleStateCount {
-  return dataManagerWrapper->dataManager->getVisibleStateCount();
-}
-
-- (const float *) selectionStateData {
-  return dataManagerWrapper->dataManager->getSelectionStateData();
-}
-
-- (int) selectionStateCount {
-  return dataManagerWrapper->dataManager->getSelectionStateCount();
-}
-
 - (void) toggleVisibility:(id)sender {
   if (![sender isKindOfClass:[NSButton class]]) {
     NSLog(@"Uh-oh (not an NSButton)!");
@@ -558,6 +546,30 @@ struct DataManagerWrapper {
 //  [[controller attributesTableView] reloadData];
 }
 #endif
+
+- (void) updateSelectionStates {
+  dataManagerWrapper->dataManager->updateSelectionStates();
+}
+
+- (void) updateVisibleStates {
+  dataManagerWrapper->dataManager->updateVisibleStates();
+}
+
+- (const float *) visibleStateData {
+  return dataManagerWrapper->dataManager->getVisibleStateData();
+}
+
+- (int) visibleStateCount {
+  return dataManagerWrapper->dataManager->getVisibleStateCount();
+}
+
+- (const float *) selectionStateData {
+  return dataManagerWrapper->dataManager->getSelectionStateData();
+}
+
+- (int) selectionStateCount {
+  return dataManagerWrapper->dataManager->getSelectionStateCount();
+}
 
 - (NSString *)statusMessage {
   NSString *statusMessage = [NSString stringWithUTF8String:self->dataManagerWrapper->dataManager->statusMessage.c_str()];

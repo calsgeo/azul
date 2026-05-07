@@ -38,10 +38,12 @@ MetalView.swift (MTKView subclass)
 ### iOS (current)
 ```
 AppDelegate.swift (UIApplicationDelegate) — window managed directly (no scenes)
-  └── MainViewController.swift
-        ├── MTKView (full-screen, continuous rendering)
+  └── MainViewController.swift (UIViewController + MTKViewDelegate)
+        ├── MTKView (full-screen, continuous rendering, MSAA disabled on sim)
         ├── Floating UI buttons (Open, Objects, Edges, BBox, Home)
-        ├── UIGestureRecognizer camera controls (wired, no visual feedback yet)
+        ├── UIGestureRecognizer camera controls (pan/orbit, pan/truck, pinch/zoom, rotate, tap/pick)
+        ├── Full Metal rendering pipeline (lit, unlit, edge, picking)
+        ├── GPU-based picking (offscreen render target + blit readback)
         ├── UIDocumentPickerViewController (file loading)
         ├── ObjectListViewController (popover/modal)
         │     └── UITableView with expandable cells
@@ -51,7 +53,7 @@ AppDelegate.swift (UIApplicationDelegate) — window managed directly (no scenes
 DataManagerWrapperWrapper (ObjC++ bridge)
   ├── #if TARGET_OS_OSX — macOS outline/table methods
   └── #if !TARGET_OS_OSX — iOS tree navigation methods
-        └── visibleItems / expand/collapse via AzulObjectIterator depth
+        └── Depth-tracking, expand/collapse set via AzulObjectIterator
 
 DataManager (C++17) — UNCHANGED
 Metal Shaders (Shaders.metal) — UNCHANGED
@@ -105,28 +107,12 @@ Metal Shaders (Shaders.metal) — UNCHANGED
 
 **Key learnings:**
 - Simulator on Apple Silicon supports Metal (`MTLCreateSystemDefaultDevice()` returns a valid device)
-- MTKView needs `isPaused = false` to render continuously on iOS (different default than macOS)
+- MTKView needs `isPaused = false` on iOS (different default than macOS)
 - iOS Info.plist generation via `GENERATE_INFOPLIST_FILE = YES` doesn't produce proper `UISceneConfigurations` — easier to have `AppDelegate` create the window directly
-- Simulator and device static libraries both use `arm64` but are incompatible — store in separate directories (`libs-ios/` vs `libs-ios-sim/`)
+- Simulator and device static libraries both use `arm64` but are incompatible — store in separate directories
 - Swift debug builds produce `azul-iOS.debug.dylib` that must be bundled in `Frameworks/` for `simctl install` to work
 
 ### ✅ Phase 2 — iOS Data Source Bridge (Complete)
-
-**Data flow:**
-```
-ObjectListViewController
-  ├── calls dataManager.numberOfParsedFiles(), iteratorForFile(at:)
-  ├── walks tree with child(ofItem:at:), tracks expanded items in Set<AzulObjectIterator>
-  ├── builds flat visibleRows array with depth
-  └── renders cells with type name, identifier, chevron (expandable) or UISwitch (leaf)
-
-AttributeTableViewController
-  ├── receives selected AzulObjectIterator from delegate
-  └── renders attributes via numberOfAttributes(ofItem:), attributeKey(ofItem:at:), attributeValue(ofItem:at:)
-
-MainViewController
-  └── conforms to ObjectListViewControllerDelegate, pushes attribute VC on selection
-```
 
 **Tree navigation methods added to bridge:**
 
@@ -147,26 +133,47 @@ MainViewController
 
 **`AzulObjectIterator`** — exposed to Swift via the main header. Stores `depth` for indentation. Uses pointer-based `isEqual:`/`hash` for Set tracking.
 
-**State stubs:** `MainViewController` has `@objc updateVisibleStateBuffer()` and `@objc updateSelectionStateBuffer()` — called from bridge when visibility changes, currently empty (wired up in Phase 3).
+### ✅ Phase 3 — iOS Rendering & Gestures (Complete)
 
-### 🔲 Phase 3 — iOS Rendering & Gestures
+**Shared types moved to `Math.swift`** (used by both macOS and iOS targets):
+- `Constants`, `Vertex`, `EdgeVertex`, `VertexWithNormal`, `BufferWithColour` structs
 
-Port the full Metal rendering pipeline from `MetalView.swift`. Key tasks:
+**Rendering pipeline in `MainViewController.swift`:**
 
-1. Add Metal pipeline states (lit, unlit, edge, picking) — reuse Shaders.metal as-is
-2. Wire up triangle/edge buffers from DataManager to GPU
-3. Implement `draw(in:)` with actual rendering commands
-4. Implement GPU-based picking with `UITapGestureRecognizer`
-5. Connect camera state updates to projection/view matrices on GPU
-6. Make `updateVisibleStateBuffer()` and `updateSelectionStateBuffer()` functional
+| Feature | Description |
+|---------|-------------|
+| Pipeline states | lit, unlit, edge, picking from `Shaders.metal` |
+| Depth management | Manual depth texture (avoids MTKView internal depth allocation bug on simulator) |
+| Anti-aliasing | `sampleCount = 1` on simulator (MSAA depth textures unsupported on sim); use 4 on device |
+| `draw(in:)` | Opaque triangles → transparent triangles → edges → bounding box |
+| GPU picking | Offscreen render target + blit encoder readback |
+| Depth computation | Plane-fitting for camera corrections |
+| GPU buffers | `reloadTriangleBuffers()`, `reloadEdgeBuffers()`, `regenerateBoundingBoxBuffer()` from DataManager |
+| State buffers | `updateVisibleStateBuffer()`, `updateSelectionStateBuffer()` |
+
+**Camera controls** — All `UIGestureRecognizer`-based:
+| Gesture | Action |
+|---------|--------|
+| One-finger pan | Orbit (arcball) |
+| Two-finger pan | Truck (translate) |
+| Pinch | Zoom (FOV) |
+| Rotation | Twist (roll) |
+| Tap | Pick object (GPU readback) |
+
+**Key learnings:**
+- MTKView's built-in depth texture (`depthStencilTexture`) fails on simulator with `.shared` storage mode — create a manual depth texture with `.private` storage
+- Simulator MSAA depth textures not supported — disable MSAA on simulator
+- `draw(in:)` must be explicitly set to continuous rendering: `isPaused = false, enableSetNeedsDisplay = false`
+- `Data(bytes:count:)` initializer deprecated on iOS 26 — use `UnsafeBufferPointer` + `contents().copyMemory()` directly
+- ObjC method implementations must be OUTSIDE `#if TARGET_OS_OSX` blocks to be visible to Swift on iOS (declaration alone is not enough)
 
 ### 🔲 Phase 4 — Polish
 
 1. Configure `Info.plist` for document types (`CFBundleDocumentTypes`)
 2. Handle file access via security-scoped URLs
-3. Orientation support
-4. Adaptive layout for iPhone vs iPad
-5. Better MTKView clear color on the black screen issue
+3. Stub Metal rendering (clear color only) → implement full pipeline (done in Phase 3)
+4. Orientation support
+5. Adaptive layout for iPhone vs iPad
 
 ### 🔲 Phase 5 — Testing & Performance
 
@@ -185,7 +192,7 @@ Port the full Metal rendering pipeline from `MetalView.swift`. Key tasks:
 | All parsers | `*ParsingHelper.hpp` |
 | simdjson | `simdjson.{cpp,h}` |
 | Metal shaders | `Shaders.metal` |
-| Math helpers | `Math.swift` |
+| Math helpers + shared structs | `Math.swift` |
 | Performance helper | `PerformanceHelper.hpp`, `PerformanceHelperWrapperWrapper.{h,mm}` |
 
 ### Conditionally compiled (`#if TARGET_OS_OSX`)
@@ -199,8 +206,7 @@ Port the full Metal rendering pipeline from `MetalView.swift`. Key tasks:
 | File | Purpose |
 |------|---------|
 | `src_iOS/AppDelegate.swift` | iOS entry point, window management |
-| `src_iOS/SceneDelegate.swift` | (Unused — created for future scene-based setup) |
-| `src_iOS/MainViewController.swift` | Root view controller |
+| `src_iOS/MainViewController.swift` | Root view controller (UI + Metal rendering + gestures + picking) |
 | `src_iOS/ObjectListViewController.swift` | Object hierarchy browser |
 | `src_iOS/AttributeTableViewController.swift` | Attribute inspector |
 | `src_iOS/Azul-Bridging-Header.h` | iOS bridging header |
@@ -213,7 +219,7 @@ Port the full Metal rendering pipeline from `MetalView.swift`. Key tasks:
 
 **Toolbar**: Minimal floating `UIButton`s overlaid on the 3D view using SF Symbols.
 
-**File loading**: Files app integration via `UIDocumentPickerViewController`.
+**File loading**: Files app integration via `UIDocumentPickerViewController` with `asCopy: true`.
 
 **Window management**: AppDelegate creates `UIWindow` directly (avoids `UISceneDelegate` Info.plist configuration issues).
 

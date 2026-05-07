@@ -431,28 +431,30 @@ class MainViewController: UIViewController, MTKViewDelegate {
 
     // MARK: Buffer updates (called from ObjC++ bridge)
     @objc func updateVisibleStateBuffer() {
-        let count = Int(dataManager.visibleStateCount())
-        guard count > 0 else { return }
-        guard let ptr = dataManager.visibleStateData() else { return }
-        let data = Data(bytes: UnsafeRawPointer(ptr), count: count * MemoryLayout<Float>.size)
-        visibleStateCount = count
-        if visibleStateBuffer?.length ?? 0 >= data.count {
-            data.withUnsafeBytes { visibleStateBuffer!.contents().copyMemory(from: $0.baseAddress!, byteCount: data.count) }
+        let cnt = Int32(dataManager.visibleStateCount())
+        guard cnt > 0 else { return }
+        let ptr = dataManager.visibleStateData()
+        guard ptr != nil else { return }
+        visibleStateCount = Int(cnt)
+        let byteCount = Int(cnt) * MemoryLayout<Float>.size
+        if visibleStateBuffer?.length ?? 0 >= byteCount {
+            visibleStateBuffer!.contents().copyMemory(from: UnsafeRawPointer(ptr!), byteCount: byteCount)
         } else {
-            visibleStateBuffer = data.withUnsafeBytes { device.makeBuffer(bytes: $0.baseAddress!, length: data.count, options: []) }
+            visibleStateBuffer = device.makeBuffer(bytes: UnsafeRawPointer(ptr!), length: byteCount, options: [])
         }
     }
 
     @objc func updateSelectionStateBuffer() {
-        let count = Int(dataManager.selectionStateCount())
-        guard count > 0 else { return }
-        guard let ptr = dataManager.selectionStateData() else { return }
-        let data = Data(bytes: UnsafeRawPointer(ptr), count: count * MemoryLayout<Float>.size)
-        selectionStateCount = count
-        if selectionStateBuffer?.length ?? 0 >= data.count {
-            data.withUnsafeBytes { selectionStateBuffer!.contents().copyMemory(from: $0.baseAddress!, byteCount: data.count) }
+        let cnt = Int32(dataManager.selectionStateCount())
+        guard cnt > 0 else { return }
+        let ptr = dataManager.selectionStateData()
+        guard ptr != nil else { return }
+        selectionStateCount = Int(cnt)
+        let byteCount = Int(cnt) * MemoryLayout<Float>.size
+        if selectionStateBuffer?.length ?? 0 >= byteCount {
+            selectionStateBuffer!.contents().copyMemory(from: UnsafeRawPointer(ptr!), byteCount: byteCount)
         } else {
-            selectionStateBuffer = data.withUnsafeBytes { device.makeBuffer(bytes: $0.baseAddress!, length: data.count, options: []) }
+            selectionStateBuffer = device.makeBuffer(bytes: UnsafeRawPointer(ptr!), length: byteCount, options: [])
         }
     }
 
@@ -462,18 +464,15 @@ class MainViewController: UIViewController, MTKViewDelegate {
         dataManager.initialiseTriangleBufferIterator()
         while !dataManager.triangleBufferIteratorEnded() {
             var bytes: Int = 0
-            guard let vertexPtr = dataManager.currentTriangleBuffer(withSize: &bytes) else {
+            guard let vertexPtr = dataManager.currentTriangleBuffer(withSize: &bytes), bytes > 0 else {
                 dataManager.advanceTriangleBufferIterator()
                 continue
             }
             var indexBytes: Int = 0
-            guard let indexPtr = dataManager.currentTriangleBufferIndices(withSize: &indexBytes) else {
+            guard let indexPtr = dataManager.currentTriangleBufferIndices(withSize: &indexBytes), indexBytes > 0 else {
                 dataManager.advanceTriangleBufferIterator()
                 continue
             }
-            var typeLength: Int = 0
-            let typeCStr = dataManager.currentTriangleBufferType(withLength: &typeLength)
-            let type = typeCStr != nil ? String(cString: typeCStr!) : ""
 
             let colour = dataManager.currentTriangleBufferColour()
             let colourSIMD = colour != nil ? SIMD4<Float>(colour![0], colour![1], colour![2], colour![3]) : SIMD4<Float>(1, 1, 1, 1)
@@ -482,7 +481,7 @@ class MainViewController: UIViewController, MTKViewDelegate {
             let indexBuffer = device.makeBuffer(bytes: indexPtr, length: indexBytes, options: [])!
             let indexCount = indexBytes / MemoryLayout<UInt32>.size
 
-            triangleBuffers.append(BufferWithColour(buffer: buffer, indexBuffer: indexBuffer, indexCount: indexCount, type: type, colour: colourSIMD))
+            triangleBuffers.append(BufferWithColour(buffer: buffer, indexBuffer: indexBuffer, indexCount: indexCount, type: "", colour: colourSIMD))
             dataManager.advanceTriangleBufferIterator()
         }
     }
@@ -540,23 +539,46 @@ class MainViewController: UIViewController, MTKViewDelegate {
     // MARK: File loading
     func loadFile(url: URL) {
         let path = url.path
+        print("Loading file: \(path)")
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
+            guard FileManager.default.fileExists(atPath: path) else {
+                print("File not found: \(path)")
+                return
+            }
             self.dataManager.parse(path)
+            print("Parse complete")
             self.dataManager.clearHelpers()
             self.dataManager.updateBoundsWithLastFile()
+            print("Updating bounds")
             self.dataManager.triangulateLastFile()
+            print("Triangulation complete")
             self.dataManager.generateEdgesForLastFile()
+            print("Edges complete")
             self.dataManager.clearPolygonsOfLastFile()
             self.dataManager.regenerateTriangleBuffers(withMaximumSize: 16 * 1024 * 1024)
+            print("Triangle buffers generated")
             self.dataManager.regenerateEdgeBuffers(withMaximumSize: 16 * 1024 * 1024)
+            print("Edge buffers generated")
 
             DispatchQueue.main.async {
+                print("Reloading GPU buffers")
+                print("0 parsedFiles count: \(self.dataManager.numberOfParsedFiles())")
                 self.reloadTriangleBuffers()
+                print("1 Triangles: \(self.triangleBuffers.count)")
                 self.reloadEdgeBuffers()
+                print("2 Edges: \(self.edgeBuffers.count)")
                 self.regenerateBoundingBoxBuffer()
+                print("3 BBox: \(self.boundingBoxBuffer?.length ?? 0)")
+                print("4 calling updateVisibleState")
+                self.dataManager.updateVisibleStates()
+                print("5 count: \(self.dataManager.visibleStateCount()) ptr: \(self.dataManager.visibleStateData() != nil ? "non-nil" : "nil")")
                 self.updateVisibleStateBuffer()
+                print("6 done visible")
+                self.dataManager.updateSelectionStates()
+                print("7 sel count: \(self.dataManager.selectionStateCount()) ptr: \(self.dataManager.selectionStateData() != nil ? "non-nil" : "nil")")
                 self.updateSelectionStateBuffer()
+                print("8 Load complete")
             }
         }
     }
