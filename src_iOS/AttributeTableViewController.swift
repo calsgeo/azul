@@ -5,17 +5,19 @@ class AttributeTableViewController: UIViewController {
     var dataManager: DataManagerWrapperWrapper!
     var selectedItem: AzulObjectIterator?
 
-    let tableView = UITableView(frame: .zero, style: .insetGrouped)
+    let tableView = UITableView(frame: .zero, style: .plain)
 
     override func viewDidLoad() {
         super.viewDidLoad()
         title = "Attributes"
+        overrideUserInterfaceStyle = .dark
         view.backgroundColor = .systemBackground
 
         tableView.delegate = self
         tableView.dataSource = self
-        tableView.register(UITableViewCell.self, forCellReuseIdentifier: "cell")
-        tableView.indicatorStyle = .white
+        tableView.register(AttributeCell.self, forCellReuseIdentifier: "cell")
+        tableView.separatorStyle = .singleLine
+        tableView.separatorColor = UIColor(white: 0.25, alpha: 1.0)
         tableView.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(tableView)
 
@@ -27,7 +29,7 @@ class AttributeTableViewController: UIViewController {
         ])
 
         if UIDevice.current.userInterfaceIdiom == .pad {
-            preferredContentSize = CGSize(width: 360, height: 400)
+            preferredContentSize = CGSize(width: 400, height: 500)
         }
 
         navigationItem.rightBarButtonItem = UIBarButtonItem(barButtonSystemItem: .done, target: self, action: #selector(dismissSelf))
@@ -47,6 +49,55 @@ class AttributeTableViewController: UIViewController {
     }
 }
 
+class AttributeCell: UITableViewCell {
+    let keyLabel = UILabel()
+    let valueLabel = UILabel()
+
+    override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
+        super.init(style: style, reuseIdentifier: reuseIdentifier)
+
+        keyLabel.font = .systemFont(ofSize: 13, weight: .semibold)
+        keyLabel.textColor = .systemGray
+        valueLabel.font = .monospacedSystemFont(ofSize: 15, weight: .regular)
+        valueLabel.textColor = .white
+        valueLabel.numberOfLines = 0
+
+        contentView.addSubview(keyLabel)
+        contentView.addSubview(valueLabel)
+        keyLabel.translatesAutoresizingMaskIntoConstraints = false
+        valueLabel.translatesAutoresizingMaskIntoConstraints = false
+
+        NSLayoutConstraint.activate([
+            keyLabel.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 8),
+            keyLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16),
+            keyLabel.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16),
+
+            valueLabel.topAnchor.constraint(equalTo: keyLabel.bottomAnchor, constant: 2),
+            valueLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16),
+            valueLabel.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16),
+            valueLabel.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -8),
+        ])
+
+        backgroundColor = UIColor(white: 0.12, alpha: 1.0)
+        selectionStyle = .none
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func configure(key: String, value: String) {
+        keyLabel.text = key
+        valueLabel.text = value
+
+        if Double(value) != nil {
+            valueLabel.font = .monospacedSystemFont(ofSize: 15, weight: .regular)
+        } else {
+            valueLabel.font = .systemFont(ofSize: 15, weight: .regular)
+        }
+    }
+}
+
 extension AttributeTableViewController: UITableViewDataSource, UITableViewDelegate {
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         guard let item = selectedItem else { return 0 }
@@ -54,23 +105,28 @@ extension AttributeTableViewController: UITableViewDataSource, UITableViewDelega
     }
 
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let cell = tableView.dequeueReusableCell(withIdentifier: "cell", for: indexPath)
+        let cell = tableView.dequeueReusableCell(withIdentifier: "cell", for: indexPath) as! AttributeCell
         guard let item = selectedItem else { return cell }
 
-        let key = dataManager.attributeKey(ofItem: item, at: indexPath.row)
-        let value = dataManager.attributeValue(ofItem: item, at: indexPath.row)
-
-        var config = UIListContentConfiguration.subtitleCell()
-        config.text = key
-        config.secondaryText = value
-        config.textProperties.color = .lightGray
-        config.secondaryTextProperties.color = .white
-        config.textProperties.font = .systemFont(ofSize: UIFont.smallSystemFontSize)
-        config.secondaryTextProperties.font = .systemFont(ofSize: UIFont.smallSystemFontSize)
-        cell.contentConfiguration = config
-        cell.backgroundColor = UIColor(white: 0.15, alpha: 1.0)
-        cell.selectionStyle = .none
-
+        let key = dataManager.attributeKey(ofItem: item, at: indexPath.row) ?? ""
+        let value = dataManager.attributeValue(ofItem: item, at: indexPath.row) ?? ""
+        cell.configure(key: key, value: value)
         return cell
+    }
+
+    func tableView(_ tableView: UITableView, contextMenuConfigurationForRowAt indexPath: IndexPath, point: CGPoint) -> UIContextMenuConfiguration? {
+        guard let item = selectedItem else { return nil }
+        let key = dataManager.attributeKey(ofItem: item, at: indexPath.row) ?? ""
+        let value = dataManager.attributeValue(ofItem: item, at: indexPath.row) ?? ""
+
+        return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { _ in
+            let copyKey = UIAction(title: "Copy Key", image: UIImage(systemName: "doc.on.clipboard")) { _ in
+                UIPasteboard.general.string = key
+            }
+            let copyValue = UIAction(title: "Copy Value", image: UIImage(systemName: "doc.on.clipboard")) { _ in
+                UIPasteboard.general.string = value
+            }
+            return UIMenu(title: "", children: [copyKey, copyValue])
+        }
     }
 }
