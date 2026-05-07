@@ -46,17 +46,17 @@ The current version of azul runs on **macOS 13+** (Apple Silicon and Intel) and 
 
 You can download the latest stable release of azul in the [releases page](https://github.com/tudelft3d/azul/releases) or from the [App Store](https://itunes.apple.com/app/azul/id1173239678?mt=12). If you want more information on how to compile it from source, see below.
 
-![Random3DCity](https://3d.bk.tudelft.nl/ken/img/azul/random.png)
+![Random3DCity](https://3d.bk.tudelft.nl/ken/img/azul/random.jpg)
 
-![LOD2 example](https://3d.bk.tudelft.nl/ken/img/azul/lod2.png)
+![LOD2 example](https://3d.bk.tudelft.nl/ken/img/azul/lod2.jpg)
 
-![Railway](https://3d.bk.tudelft.nl/ken/img/azul/railway.png)
+![Railway](https://3d.bk.tudelft.nl/ken/img/azul/railway.jpg)
 
-![New York City](https://3d.bk.tudelft.nl/ken/img/azul/nyc.png)
+![New York City](https://3d.bk.tudelft.nl/ken/img/azul/nyc.jpg)
 
-![Leiden](https://3d.bk.tudelft.nl/ken/img/azul/leiden.png)
+![Leiden](https://3d.bk.tudelft.nl/ken/img/azul/leiden.jpg)
 
-![Zurich](https://3d.bk.tudelft.nl/ken/img/azul/zurich.png)
+![Zurich](https://3d.bk.tudelft.nl/ken/img/azul/zurich.jpg)
 
 ## Technical details
 
