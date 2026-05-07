@@ -9,16 +9,25 @@ class ObjectListViewController: UIViewController {
 
     weak var delegate: ObjectListViewControllerDelegate?
     var dataManager: DataManagerWrapperWrapper!
-    var flatItems: [AzulObjectIterator] = []
+    var allFlatItems: [AzulObjectIterator] = []
+    var filteredFlatItems: [AzulObjectIterator] = []
     var expandedItems = Set<AzulObjectIterator>()
 
     let tableView = UITableView(frame: .zero, style: .plain)
+    let searchController = UISearchController(searchResultsController: nil)
+    var isSearchActive: Bool { !(searchController.searchBar.text ?? "").isEmpty }
 
     override func viewDidLoad() {
         super.viewDidLoad()
         title = "Objects"
         overrideUserInterfaceStyle = .dark
         view.backgroundColor = .systemBackground
+
+        searchController.searchResultsUpdater = self
+        searchController.obscuresBackgroundDuringPresentation = false
+        searchController.searchBar.placeholder = "Filter objects..."
+        navigationItem.searchController = searchController
+        navigationItem.hidesSearchBarWhenScrolling = false
 
         tableView.delegate = self
         tableView.dataSource = self
@@ -48,17 +57,17 @@ class ObjectListViewController: UIViewController {
     }
 
     func rebuildFlatItems() {
-        flatItems.removeAll()
+        allFlatItems.removeAll()
         let fileCount = dataManager.numberOfParsedFiles()
         for i in 0..<fileCount {
             let file = dataManager.iteratorForFile(at: i) as! AzulObjectIterator
             appendFlattened(file)
         }
-        tableView.reloadData()
+        applyFilter()
     }
 
     private func appendFlattened(_ item: AzulObjectIterator) {
-        flatItems.append(item)
+        allFlatItems.append(item)
         if expandedItems.contains(item), dataManager.isItemExpandable(item) {
             let childCount = dataManager.numberOfChildren(ofItem: item)
             for i in 0..<childCount {
@@ -77,16 +86,48 @@ class ObjectListViewController: UIViewController {
         }
         rebuildFlatItems()
     }
+
+    private func applyFilter() {
+        let rawText = searchController.searchBar.text ?? ""
+        let query = rawText.trimmingCharacters(in: .whitespaces).lowercased()
+        if query.isEmpty {
+            filteredFlatItems = allFlatItems
+        } else {
+            filteredFlatItems = allFlatItems.filter { item in
+                let type = (dataManager.type(ofItem: item) ?? "").lowercased()
+                let ident = (dataManager.identifier(ofItem: item) ?? "").lowercased()
+                if type.contains(query) || ident.contains(query) {
+                    return true
+                }
+                let attrCount = Int(dataManager.numberOfAttributes(ofItem: item))
+                for i in 0..<attrCount {
+                    let key = (dataManager.attributeKey(ofItem: item, at: i) ?? "").lowercased()
+                    let value = (dataManager.attributeValue(ofItem: item, at: i) ?? "").lowercased()
+                    if key.contains(query) || value.contains(query) {
+                        return true
+                    }
+                }
+                return false
+            }
+        }
+        tableView.reloadData()
+    }
+}
+
+extension ObjectListViewController: UISearchResultsUpdating {
+    func updateSearchResults(for searchController: UISearchController) {
+        applyFilter()
+    }
 }
 
 extension ObjectListViewController: UITableViewDataSource, UITableViewDelegate {
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        flatItems.count
+        filteredFlatItems.count
     }
 
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "cell", for: indexPath)
-        let item = flatItems[indexPath.row]
+        let item = filteredFlatItems[indexPath.row]
 
         let typeName = dataManager.type(ofItem: item) ?? ""
         let identifier = dataManager.identifier(ofItem: item) ?? ""
@@ -137,15 +178,15 @@ extension ObjectListViewController: UITableViewDataSource, UITableViewDelegate {
     @objc func visibilityToggled(_ sender: UISwitch) {
         let point = sender.convert(CGPoint.zero, to: tableView)
         guard let indexPath = tableView.indexPathForRow(at: point),
-              indexPath.row < flatItems.count else { return }
-        let item = flatItems[indexPath.row]
+              indexPath.row < filteredFlatItems.count else { return }
+        let item = filteredFlatItems[indexPath.row]
         let newState: Int8 = sender.isOn ? 89 : 78 // 'Y' : 'N'
         dataManager.setVisibleState(newState, forItem: item)
     }
 
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
-        let item = flatItems[indexPath.row]
+        let item = filteredFlatItems[indexPath.row]
 
         if dataManager.isItemExpandable(item) {
             toggleExpandItem(item)
