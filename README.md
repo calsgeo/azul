@@ -2,9 +2,11 @@
 
 azul is a 3D city model viewer. It is intended for viewing 3D city models in CityGML 1.0 and 2.0, CityJSON 1.0, 1.1 and 2.0 (including CityJSON Text Sequences), IndoorGML, OBJ, OFF and POLY. It supports loading multiple files, selecting objects by clicking them or selecting them in the sidebar, toggling the visibility of individual items, filtering by level of detail, and browsing their attributes. It is research software, but it is pretty stable and most datasets already work without problems. It is available under the GPLv3 licence.
 
-The current version of azul is for macOS 13 and higher and supports both Apple Silicon and Intel Macs.
+The current version of azul runs on **macOS 13+** (Apple Silicon and Intel) and **iOS 13+** (iPhone and iPad).
 
 ## Controls
+
+### macOS
 
 * Pan: scroll
 * Rotate: drag on (left) click, rotate on trackpad
@@ -28,6 +30,17 @@ The current version of azul is for macOS 13 and higher and supports both Apple S
 * Go full screen: cmd+ctrl+f
 * Close window (quits): cmd+w
 * Quit: cmd+q
+
+### iOS
+
+* Pan (truck): drag with one finger
+* Rotate (orbit): drag with two fingers
+* Zoom: pinch
+* Twist: rotate two fingers
+* Select: tap on object
+* Centre view: tap **Home** button
+* Open file: tap **Open** button
+* Browse objects: tap **Objects** button
 
 ## Download
 
@@ -67,11 +80,24 @@ azul is written in a mix of C++17, Swift 5, Objective-C 2 and Objective-C++. The
 * Multi-threaded file loading
 * QuickLook plug-in
 * Icon previews
-* iOS support
 
 ## Compilation
 
 We have included an Xcode 26 project to easily compile azul, which runs on macOS 26 (Tahoe), but it should open on older versions of Xcode and the compiled application should run on macOS 13.0 or later.
+
+### macOS
+
+Open `azul.xcodeproj` in Xcode, select the **azul** scheme, build and run.
+
+### iOS
+
+Open `azul.xcodeproj` in Xcode, select the **azul-iOS** scheme, build and run on a simulator or a real device.
+
+The iOS target requires static libraries built for the target platform. Prebuilt libraries are provided:
+- `libs-ios-device/` — for real devices (iphoneos SDK)
+- `libs-ios-sim/` — for the simulator (iphonesimulator SDK)
+
+Copy the appropriate set to `libs-ios/` before building.
 
 azul depends on the following libraries: [Boost](http://www.boost.org), [CGAL](http://www.cgal.org), [GMP](https://gmplib.org), [MPFR](http://www.mpfr.org), [pugixml](http://pugixml.org) and [simdjson](https://github.com/simdjson/simdjson). Most of these can be easily obtained using [Homebrew](http://brew.sh), but we provide fat libraries (arm64 + x86_64) of them all for convenience.
 
