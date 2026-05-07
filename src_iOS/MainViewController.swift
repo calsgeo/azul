@@ -84,6 +84,8 @@ class MainViewController: UIViewController, MTKViewDelegate {
         metalView.sampleCount = 4
         metalView.colorPixelFormat = .bgra8Unorm
         metalView.autoresizesSubviews = true
+        metalView.isPaused = false
+        metalView.enableSetNeedsDisplay = false
         view.addSubview(metalView)
         view.sendSubviewToBack(metalView)
     }
