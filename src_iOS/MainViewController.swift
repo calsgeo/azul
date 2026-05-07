@@ -371,9 +371,9 @@ class MainViewController: UIViewController, MTKViewDelegate {
               let depthTex = pickingDepthTexture,
               !triangleBuffers.isEmpty else { return -1 }
 
-        let scale: CGFloat = 1.0 // on iOS, points = pixels for non-Retina; use traitCollection for Retina
+        let scale: CGFloat = metalView.contentScaleFactor
         let pixelX = Int(location.x * scale)
-        let pixelY = Int(metalView.bounds.height * scale - location.y * scale)
+        let pixelY = Int(location.y * scale)
         guard pixelX >= 0, pixelX < colorTex.width,
               pixelY >= 0, pixelY < colorTex.height else { return -1 }
 
@@ -674,7 +674,7 @@ class MainViewController: UIViewController, MTKViewDelegate {
         let objectId = pickObject(at: location)
         if objectId >= 0 {
             dataManager.setBestHitFromObjectId(objectId)
-            dataManager.updateSelectionStates()
+            dataManager.selectBestHitObject()
             updateSelectionStateBuffer()
             dataManager.updateVisibleStates()
             updateVisibleStateBuffer()
@@ -694,6 +694,9 @@ class MainViewController: UIViewController, MTKViewDelegate {
                 }
                 present(nav, animated: true)
             }
+        } else {
+            dataManager.clearSelection()
+            updateSelectionStateBuffer()
         }
     }
 

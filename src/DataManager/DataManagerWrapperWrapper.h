@@ -160,6 +160,8 @@ struct DataManagerWrapper;
 - (NSString *) attributeKeyOfItem:(id)item atIndex:(NSInteger)index;
 - (NSString *) attributeValueOfItem:(id)item atIndex:(NSInteger)index;
 - (void) setVisibleState:(char)visible forItem:(id)item;
+- (void) selectBestHitObject;
+- (void) clearSelection;
 #endif
 
 // Selection colours

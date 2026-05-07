@@ -701,6 +701,24 @@ struct DataManagerWrapper {
   [self.controller updateVisibleStateBuffer];
   [self.controller updateSelectionStateBuffer];
 }
+
+- (void) selectBestHitObject {
+  for (auto &currentFile: dataManagerWrapper->dataManager->parsedFiles) {
+    dataManagerWrapper->dataManager->setSelection(currentFile, false);
+  }
+  if (dataManagerWrapper->dataManager->bestHitFile != dataManagerWrapper->dataManager->parsedFiles.end() &&
+      dataManagerWrapper->dataManager->bestHitObject != dataManagerWrapper->dataManager->bestHitFile->children.end()) {
+    dataManagerWrapper->dataManager->setSelection(*dataManagerWrapper->dataManager->bestHitObject, true);
+  }
+  dataManagerWrapper->dataManager->updateSelectionStates();
+}
+
+- (void) clearSelection {
+  for (auto &currentFile: dataManagerWrapper->dataManager->parsedFiles) {
+    dataManagerWrapper->dataManager->setSelection(currentFile, false);
+  }
+  dataManagerWrapper->dataManager->updateSelectionStates();
+}
 #endif
 
 @end
