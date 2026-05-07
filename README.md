@@ -2,7 +2,7 @@
 
 azul is a 3D city model viewer. It is intended for viewing 3D city models in CityGML 1.0 and 2.0, CityJSON 1.0, 1.1 and 2.0 (including CityJSON Text Sequences), IndoorGML, OBJ, OFF and POLY. It supports loading multiple files, selecting objects by clicking them or selecting them in the sidebar, toggling the visibility of individual items, filtering by level of detail, and browsing their attributes. It is research software, but it is pretty stable and most datasets already work without problems. It is available under the GPLv3 licence.
 
-The current version of azul runs on **macOS 13+** (Apple Silicon and Intel) and **iOS 13+** (iPhone and iPad).
+The current version of azul runs on **macOS 13+** (Apple Silicon and Intel) and **iOS 14+** (iPhone and iPad).
 
 ## Controls
 
