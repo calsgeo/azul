@@ -662,7 +662,7 @@ class MainViewController: UIViewController, MTKViewDelegate {
             let axisInCamera = SIMD3<Float>(0.0, 0.0, 1.0)
             let cameraToObject = matrix_upper_left_3x3(matrix: matrix_multiply(viewMatrix, modelMatrix)).inverse
             let axisInObject = matrix_multiply(cameraToObject, axisInCamera)
-            modelRotationMatrix = matrix_multiply(modelRotationMatrix, matrix4x4_rotation(angle: Float(gesture.rotation), axis: axisInObject))
+            modelRotationMatrix = matrix_multiply(modelRotationMatrix, matrix4x4_rotation(angle: Float(-gesture.rotation), axis: axisInObject))
             modelMatrix = matrix_multiply(matrix_multiply(modelShiftBackMatrix, modelRotationMatrix), modelTranslationToCentreOfRotationMatrix)
             updateConstants()
             gesture.rotation = 0
