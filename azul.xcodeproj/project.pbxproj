@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 54;
+	objectVersion = 70;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -38,11 +38,8 @@
 		BEE5F8D12FACA45D00653BE1 /* PerformanceHelperWrapperWrapper.mm in Sources */ = {isa = PBXBuildFile; fileRef = BED5AF741F6FD2480002A79E /* PerformanceHelperWrapperWrapper.mm */; };
 		BEE5F8D22FACA45D00653BE1 /* simdjson.cpp in Sources */ = {isa = PBXBuildFile; fileRef = BE2F78EB274B576E007E89C4 /* simdjson.cpp */; };
 		BEE5F8D32FACA45D00653BE1 /* DataManager.cpp in Sources */ = {isa = PBXBuildFile; fileRef = BE7254F91F711D87006E5AC8 /* DataManager.cpp */; };
-		BEE5F8D42FACA45D00653BE1 /* TableCellView.m in Sources */ = {isa = PBXBuildFile; fileRef = BE5724621F78FAAD008F4D54 /* TableCellView.m */; };
 		BEE5F8D52FACA45D00653BE1 /* DataManagerWrapperWrapper.mm in Sources */ = {isa = PBXBuildFile; fileRef = BED5AF621F6FC5950002A79E /* DataManagerWrapperWrapper.mm */; };
-		BEE5F8D62FACA45D00653BE1 /* Controller.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEF69F401F6AA0520079531B /* Controller.swift */; };
 		BEE5F8D72FACA45D00653BE1 /* Shaders.metal in Sources */ = {isa = PBXBuildFile; fileRef = BEF69F501F6AA4C30079531B /* Shaders.metal */; };
-		BEE5F8D82FACA45D00653BE1 /* MetalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEF69F4E1F6AA0EC0079531B /* MetalView.swift */; };
 		BEE5F8D92FACA45D00653BE1 /* Math.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEF69F521F6AA9540079531B /* Math.swift */; };
 		BEE5F8DB2FACA4A200653BE1 /* gml.icns in Resources */ = {isa = PBXBuildFile; fileRef = BE8C43CB1F8D1CAD0021CA0B /* gml.icns */; };
 		BEE5F8DC2FACA4A200653BE1 /* json.icns in Resources */ = {isa = PBXBuildFile; fileRef = BEA3000D1F8EDB4800DCC464 /* json.icns */; };
@@ -115,6 +112,10 @@
 		BEF69F501F6AA4C30079531B /* Shaders.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = Shaders.metal; sourceTree = "<group>"; };
 		BEF69F521F6AA9540079531B /* Math.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Math.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		BEE5F90E2FACAEBF00653BE1 /* src_iOS */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = src_iOS; sourceTree = "<group>"; };
+/* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		BEE5F8B12FACA2C400653BE1 /* Frameworks */ = {
@@ -222,6 +223,7 @@
 				BE89E06422D3C5AF003BBA86 /* PRIVACY.md */,
 				BEB3C3511F8E5C8A00F14F1A /* libs */,
 				BEF69F3F1F6AA0520079531B /* src */,
+				BEE5F90E2FACAEBF00653BE1 /* src_iOS */,
 				BEF69F3E1F6AA0520079531B /* Products */,
 				BED5AF651F6FC8470002A79E /* Frameworks */,
 			);
@@ -268,6 +270,9 @@
 			buildRules = (
 			);
 			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				BEE5F90E2FACAEBF00653BE1 /* src_iOS */,
 			);
 			name = "azul-iOS";
 			packageProductDependencies = (
@@ -378,11 +383,8 @@
 				BEE5F8D12FACA45D00653BE1 /* PerformanceHelperWrapperWrapper.mm in Sources */,
 				BEE5F8D22FACA45D00653BE1 /* simdjson.cpp in Sources */,
 				BEE5F8D32FACA45D00653BE1 /* DataManager.cpp in Sources */,
-				BEE5F8D42FACA45D00653BE1 /* TableCellView.m in Sources */,
 				BEE5F8D52FACA45D00653BE1 /* DataManagerWrapperWrapper.mm in Sources */,
-				BEE5F8D62FACA45D00653BE1 /* Controller.swift in Sources */,
 				BEE5F8D72FACA45D00653BE1 /* Shaders.metal in Sources */,
-				BEE5F8D82FACA45D00653BE1 /* MetalView.swift in Sources */,
 				BEE5F8D92FACA45D00653BE1 /* Math.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -461,7 +463,7 @@
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_OBJC_BRIDGING_HEADER = "$(SRCROOT)/src/Azul-Bridging-Header.h";
+				SWIFT_OBJC_BRIDGING_HEADER = "$(SRCROOT)/src_iOS/Azul-Bridging-Header.h";
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -507,7 +509,7 @@
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_OBJC_BRIDGING_HEADER = "$(SRCROOT)/src/Azul-Bridging-Header.h";
+				SWIFT_OBJC_BRIDGING_HEADER = "$(SRCROOT)/src_iOS/Azul-Bridging-Header.h";
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";

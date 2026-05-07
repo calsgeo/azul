@@ -1,11 +1,12 @@
 import UIKit
 import Metal
 import MetalKit
+import UniformTypeIdentifiers
 
 class MainViewController: UIViewController, MTKViewDelegate {
 
     // MARK: Data manager
-    let dataManager = DataManagerWrapperWrapper()
+    lazy var dataManager: DataManagerWrapperWrapper = DataManagerWrapperWrapper()!
 
     // MARK: Metal
     var metalView: MTKView!
@@ -28,6 +29,13 @@ class MainViewController: UIViewController, MTKViewDelegate {
     // MARK: Scene state
     var showingEdges = true
     var showingBBox = true
+
+    // MARK: Floating buttons
+    var openButton: UIButton!
+    var objectsButton: UIButton!
+    var edgesButton: UIButton!
+    var bboxButton: UIButton!
+    var homeButton: UIButton!
 
     // MARK: Lifecycle
     override func viewDidLoad() {
@@ -107,7 +115,6 @@ class MainViewController: UIViewController, MTKViewDelegate {
         homeButton = makeFloatingButton(systemName: "house.fill", config: buttonConfig, action: #selector(goHome))
 
         let topStack = UIStackView(arrangedSubviews: [openButton])
-        topStack.axis = .horizontal
         topStack.spacing = 8
         topStack.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(topStack)
@@ -219,7 +226,8 @@ class MainViewController: UIViewController, MTKViewDelegate {
         if gesture.state == .changed {
             let forward = normalize(cameraTarget - cameraPosition)
             let rotation = matrix4x4_rotation(angle: Float(gesture.rotation), axis: forward)
-            cameraUp = simd_float3(rotation * simd_float4(cameraUp.x, cameraUp.y, cameraUp.z, 0))
+            let rotatedUp = rotation * simd_float4(cameraUp.x, cameraUp.y, cameraUp.z, 0)
+            cameraUp = simd_float3(rotatedUp.x, rotatedUp.y, rotatedUp.z)
             gesture.rotation = 0
         }
     }
@@ -250,7 +258,8 @@ class MainViewController: UIViewController, MTKViewDelegate {
 
     // MARK: Actions
     @objc func openFile() {
-        let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.json, .xml, .obj], asCopy: true)
+        let types: [UTType] = [.json, .xml, UTType(filenameExtension: "obj")!, UTType(filenameExtension: "off")!, UTType(filenameExtension: "poly")!, UTType(filenameExtension: "gml")!, UTType(filenameExtension: "azulview")!].compactMap { $0 }
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: types, asCopy: true)
         picker.delegate = self
         picker.allowsMultipleSelection = true
         if let scene = view.window?.windowScene,
