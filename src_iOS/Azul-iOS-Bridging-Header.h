@@ -1,4 +1,4 @@
-// azul
+// azul — iOS
 // Copyright © 2016-2026 Ken Arroyo Ohori
 //
 // This program is free software: you can redistribute it and/or modify
@@ -14,23 +14,5 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef TableCellView_h
-#define TableCellView_h
-
-#if TARGET_OS_OSX
-#import <Cocoa/Cocoa.h>
-
-@interface TableCellView: NSTableCellView {
-  NSImageView *image;
-  NSTextField *text;
-}
-
-@property (nonatomic, strong) NSButton *checkBox;
-
-- (TableCellView *)initWithFrame:(NSRect)frameRect;
-- (void)prepareForReuse;
-
-@end
-#endif
-
-#endif /* TableCellView_h */
+#import "PerformanceHelperWrapperWrapper.h"
+#import "DataManagerWrapperWrapper.h"

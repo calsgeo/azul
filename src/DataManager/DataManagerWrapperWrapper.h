@@ -17,18 +17,29 @@
 #ifndef DataManagerWrapperWrapper_h
 #define DataManagerWrapperWrapper_h
 
+#import <TargetConditionals.h>
+#if TARGET_OS_OSX
 #import <Cocoa/Cocoa.h>
+#else
+#import <UIKit/UIKit.h>
+#endif
 #import <Metal/Metal.h>
 #import <MetalKit/MetalKit.h>
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
+#if TARGET_OS_OSX
 #import "TableCellView.h"
+#endif
 
 struct DataManagerWrapper;
 
 @class Controller;
 
+#if TARGET_OS_OSX
 @interface DataManagerWrapperWrapper: NSObject <NSOutlineViewDataSource, NSOutlineViewDelegate, NSTableViewDataSource, NSTableViewDelegate> {
+#else
+@interface DataManagerWrapperWrapper: NSObject {
+#endif
   struct DataManagerWrapper *dataManagerWrapper;
 }
 
@@ -82,6 +93,7 @@ struct DataManagerWrapper;
 - (NSString *)statusMessage;
 
 // Objects source list
+#if TARGET_OS_OSX
 - (NSInteger) outlineView:(NSOutlineView *)outlineView numberOfChildrenOfItem:(id)item;
 - (BOOL) outlineView:(NSOutlineView *)outlineView isItemExpandable:(id)item;
 - (id) outlineView:(NSOutlineView *)outlineView child:(NSInteger)index ofItem:(id)item;
@@ -91,28 +103,31 @@ struct DataManagerWrapper;
 // Attributes table view
 - (NSInteger)numberOfRowsInTableView:(NSTableView *)tableView;
 - (NSView *)tableView:(NSTableView *)tableView viewForTableColumn:(NSTableColumn *)tableColumn row:(NSInteger)row;
+#endif
 
 // Selection by clicking
+#if TARGET_OS_OSX
 - (void) click;
 - (int) findObjectRow;
 - (void) sourceListDoubleClick;
 
-// Object IDs from outline view items
-- (NSString *) objectIdForItem:(id)item;
+// Toggling visibility
+- (void) toggleVisibility:(id)sender;
+- (void) toggleVisibilityForSelection:(NSOutlineView *)outlineView;
+#endif
 
 // Selection state (GPU-based)
 - (void) updateSelectionStates;
 - (const float *) selectionStateData;
 - (int) selectionStateCount;
 
+// Object IDs from items
+- (NSString *) objectIdForItem:(id)item;
+
 // Visibility state (GPU-based)
 - (void) updateVisibleStates;
 - (const float *) visibleStateData;
 - (int) visibleStateCount;
-
-// Toggling visibility
-- (void) toggleVisibility:(id)sender;
-- (void) toggleVisibilityForSelection:(NSOutlineView *)outlineView;
 
 // Selection colours
 - (void) setSelectedEdgesColourWithRed:(float)r green:(float)g blue:(float)b alpha:(float)a;

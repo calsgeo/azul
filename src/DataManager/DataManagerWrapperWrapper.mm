@@ -16,7 +16,9 @@
 
 #import "DataManagerWrapperWrapper.h"
 #import "DataManager.hpp"
+#if TARGET_OS_OSX
 #import "azul-Swift.h"
+#endif
 
 struct DataManagerWrapper {
   DataManager *dataManager;
@@ -162,6 +164,7 @@ struct DataManagerWrapper {
   delete dataManagerWrapper;
 }
 
+#if TARGET_OS_OSX
 - (BOOL) outlineView:(NSOutlineView *)outlineView isItemExpandable:(id)item {
 //  NSLog(@"isItemExpandable:%@", item);
   if (![item isKindOfClass:[AzulObjectIterator class]]) {
@@ -548,6 +551,7 @@ struct DataManagerWrapper {
   
 //  [[controller attributesTableView] reloadData];
 }
+#endif
 
 - (NSString *)statusMessage {
   NSString *statusMessage = [NSString stringWithUTF8String:self->dataManagerWrapper->dataManager->statusMessage.c_str()];
