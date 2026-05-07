@@ -622,13 +622,14 @@ class MainViewController: UIViewController, MTKViewDelegate {
     @objc func handlePan(_ gesture: UIPanGestureRecognizer) {
         let translation = gesture.translation(in: metalView)
         if gesture.state == .changed {
-            let forward = normalize(centre - eye)
-            let right = normalize(cross(forward, SIMD3<Float>(0, 1, 0)))
-            let up = SIMD3<Float>(0, 1, 0)
-            let shift = right * Float(-translation.x) * 0.05 + up * Float(translation.y) * 0.05
-            eye += shift
-            centre += shift
-            viewMatrix = matrix4x4_look_at(eye: eye, centre: centre, up: up)
+            let distance = simd_length(centre - eye)
+            let sensitivity: Float = 0.003 * (fieldOfView / (.pi / 4)) * distance
+            let motionInCamera = SIMD3<Float>(sensitivity * Float(-translation.x), sensitivity * Float(translation.y), 0)
+            let cameraToObject = matrix_upper_left_3x3(matrix: matrix_multiply(viewMatrix, modelMatrix)).inverse
+            let motionInObject = matrix_multiply(cameraToObject, motionInCamera)
+            eye += motionInObject
+            centre += motionInObject
+            viewMatrix = matrix4x4_look_at(eye: eye, centre: centre, up: SIMD3<Float>(0, 1, 0))
             updateConstants()
         }
         gesture.setTranslation(.zero, in: metalView)
@@ -640,7 +641,7 @@ class MainViewController: UIViewController, MTKViewDelegate {
         lastPanTranslation = translation
         if gesture.state == .began { lastPanTranslation = .zero }
         else if gesture.state == .changed {
-            orbit(angleX: Float(delta.y) * 0.005, angleY: Float(delta.x) * 0.005)
+            orbit(angleX: Float(-delta.y) * 0.005, angleY: Float(-delta.x) * 0.005)
         } else if gesture.state == .ended || gesture.state == .cancelled { lastPanTranslation = .zero }
     }
 
