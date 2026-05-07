@@ -118,6 +118,9 @@ public:
   float midCoordinates[3];
   float maxCoordinates[3];
   float maxRange;
+
+  // Centroid for centering view on an object (iOS)
+  float centroid[3];
   
   // Life cycle
   DataManager();

@@ -778,6 +778,11 @@ class MainViewController: UIViewController, MTKViewDelegate {
 // MARK: ObjectListViewControllerDelegate
 extension MainViewController: ObjectListViewControllerDelegate {
     func objectListDidSelectItem(_ item: AzulObjectIterator) {
+        dataManager.selectItem(item)
+        updateSelectionStateBuffer()
+        dataManager.updateVisibleStates()
+        updateVisibleStateBuffer()
+
         let attrsVC = AttributeTableViewController()
         attrsVC.dataManager = dataManager
         let ident = dataManager.identifier(ofItem: item) ?? ""
@@ -787,6 +792,51 @@ extension MainViewController: ObjectListViewControllerDelegate {
         if let nav = presentedViewController as? UINavigationController {
             nav.pushViewController(attrsVC, animated: true)
         }
+    }
+
+    func objectListDidRequestCenter(_ item: AzulObjectIterator) {
+        guard let centroid = dataManager.centroid(ofItem: item),
+              let mids = dataManager.midCoordinates(),
+              let mins = dataManager.minCoordinates(),
+              let maxs = dataManager.maxCoordinates() else { return }
+        let mid = [mids[0], mids[1], mids[2]]
+        let range = dataManager.maxRange()
+        guard range > 0 else { return }
+
+        let normCentroid = SIMD4<Float>(
+            (centroid[0] - mid[0]) / range,
+            (centroid[1] - mid[1]) / range,
+            (centroid[2] - mid[2]) / range,
+            1.0)
+
+        let objectToCamera = matrix_multiply(viewMatrix, modelMatrix)
+        let centroidInCamera = matrix_multiply(objectToCamera, normCentroid)
+
+        let shiftInCamera = SIMD3<Float>(-centroidInCamera.x, -centroidInCamera.y, 0.0)
+        let cameraToObject = matrix_upper_left_3x3(matrix: objectToCamera).inverse
+        let shiftInObject = matrix_multiply(cameraToObject, shiftInCamera)
+
+        modelTranslationToCentreOfRotationMatrix = matrix_multiply(
+            modelTranslationToCentreOfRotationMatrix,
+            matrix4x4_translation(shift: shiftInObject))
+        modelMatrix = matrix_multiply(
+            matrix_multiply(modelShiftBackMatrix, modelRotationMatrix),
+            modelTranslationToCentreOfRotationMatrix)
+
+        let correctedObjectToCamera = matrix_multiply(viewMatrix, modelMatrix)
+        let correctedCameraToObject = matrix_upper_left_3x3(matrix: correctedObjectToCamera).inverse
+        let depthOffset: Float = 1.0 + depthAtCentre()
+        let depthOffsetInCamera = SIMD3<Float>(0.0, 0.0, -depthOffset)
+        let depthOffsetInObject = matrix_multiply(correctedCameraToObject, depthOffsetInCamera)
+
+        modelTranslationToCentreOfRotationMatrix = matrix_multiply(
+            modelTranslationToCentreOfRotationMatrix,
+            matrix4x4_translation(shift: depthOffsetInObject))
+        modelMatrix = matrix_multiply(
+            matrix_multiply(modelShiftBackMatrix, modelRotationMatrix),
+            modelTranslationToCentreOfRotationMatrix)
+
+        updateConstants()
     }
 }
 

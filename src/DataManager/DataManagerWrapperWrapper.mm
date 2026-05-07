@@ -713,6 +713,48 @@ struct DataManagerWrapper {
   dataManagerWrapper->dataManager->updateSelectionStates();
 }
 
+- (void) selectItem:(id)item {
+  if (![item isKindOfClass:[AzulObjectIterator class]]) return;
+  AzulObjectIterator *currentItem = item;
+  for (auto &currentFile: dataManagerWrapper->dataManager->parsedFiles) {
+    dataManagerWrapper->dataManager->setSelection(currentFile, false);
+  }
+  dataManagerWrapper->dataManager->setSelection(*[currentItem iterator], true);
+  dataManagerWrapper->dataManager->updateSelectionStates();
+}
+
+- (const float *) centroidOfItem:(id)item {
+  if (![item isKindOfClass:[AzulObjectIterator class]]) return nullptr;
+  AzulObjectIterator *currentItem = item;
+  dataManagerWrapper->dataManager->centroid[0] = 0;
+  dataManagerWrapper->dataManager->centroid[1] = 0;
+  dataManagerWrapper->dataManager->centroid[2] = 0;
+  CentroidComputation centroidComputation;
+  centroidComputation.sum[0] = 0;
+  centroidComputation.sum[1] = 0;
+  centroidComputation.sum[2] = 0;
+  centroidComputation.points = 0;
+  dataManagerWrapper->dataManager->addAzulObjectAndItsChildrenToCentroidComputation(*[currentItem iterator], centroidComputation);
+  if (centroidComputation.points > 0) {
+    dataManagerWrapper->dataManager->centroid[0] = centroidComputation.sum[0] / static_cast<float>(centroidComputation.points);
+    dataManagerWrapper->dataManager->centroid[1] = centroidComputation.sum[1] / static_cast<float>(centroidComputation.points);
+    dataManagerWrapper->dataManager->centroid[2] = centroidComputation.sum[2] / static_cast<float>(centroidComputation.points);
+  }
+  return dataManagerWrapper->dataManager->centroid;
+}
+
+- (int) centroidPointCountOfItem:(id)item {
+  if (![item isKindOfClass:[AzulObjectIterator class]]) return 0;
+  AzulObjectIterator *currentItem = item;
+  CentroidComputation centroidComputation;
+  centroidComputation.sum[0] = 0;
+  centroidComputation.sum[1] = 0;
+  centroidComputation.sum[2] = 0;
+  centroidComputation.points = 0;
+  dataManagerWrapper->dataManager->addAzulObjectAndItsChildrenToCentroidComputation(*[currentItem iterator], centroidComputation);
+  return static_cast<int>(centroidComputation.points);
+}
+
 - (void) clearSelection {
   for (auto &currentFile: dataManagerWrapper->dataManager->parsedFiles) {
     dataManagerWrapper->dataManager->setSelection(currentFile, false);

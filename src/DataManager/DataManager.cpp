@@ -395,6 +395,7 @@ DataManager::DataManager() {
   for (int coordinate = 0; coordinate < 3; ++coordinate) {
     minCoordinates[coordinate] = std::numeric_limits<float>::max();
     maxCoordinates[coordinate] = std::numeric_limits<float>::lowest();
+    centroid[coordinate] = 0.0f;
   } // std::cout << "Min: " << minCoordinates[0] << " max: " << maxCoordinates[0];
   
   // Default

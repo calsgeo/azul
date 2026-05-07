@@ -3,6 +3,7 @@ import UniformTypeIdentifiers
 
 protocol ObjectListViewControllerDelegate: AnyObject {
     func objectListDidSelectItem(_ item: AzulObjectIterator)
+    func objectListDidRequestCenter(_ item: AzulObjectIterator)
 }
 
 class ObjectListViewController: UIViewController {
@@ -12,6 +13,7 @@ class ObjectListViewController: UIViewController {
     var allFlatItems: [AzulObjectIterator] = []
     var filteredFlatItems: [AzulObjectIterator] = []
     var expandedItems = Set<AzulObjectIterator>()
+    var selectedItem: AzulObjectIterator?
 
     let tableView = UITableView(frame: .zero, style: .plain)
     let searchController = UISearchController(searchResultsController: nil)
@@ -49,6 +51,9 @@ class ObjectListViewController: UIViewController {
 
         navigationItem.rightBarButtonItem = UIBarButtonItem(barButtonSystemItem: .done, target: self, action: #selector(dismissSelf))
 
+        let longPress = UILongPressGestureRecognizer(target: self, action: #selector(handleLongPress(_:)))
+        tableView.addGestureRecognizer(longPress)
+
         rebuildFlatItems()
     }
 
@@ -61,6 +66,9 @@ class ObjectListViewController: UIViewController {
         let fileCount = dataManager.numberOfParsedFiles()
         for i in 0..<fileCount {
             let file = dataManager.iteratorForFile(at: i) as! AzulObjectIterator
+            if dataManager.isItemExpandable(file) {
+                expandedItems.insert(file)
+            }
             appendFlattened(file)
         }
         applyFilter()
@@ -76,6 +84,21 @@ class ObjectListViewController: UIViewController {
                 appendFlattened(child)
             }
         }
+    }
+
+    @objc func handleLongPress(_ gesture: UILongPressGestureRecognizer) {
+        guard gesture.state == .began else { return }
+        let point = gesture.location(in: tableView)
+        guard let indexPath = tableView.indexPathForRow(at: point),
+              indexPath.row < filteredFlatItems.count else { return }
+        let item = filteredFlatItems[indexPath.row]
+
+        if dataManager.isItemExpandable(item) {
+            selectedItem = item
+            tableView.reloadData()
+            delegate?.objectListDidSelectItem(item)
+        }
+        delegate?.objectListDidRequestCenter(item)
     }
 
     func toggleExpandItem(_ item: AzulObjectIterator) {
@@ -161,10 +184,15 @@ extension ObjectListViewController: UITableViewDataSource, UITableViewDelegate {
             cell.accessoryView = nil
         } else {
             cell.accessoryType = .none
-            let switchView = UISwitch()
-            switchView.isOn = visible != 78 // 'N'
-            switchView.addTarget(self, action: #selector(visibilityToggled(_:)), for: .valueChanged)
-            cell.accessoryView = switchView
+            if let sel = selectedItem, sel == item {
+                cell.accessoryType = .checkmark
+                cell.accessoryView = nil
+            } else {
+                let switchView = UISwitch()
+                switchView.isOn = visible != 78 // 'N'
+                switchView.addTarget(self, action: #selector(visibilityToggled(_:)), for: .valueChanged)
+                cell.accessoryView = switchView
+            }
         }
 
         cell.backgroundColor = UIColor(white: 0.12, alpha: 1.0)
@@ -191,6 +219,8 @@ extension ObjectListViewController: UITableViewDataSource, UITableViewDelegate {
         if dataManager.isItemExpandable(item) {
             toggleExpandItem(item)
         } else {
+            selectedItem = item
+            tableView.reloadData()
             delegate?.objectListDidSelectItem(item)
         }
     }

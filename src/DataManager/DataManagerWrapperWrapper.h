@@ -161,7 +161,10 @@ struct DataManagerWrapper;
 - (NSString *) attributeValueOfItem:(id)item atIndex:(NSInteger)index;
 - (void) setVisibleState:(char)visible forItem:(id)item;
 - (void) selectBestHitObject;
+- (void) selectItem:(id)item;
 - (void) clearSelection;
+- (const float *) centroidOfItem:(id)item;
+- (int) centroidPointCountOfItem:(id)item;
 #endif
 
 // Selection colours
