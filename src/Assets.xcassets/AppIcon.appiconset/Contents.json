@@ -59,6 +59,13 @@
       "idiom" : "mac",
       "filename" : "azul-1024.png",
       "scale" : "2x"
+    },
+    {
+      "role" : "primary",
+      "size" : "1024x1024",
+      "idiom" : "ios-marketing",
+      "filename" : "azul-1024.png",
+      "scale" : "1x"
     }
   ],
   "info" : {

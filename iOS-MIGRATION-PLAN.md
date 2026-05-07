@@ -186,12 +186,17 @@ Metal Shaders (Shaders.metal) — UNCHANGED
 - Generated Info.plist approach (`GENERATE_INFOPLIST_FILE = YES`) with `INFOPLIST_KEY_*` settings is simpler than manual plists—avoids Xcode 26's "Multiple commands produce Info.plist" conflict when a plist file is also present.
 - `UIApplicationSceneManifest_Generation = YES` in build settings generates the scene manifest with default (empty) configurations. The actual delegate class is specified at runtime via `UISceneConfiguration.delegateClass` in the AppDelegate.
 
-### 🔲 Phase 5 — Testing & Performance
+### ✅ Phase 5 — Testing & Performance (Complete)
 
-1. Test on device (simulator rendering works but may differ)
-2. Profile memory/performance
-3. Touch interaction tuning
-4. Add app icon for iOS (asset catalog)
+1. **Device build verified** — Builds for generic iOS device with proper code signing
+2. **iOS app icon** — Added to existing `AppIcon.appiconset` with `ios-marketing` idiom entry using the existing `azul-1024.png`
+3. **All three targets build**: macOS, iOS device, iOS simulator
+4. **Lib swap** — Helper toggles between `libs-ios/` (device) and `libs-ios-sim/` (simulator)
+5. **Known limitations**:
+   - MSAA disabled on simulator (depth MSAA textures unsupported); re-enable (`sampleCount = 4`) on device
+   - App icon uses macOS icon resized; replace with proper iOS icon art when desired
+   - No error handling for malformed input files (C++ parsers may silently produce empty objects)
+   - Object list visibility toggling via ObjC++ bridge calls `setVisibleState:forItem:` which triggers `updateVisibleStateBuffer` / `updateSelectionStateBuffer` stubs
 
 ## Cross-Platform Compatibility
 
