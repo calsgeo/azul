@@ -18,6 +18,8 @@
 #import "DataManager.hpp"
 #if TARGET_OS_OSX
 #import "azul-Swift.h"
+#elif TARGET_OS_SIMULATOR
+#import "azul_iOS_simulator-Swift.h"
 #else
 #import "azul_iOS-Swift.h"
 #endif
