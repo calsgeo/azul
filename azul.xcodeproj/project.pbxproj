@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 54;
+	objectVersion = 70;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -26,6 +26,32 @@
 		BECCEE4C1F705F2900527DC1 /* Credits.rtf in Resources */ = {isa = PBXBuildFile; fileRef = BEA2DAD11F7054F7002FBEF4 /* Credits.rtf */; };
 		BED5AF631F6FC5950002A79E /* DataManagerWrapperWrapper.mm in Sources */ = {isa = PBXBuildFile; fileRef = BED5AF621F6FC5950002A79E /* DataManagerWrapperWrapper.mm */; };
 		BED5AF751F6FD2480002A79E /* PerformanceHelperWrapperWrapper.mm in Sources */ = {isa = PBXBuildFile; fileRef = BED5AF741F6FD2480002A79E /* PerformanceHelperWrapperWrapper.mm */; };
+		BEE5F8C82FACA40300653BE1 /* libboost_exception.a in Frameworks */ = {isa = PBXBuildFile; fileRef = BEE5F8BF2FACA40300653BE1 /* libboost_exception.a */; };
+		BEE5F8C92FACA40300653BE1 /* libboost_thread.a in Frameworks */ = {isa = PBXBuildFile; fileRef = BEE5F8C02FACA40300653BE1 /* libboost_thread.a */; };
+		BEE5F8CA2FACA40300653BE1 /* libboost_container.a in Frameworks */ = {isa = PBXBuildFile; fileRef = BEE5F8C12FACA40300653BE1 /* libboost_container.a */; };
+		BEE5F8CB2FACA40300653BE1 /* libboost_date_time.a in Frameworks */ = {isa = PBXBuildFile; fileRef = BEE5F8C22FACA40300653BE1 /* libboost_date_time.a */; };
+		BEE5F8CC2FACA40300653BE1 /* libpugixml.a in Frameworks */ = {isa = PBXBuildFile; fileRef = BEE5F8C32FACA40300653BE1 /* libpugixml.a */; };
+		BEE5F8CD2FACA40300653BE1 /* libgmp.a in Frameworks */ = {isa = PBXBuildFile; fileRef = BEE5F8C42FACA40300653BE1 /* libgmp.a */; };
+		BEE5F8CE2FACA40300653BE1 /* libboost_chrono.a in Frameworks */ = {isa = PBXBuildFile; fileRef = BEE5F8C52FACA40300653BE1 /* libboost_chrono.a */; };
+		BEE5F8CF2FACA40300653BE1 /* libboost_atomic.a in Frameworks */ = {isa = PBXBuildFile; fileRef = BEE5F8C62FACA40300653BE1 /* libboost_atomic.a */; };
+		BEE5F8D02FACA40300653BE1 /* libmpfr.a in Frameworks */ = {isa = PBXBuildFile; fileRef = BEE5F8C72FACA40300653BE1 /* libmpfr.a */; };
+		BEE5F8D12FACA45D00653BE1 /* PerformanceHelperWrapperWrapper.mm in Sources */ = {isa = PBXBuildFile; fileRef = BED5AF741F6FD2480002A79E /* PerformanceHelperWrapperWrapper.mm */; };
+		BEE5F8D22FACA45D00653BE1 /* simdjson.cpp in Sources */ = {isa = PBXBuildFile; fileRef = BE2F78EB274B576E007E89C4 /* simdjson.cpp */; };
+		BEE5F8D32FACA45D00653BE1 /* DataManager.cpp in Sources */ = {isa = PBXBuildFile; fileRef = BE7254F91F711D87006E5AC8 /* DataManager.cpp */; };
+		BEE5F8D42FACA45D00653BE1 /* TableCellView.m in Sources */ = {isa = PBXBuildFile; fileRef = BE5724621F78FAAD008F4D54 /* TableCellView.m */; };
+		BEE5F8D52FACA45D00653BE1 /* DataManagerWrapperWrapper.mm in Sources */ = {isa = PBXBuildFile; fileRef = BED5AF621F6FC5950002A79E /* DataManagerWrapperWrapper.mm */; };
+		BEE5F8D62FACA45D00653BE1 /* Controller.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEF69F401F6AA0520079531B /* Controller.swift */; };
+		BEE5F8D72FACA45D00653BE1 /* Shaders.metal in Sources */ = {isa = PBXBuildFile; fileRef = BEF69F501F6AA4C30079531B /* Shaders.metal */; };
+		BEE5F8D82FACA45D00653BE1 /* MetalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEF69F4E1F6AA0EC0079531B /* MetalView.swift */; };
+		BEE5F8D92FACA45D00653BE1 /* Math.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEF69F521F6AA9540079531B /* Math.swift */; };
+		BEE5F8DB2FACA4A200653BE1 /* gml.icns in Resources */ = {isa = PBXBuildFile; fileRef = BE8C43CB1F8D1CAD0021CA0B /* gml.icns */; };
+		BEE5F8DC2FACA4A200653BE1 /* json.icns in Resources */ = {isa = PBXBuildFile; fileRef = BEA3000D1F8EDB4800DCC464 /* json.icns */; };
+		BEE5F8DD2FACA4A200653BE1 /* obj.icns in Resources */ = {isa = PBXBuildFile; fileRef = BE8C43CD1F8D1CAD0021CA0B /* obj.icns */; };
+		BEE5F8DE2FACA4A200653BE1 /* off.icns in Resources */ = {isa = PBXBuildFile; fileRef = BE8C43CC1F8D1CAD0021CA0B /* off.icns */; };
+		BEE5F8DF2FACA4A200653BE1 /* poly.icns in Resources */ = {isa = PBXBuildFile; fileRef = BE8C43CA1F8D1CAD0021CA0B /* poly.icns */; };
+		BEE5F8E02FACA4A200653BE1 /* azulview.icns in Resources */ = {isa = PBXBuildFile; fileRef = BEB3C35E1F8EC6BE00F14F1A /* azulview.icns */; };
+		BEE5F8E12FACA4A200653BE1 /* xml.icns in Resources */ = {isa = PBXBuildFile; fileRef = BE8C43D61F8D1EA50021CA0B /* xml.icns */; };
+		BEE5F8E22FACA4A200653BE1 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BEF69F421F6AA0520079531B /* Assets.xcassets */; };
 		BEF69F411F6AA0520079531B /* Controller.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEF69F401F6AA0520079531B /* Controller.swift */; };
 		BEF69F431F6AA0520079531B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BEF69F421F6AA0520079531B /* Assets.xcassets */; };
 		BEF69F461F6AA0520079531B /* MainMenu.xib in Resources */ = {isa = PBXBuildFile; fileRef = BEF69F441F6AA0520079531B /* MainMenu.xib */; };
@@ -69,6 +95,16 @@
 		BED5AF641F6FC5BB0002A79E /* DataManagerWrapperWrapper.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = DataManagerWrapperWrapper.h; sourceTree = "<group>"; };
 		BED5AF741F6FD2480002A79E /* PerformanceHelperWrapperWrapper.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = PerformanceHelperWrapperWrapper.mm; sourceTree = "<group>"; };
 		BED5AF761F6FD2800002A79E /* PerformanceHelperWrapperWrapper.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = PerformanceHelperWrapperWrapper.h; sourceTree = "<group>"; };
+		BEE5F8B42FACA2C400653BE1 /* azul-iOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "azul-iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		BEE5F8BF2FACA40300653BE1 /* libboost_exception.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libboost_exception.a; path = "libs-ios/libboost_exception.a"; sourceTree = "<group>"; };
+		BEE5F8C02FACA40300653BE1 /* libboost_thread.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libboost_thread.a; path = "libs-ios/libboost_thread.a"; sourceTree = "<group>"; };
+		BEE5F8C12FACA40300653BE1 /* libboost_container.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libboost_container.a; path = "libs-ios/libboost_container.a"; sourceTree = "<group>"; };
+		BEE5F8C22FACA40300653BE1 /* libboost_date_time.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libboost_date_time.a; path = "libs-ios/libboost_date_time.a"; sourceTree = "<group>"; };
+		BEE5F8C32FACA40300653BE1 /* libpugixml.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libpugixml.a; path = "libs-ios/libpugixml.a"; sourceTree = "<group>"; };
+		BEE5F8C42FACA40300653BE1 /* libgmp.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libgmp.a; path = "libs-ios/libgmp.a"; sourceTree = "<group>"; };
+		BEE5F8C52FACA40300653BE1 /* libboost_chrono.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libboost_chrono.a; path = "libs-ios/libboost_chrono.a"; sourceTree = "<group>"; };
+		BEE5F8C62FACA40300653BE1 /* libboost_atomic.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libboost_atomic.a; path = "libs-ios/libboost_atomic.a"; sourceTree = "<group>"; };
+		BEE5F8C72FACA40300653BE1 /* libmpfr.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libmpfr.a; path = "libs-ios/libmpfr.a"; sourceTree = "<group>"; };
 		BEF69F3D1F6AA0520079531B /* azul.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = azul.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		BEF69F401F6AA0520079531B /* Controller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Controller.swift; sourceTree = "<group>"; };
 		BEF69F421F6AA0520079531B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -80,7 +116,37 @@
 		BEF69F521F6AA9540079531B /* Math.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Math.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		BEE5F8DA2FACA48A00653BE1 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Assets.xcassets,
+			);
+			target = BEE5F8B32FACA2C400653BE1 /* azul-iOS */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		BEE5F8B52FACA2C400653BE1 /* azul-iOS */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (BEE5F8DA2FACA48A00653BE1 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = "azul-iOS"; sourceTree = "<group>"; };
+/* End PBXFileSystemSynchronizedRootGroup section */
+
 /* Begin PBXFrameworksBuildPhase section */
+		BEE5F8B12FACA2C400653BE1 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				BEE5F8C82FACA40300653BE1 /* libboost_exception.a in Frameworks */,
+				BEE5F8C92FACA40300653BE1 /* libboost_thread.a in Frameworks */,
+				BEE5F8CA2FACA40300653BE1 /* libboost_container.a in Frameworks */,
+				BEE5F8CB2FACA40300653BE1 /* libboost_date_time.a in Frameworks */,
+				BEE5F8CC2FACA40300653BE1 /* libpugixml.a in Frameworks */,
+				BEE5F8CD2FACA40300653BE1 /* libgmp.a in Frameworks */,
+				BEE5F8CE2FACA40300653BE1 /* libboost_chrono.a in Frameworks */,
+				BEE5F8CF2FACA40300653BE1 /* libboost_atomic.a in Frameworks */,
+				BEE5F8D02FACA40300653BE1 /* libmpfr.a in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		BEF69F3A1F6AA0520079531B /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -144,6 +210,15 @@
 		BED5AF651F6FC8470002A79E /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				BEE5F8C62FACA40300653BE1 /* libboost_atomic.a */,
+				BEE5F8C52FACA40300653BE1 /* libboost_chrono.a */,
+				BEE5F8C12FACA40300653BE1 /* libboost_container.a */,
+				BEE5F8C22FACA40300653BE1 /* libboost_date_time.a */,
+				BEE5F8BF2FACA40300653BE1 /* libboost_exception.a */,
+				BEE5F8C02FACA40300653BE1 /* libboost_thread.a */,
+				BEE5F8C42FACA40300653BE1 /* libgmp.a */,
+				BEE5F8C72FACA40300653BE1 /* libmpfr.a */,
+				BEE5F8C32FACA40300653BE1 /* libpugixml.a */,
 				BEB3C907288075240014932A /* libboost_thread.a */,
 				BEB3C905288075240014932A /* libgmp.a */,
 				BEB3C904288075240014932A /* libmpfr.a */,
@@ -161,6 +236,7 @@
 				BE89E06422D3C5AF003BBA86 /* PRIVACY.md */,
 				BEB3C3511F8E5C8A00F14F1A /* libs */,
 				BEF69F3F1F6AA0520079531B /* src */,
+				BEE5F8B52FACA2C400653BE1 /* azul-iOS */,
 				BEF69F3E1F6AA0520079531B /* Products */,
 				BED5AF651F6FC8470002A79E /* Frameworks */,
 			);
@@ -170,6 +246,7 @@
 			isa = PBXGroup;
 			children = (
 				BEF69F3D1F6AA0520079531B /* azul.app */,
+				BEE5F8B42FACA2C400653BE1 /* azul-iOS.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -195,6 +272,28 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		BEE5F8B32FACA2C400653BE1 /* azul-iOS */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = BEE5F8BE2FACA2C500653BE1 /* Build configuration list for PBXNativeTarget "azul-iOS" */;
+			buildPhases = (
+				BEE5F8B02FACA2C400653BE1 /* Sources */,
+				BEE5F8B12FACA2C400653BE1 /* Frameworks */,
+				BEE5F8B22FACA2C400653BE1 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				BEE5F8B52FACA2C400653BE1 /* azul-iOS */,
+			);
+			name = "azul-iOS";
+			packageProductDependencies = (
+			);
+			productName = "azul-iOS";
+			productReference = BEE5F8B42FACA2C400653BE1 /* azul-iOS.app */;
+			productType = "com.apple.product-type.application";
+		};
 		BEF69F3C1F6AA0520079531B /* azul */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = BEF69F4B1F6AA0520079531B /* Build configuration list for PBXNativeTarget "azul" */;
@@ -219,10 +318,13 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
-				LastSwiftUpdateCheck = 0900;
+				LastSwiftUpdateCheck = 2640;
 				LastUpgradeCheck = 2640;
 				ORGANIZATIONNAME = "Ken Arroyo Ohori";
 				TargetAttributes = {
+					BEE5F8B32FACA2C400653BE1 = {
+						CreatedOnToolsVersion = 26.4.1;
+					};
 					BEF69F3C1F6AA0520079531B = {
 						CreatedOnToolsVersion = 9.0;
 						LastSwiftMigration = 1020;
@@ -244,11 +346,27 @@
 			projectRoot = "";
 			targets = (
 				BEF69F3C1F6AA0520079531B /* azul */,
+				BEE5F8B32FACA2C400653BE1 /* azul-iOS */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		BEE5F8B22FACA2C400653BE1 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				BEE5F8DB2FACA4A200653BE1 /* gml.icns in Resources */,
+				BEE5F8DC2FACA4A200653BE1 /* json.icns in Resources */,
+				BEE5F8DD2FACA4A200653BE1 /* obj.icns in Resources */,
+				BEE5F8DE2FACA4A200653BE1 /* off.icns in Resources */,
+				BEE5F8DF2FACA4A200653BE1 /* poly.icns in Resources */,
+				BEE5F8E02FACA4A200653BE1 /* azulview.icns in Resources */,
+				BEE5F8E12FACA4A200653BE1 /* xml.icns in Resources */,
+				BEE5F8E22FACA4A200653BE1 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		BEF69F3B1F6AA0520079531B /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -271,6 +389,22 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		BEE5F8B02FACA2C400653BE1 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				BEE5F8D12FACA45D00653BE1 /* PerformanceHelperWrapperWrapper.mm in Sources */,
+				BEE5F8D22FACA45D00653BE1 /* simdjson.cpp in Sources */,
+				BEE5F8D32FACA45D00653BE1 /* DataManager.cpp in Sources */,
+				BEE5F8D42FACA45D00653BE1 /* TableCellView.m in Sources */,
+				BEE5F8D52FACA45D00653BE1 /* DataManagerWrapperWrapper.mm in Sources */,
+				BEE5F8D62FACA45D00653BE1 /* Controller.swift in Sources */,
+				BEE5F8D72FACA45D00653BE1 /* Shaders.metal in Sources */,
+				BEE5F8D82FACA45D00653BE1 /* MetalView.swift in Sources */,
+				BEE5F8D92FACA45D00653BE1 /* Math.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		BEF69F391F6AA0520079531B /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -301,6 +435,104 @@
 /* End PBXVariantGroup section */
 
 /* Begin XCBuildConfiguration section */
+		BEE5F8BC2FACA2C500653BE1 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CLANG_CXX_LANGUAGE_STANDARD = "c++17";
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = UD3V83TPY7;
+				ENABLE_PREVIEWS = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GENERATE_INFOPLIST_FILE = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(SRCROOT)/src/DataManager",
+					"$(SRCROOT)/include",
+				);
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				LIBRARY_SEARCH_PATHS = "$(PROJECT_DIR)/libs-ios";
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MARKETING_VERSION = 1.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = "ken.azul-iOS";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "$(SRCROOT)/src/Azul-Bridging-Header.h";
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		BEE5F8BD2FACA2C500653BE1 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CLANG_CXX_LANGUAGE_STANDARD = "c++17";
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = UD3V83TPY7;
+				ENABLE_PREVIEWS = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(SRCROOT)/src/DataManager",
+					"$(SRCROOT)/include",
+				);
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				LIBRARY_SEARCH_PATHS = "$(PROJECT_DIR)/libs-ios";
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MARKETING_VERSION = 1.0;
+				MTL_FAST_MATH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = "ken.azul-iOS";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "$(SRCROOT)/src/Azul-Bridging-Header.h";
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
 		BEF69F491F6AA0520079531B /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -522,6 +754,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		BEE5F8BE2FACA2C500653BE1 /* Build configuration list for PBXNativeTarget "azul-iOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				BEE5F8BC2FACA2C500653BE1 /* Debug */,
+				BEE5F8BD2FACA2C500653BE1 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		BEF69F381F6AA0520079531B /* Build configuration list for PBXProject "azul" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
