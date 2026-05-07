@@ -12,23 +12,48 @@ class MainViewController: UIViewController, MTKViewDelegate {
     var metalView: MTKView!
     var device: MTLDevice!
     var commandQueue: MTLCommandQueue!
+    var library: MTLLibrary!
 
-    // MARK: Camera
-    var cameraPosition = simd_float3(0, 0, 100)
-    var cameraTarget = simd_float3(0, 0, 0)
-    var cameraUp = simd_float3(0, 1, 0)
-    var fieldOfView: Float = 45.0
-    var nearZ: Float = 0.1
-    var farZ: Float = 10000.0
+    var litRenderPipelineState: MTLRenderPipelineState?
+    var unlitRenderPipelineState: MTLRenderPipelineState?
+    var edgeRenderPipelineState: MTLRenderPipelineState?
+    var pickingRenderPipelineState: MTLRenderPipelineState?
+    var depthStencilState: MTLDepthStencilState?
 
-    // MARK: Gesture state
-    var lastPanLocation: CGPoint?
-    var lastPanTranslation: CGPoint = .zero
-    var currentPinchScale: CGFloat = 1.0
+    var msaaTexture: MTLTexture?
+    var msaaDepthTexture: MTLTexture?
+    var depthTexture: MTLTexture?
+    var pickingTexture: MTLTexture?
+    var pickingDepthTexture: MTLTexture?
+
+    var triangleBuffers = [BufferWithColour]()
+    var edgeBuffers = [BufferWithColour]()
+    var boundingBoxBuffer: MTLBuffer?
+    var selectionStateBuffer: MTLBuffer?
+    var selectionStateCount: Int = 0
+    var visibleStateBuffer: MTLBuffer?
+    var visibleStateCount: Int = 0
+
+    var constants = Constants()
+
+    // MARK: Camera (matches macOS MetalView)
+    var eye = SIMD3<Float>(0.0, 0.0, 0.0)
+    var centre = SIMD3<Float>(0.0, 0.0, -1.0)
+    var fieldOfView: Float = 1.047197551196598
+
+    var modelTranslationToCentreOfRotationMatrix = matrix_identity_float4x4
+    var modelRotationMatrix = matrix_identity_float4x4
+    var modelShiftBackMatrix = matrix_identity_float4x4
+
+    var modelMatrix = matrix_identity_float4x4
+    var viewMatrix = matrix_identity_float4x4
+    var projectionMatrix = matrix_identity_float4x4
 
     // MARK: Scene state
     var showingEdges = true
     var showingBBox = true
+    var selectionColour = SIMD4<Float>(1.0, 1.0, 0.0, 1.0)
+    let depthFormat = MTLPixelFormat.depth32Float
 
     // MARK: Floating buttons
     var openButton: UIButton!
@@ -37,16 +62,51 @@ class MainViewController: UIViewController, MTKViewDelegate {
     var bboxButton: UIButton!
     var homeButton: UIButton!
 
+    // MARK: Gesture state
+    var lastPanTranslation: CGPoint = .zero
+
     // MARK: Lifecycle
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .systemBackground
         dataManager.controller = self
+
+        device = MTLCreateSystemDefaultDevice()
+        guard device != nil else {
+            showMessage("Metal not available on simulator.\nRun on a real device to see the 3D view.")
+            setupFloatingButtons()
+            return
+        }
+        commandQueue = device.makeCommandQueue()
+        library = device.makeDefaultLibrary()
+
         setupMetal()
         setupFloatingButtons()
-        if metalView != nil {
-            setupGestures()
-        }
+        setupGestures()
+        setupCamera()
+
+        recreatePipelines()
+        createPickingTextures()
+
+        metalView.isPaused = false
+        metalView.enableSetNeedsDisplay = false
+    }
+
+    func showMessage(_ text: String) {
+        let label = UILabel()
+        label.text = text
+        label.textAlignment = .center
+        label.numberOfLines = 0
+        label.textColor = .white
+        label.font = .systemFont(ofSize: 14)
+        label.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(label)
+        NSLayoutConstraint.activate([
+            label.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            label.centerYAnchor.constraint(equalTo: view.centerYAnchor),
+            label.leadingAnchor.constraint(greaterThanOrEqualTo: view.leadingAnchor, constant: 40),
+            label.trailingAnchor.constraint(lessThanOrEqualTo: view.trailingAnchor, constant: -40),
+        ])
     }
 
     override func viewDidLayoutSubviews() {
@@ -56,78 +116,550 @@ class MainViewController: UIViewController, MTKViewDelegate {
 
     // MARK: Metal setup
     func setupMetal() {
-        device = MTLCreateSystemDefaultDevice()
-        guard device != nil else {
-            let label = UILabel()
-            label.text = "Metal not available on simulator.\nRun on a real device to see the 3D view."
-            label.textAlignment = .center
-            label.numberOfLines = 0
-            label.textColor = .white
-            label.font = .systemFont(ofSize: 14)
-            label.translatesAutoresizingMaskIntoConstraints = false
-            view.addSubview(label)
-            NSLayoutConstraint.activate([
-                label.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-                label.centerYAnchor.constraint(equalTo: view.centerYAnchor),
-                label.leadingAnchor.constraint(greaterThanOrEqualTo: view.leadingAnchor, constant: 40),
-                label.trailingAnchor.constraint(lessThanOrEqualTo: view.trailingAnchor, constant: -40),
-            ])
-            return
-        }
-        commandQueue = device.makeCommandQueue()
-
         metalView = MTKView(frame: view.bounds, device: device)
         metalView.delegate = self
         metalView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         metalView.clearColor = MTLClearColorMake(0.15, 0.15, 0.20, 1.0)
-        metalView.depthStencilPixelFormat = .depth32Float
-        metalView.sampleCount = 4
+        metalView.sampleCount = 1
         metalView.colorPixelFormat = .bgra8Unorm
         metalView.autoresizesSubviews = true
-        metalView.isPaused = false
-        metalView.enableSetNeedsDisplay = false
         view.addSubview(metalView)
         view.sendSubviewToBack(metalView)
+
+        let depthDesc = MTLDepthStencilDescriptor()
+        depthDesc.depthCompareFunction = .less
+        depthDesc.isDepthWriteEnabled = true
+        depthStencilState = device.makeDepthStencilState(descriptor: depthDesc)
+
+        createDepthTexture(size: metalView.drawableSize)
     }
 
-    func updateCamera() {
-        guard metalView != nil else { return }
-        let aspect = Float(metalView.drawableSize.width / metalView.drawableSize.height)
-        var projection = matrix4x4_perspective(fieldOfView: fieldOfView * .pi / 180.0,
-                                                aspectRatio: aspect,
-                                                nearZ: nearZ,
-                                                farZ: farZ)
-        let viewMatrix = matrix4x4_look_at(eye: cameraPosition, centre: cameraTarget, up: cameraUp)
-        let modelMatrix = matrix_identity_float4x4
-        _ = projection * viewMatrix * modelMatrix
+    func createDepthTexture(size: CGSize) {
+        let w = Int(size.width)
+        let h = Int(size.height)
+        guard w > 0, h > 0 else { return }
+        let desc = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: depthFormat, width: w, height: h, mipmapped: false)
+        desc.storageMode = .private
+        desc.usage = .renderTarget
+        depthTexture = device.makeTexture(descriptor: desc)
+    }
+
+    func setupCamera() {
+        modelShiftBackMatrix = matrix4x4_translation(shift: centre)
+        modelMatrix = matrix_multiply(matrix_multiply(modelShiftBackMatrix, modelRotationMatrix), modelTranslationToCentreOfRotationMatrix)
+        viewMatrix = matrix4x4_look_at(eye: eye, centre: centre, up: SIMD3<Float>(0.0, 1.0, 0.0))
+        projectionMatrix = matrix4x4_perspective(fieldOfView: fieldOfView, aspectRatio: Float(metalView.bounds.size.width / metalView.bounds.size.height), nearZ: 0.001, farZ: 100.0)
+        constants.modelMatrix = modelMatrix
+        constants.modelViewProjectionMatrix = matrix_multiply(projectionMatrix, matrix_multiply(viewMatrix, modelMatrix))
+        constants.modelMatrixInverseTransposed = matrix_upper_left_3x3(matrix: modelMatrix).inverse.transpose
+        constants.viewMatrixInverse = viewMatrix.inverse
+    }
+
+    // MARK: Pipelines
+    func recreatePipelines() {
+        guard let library = library else { return }
+
+        let litDesc = MTLRenderPipelineDescriptor()
+        litDesc.vertexFunction = library.makeFunction(name: "vertexLit")
+        litDesc.fragmentFunction = library.makeFunction(name: "fragmentLit")
+        litDesc.colorAttachments[0].pixelFormat = metalView.colorPixelFormat
+        litDesc.colorAttachments[0].isBlendingEnabled = true
+        litDesc.colorAttachments[0].sourceRGBBlendFactor = .sourceAlpha
+        litDesc.colorAttachments[0].sourceAlphaBlendFactor = .sourceAlpha
+        litDesc.colorAttachments[0].destinationRGBBlendFactor = .oneMinusSourceAlpha
+        litDesc.colorAttachments[0].destinationAlphaBlendFactor = .oneMinusSourceAlpha
+        litDesc.depthAttachmentPixelFormat = depthFormat
+        litDesc.rasterSampleCount = metalView.sampleCount
+
+        let unlitDesc = MTLRenderPipelineDescriptor()
+        unlitDesc.vertexFunction = library.makeFunction(name: "vertexUnlit")
+        unlitDesc.fragmentFunction = library.makeFunction(name: "fragmentUnlit")
+        unlitDesc.colorAttachments[0].pixelFormat = metalView.colorPixelFormat
+        unlitDesc.colorAttachments[0].isBlendingEnabled = false
+        unlitDesc.depthAttachmentPixelFormat = depthFormat
+        unlitDesc.rasterSampleCount = metalView.sampleCount
+
+        let edgeDesc = MTLRenderPipelineDescriptor()
+        edgeDesc.vertexFunction = library.makeFunction(name: "vertexEdge")
+        edgeDesc.fragmentFunction = library.makeFunction(name: "fragmentEdge")
+        edgeDesc.colorAttachments[0].pixelFormat = metalView.colorPixelFormat
+        edgeDesc.colorAttachments[0].isBlendingEnabled = false
+        edgeDesc.depthAttachmentPixelFormat = depthFormat
+        edgeDesc.rasterSampleCount = metalView.sampleCount
+
+        let pickDesc = MTLRenderPipelineDescriptor()
+        pickDesc.vertexFunction = library.makeFunction(name: "vertexPicking")
+        pickDesc.fragmentFunction = library.makeFunction(name: "fragmentPicking")
+        pickDesc.colorAttachments[0].pixelFormat = .rgba8Unorm
+        pickDesc.depthAttachmentPixelFormat = depthFormat
+        pickDesc.rasterSampleCount = 1
+
+        do {
+            litRenderPipelineState = try device.makeRenderPipelineState(descriptor: litDesc)
+            unlitRenderPipelineState = try device.makeRenderPipelineState(descriptor: unlitDesc)
+            edgeRenderPipelineState = try device.makeRenderPipelineState(descriptor: edgeDesc)
+            pickingRenderPipelineState = try device.makeRenderPipelineState(descriptor: pickDesc)
+        } catch {
+            print("Pipeline error: \(error)")
+        }
+    }
+
+    // MARK: MSAA
+    func createMSAATextures(size: CGSize) {
+        let w = Int(size.width)
+        let h = Int(size.height)
+        guard w > 0, h > 0 else { return }
+        let sampleCount = metalView.sampleCount
+        msaaTexture = nil
+        msaaDepthTexture = nil
+        if sampleCount > 1 {
+            let desc = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: metalView.colorPixelFormat, width: w, height: h, mipmapped: false)
+            desc.textureType = .type2DMultisample
+            desc.sampleCount = sampleCount
+            desc.usage = .renderTarget
+            desc.storageMode = .private
+            msaaTexture = device.makeTexture(descriptor: desc)
+
+            let depthDesc = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: depthFormat, width: w, height: h, mipmapped: false)
+            depthDesc.textureType = .type2DMultisample
+            depthDesc.sampleCount = sampleCount
+            depthDesc.usage = .renderTarget
+            depthDesc.storageMode = .private
+            msaaDepthTexture = device.makeTexture(descriptor: depthDesc)
+
+            if msaaTexture == nil || msaaDepthTexture == nil {
+                metalView.sampleCount = 1
+                msaaTexture = nil
+                msaaDepthTexture = nil
+                recreatePipelines()
+            }
+        }
+    }
+
+    func createPickingTextures() {
+        let w = Int(metalView.drawableSize.width)
+        let h = Int(metalView.drawableSize.height)
+        guard w > 0, h > 0 else { return }
+        let desc = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .rgba8Unorm, width: w, height: h, mipmapped: false)
+        desc.usage = [.renderTarget, .shaderRead]
+        pickingTexture = device.makeTexture(descriptor: desc)
+
+        let depthDesc = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: depthFormat, width: w, height: h, mipmapped: false)
+        depthDesc.storageMode = .private
+        depthDesc.usage = .renderTarget
+        pickingDepthTexture = device.makeTexture(descriptor: depthDesc)
     }
 
     // MARK: MTKViewDelegate
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
-        updateCamera()
+        createDepthTexture(size: size)
+        createPickingTextures()
+        let aspect = Float(size.width / size.height)
+        projectionMatrix = matrix4x4_perspective(fieldOfView: fieldOfView, aspectRatio: aspect, nearZ: 0.001, farZ: 100.0)
+        constants.modelViewProjectionMatrix = matrix_multiply(projectionMatrix, matrix_multiply(viewMatrix, modelMatrix))
     }
 
     func draw(in view: MTKView) {
-        guard let commandBuffer = commandQueue.makeCommandBuffer() else { return }
-        guard let renderPassDescriptor = view.currentRenderPassDescriptor else { return }
-        guard let drawable = view.currentDrawable else { return }
+        guard let commandBuffer = commandQueue.makeCommandBuffer(),
+              let drawable = view.currentDrawable else { return }
 
+        let renderPassDescriptor = MTLRenderPassDescriptor()
+        renderPassDescriptor.colorAttachments[0].texture = drawable.texture
+        renderPassDescriptor.colorAttachments[0].storeAction = .store
+        renderPassDescriptor.depthAttachment.texture = depthTexture
+        renderPassDescriptor.depthAttachment.storeAction = .dontCare
         renderPassDescriptor.colorAttachments[0].clearColor = metalView.clearColor
         renderPassDescriptor.colorAttachments[0].loadAction = .clear
-        renderPassDescriptor.colorAttachments[0].storeAction = .store
+        renderPassDescriptor.depthAttachment.texture = depthTexture
+        renderPassDescriptor.depthAttachment.loadAction = .clear
+        renderPassDescriptor.depthAttachment.storeAction = .dontCare
+        renderPassDescriptor.depthAttachment.clearDepth = 1.0
 
-        guard let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: renderPassDescriptor) else {
-            return
+        let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: renderPassDescriptor)!
+        encoder.setFrontFacing(.counterClockwise)
+        encoder.setDepthStencilState(depthStencilState)
+        encoder.setRenderPipelineState(litRenderPipelineState!)
+
+        if let selBuffer = selectionStateBuffer, selectionStateCount > 0 {
+            encoder.setFragmentBuffer(selBuffer, offset: 0, index: 2)
+        } else {
+            var zero: Float = 0
+            encoder.setFragmentBytes(&zero, length: MemoryLayout<Float>.size, index: 2)
         }
+        if let visBuffer = visibleStateBuffer, visibleStateCount > 0 {
+            encoder.setFragmentBuffer(visBuffer, offset: 0, index: 3)
+        } else {
+            var one: Float = 1
+            encoder.setFragmentBytes(&one, length: MemoryLayout<Float>.size, index: 3)
+        }
+
+        // Opaque triangles (alpha == 1.0)
+        for tb in triangleBuffers where tb.colour.w == 1.0 {
+            encoder.setVertexBuffer(tb.buffer, offset: 0, index: 0)
+            constants.colour = tb.colour
+            encoder.setVertexBytes(&constants, length: MemoryLayout<Constants>.size, index: 1)
+            encoder.setFragmentBytes(&constants, length: MemoryLayout<Constants>.size, index: 0)
+            encoder.drawIndexedPrimitives(type: .triangle, indexCount: tb.indexCount, indexType: .uint32, indexBuffer: tb.indexBuffer, indexBufferOffset: 0)
+        }
+
+        // Transparent triangles (alpha != 1.0)
+        for tb in triangleBuffers where tb.colour.w != 1.0 {
+            encoder.setVertexBuffer(tb.buffer, offset: 0, index: 0)
+            constants.colour = tb.colour
+            encoder.setVertexBytes(&constants, length: MemoryLayout<Constants>.size, index: 1)
+            encoder.setFragmentBytes(&constants, length: MemoryLayout<Constants>.size, index: 0)
+            encoder.drawIndexedPrimitives(type: .triangle, indexCount: tb.indexCount, indexType: .uint32, indexBuffer: tb.indexBuffer, indexBufferOffset: 0)
+        }
+
+        // Edges
+        if showingEdges {
+            encoder.setRenderPipelineState(edgeRenderPipelineState!)
+            if let visBuffer = visibleStateBuffer, visibleStateCount > 0 {
+                encoder.setFragmentBuffer(visBuffer, offset: 0, index: 2)
+            } else {
+                var one: Float = 1
+                encoder.setFragmentBytes(&one, length: MemoryLayout<Float>.size, index: 2)
+            }
+            for eb in edgeBuffers {
+                encoder.setVertexBuffer(eb.buffer, offset: 0, index: 0)
+                constants.colour = eb.colour
+                encoder.setVertexBytes(&constants, length: MemoryLayout<Constants>.size, index: 1)
+                encoder.setFragmentBytes(&constants, length: MemoryLayout<Constants>.size, index: 0)
+                encoder.drawPrimitives(type: .line, vertexStart: 0, vertexCount: eb.buffer.length / MemoryLayout<EdgeVertex>.size)
+            }
+            encoder.setRenderPipelineState(unlitRenderPipelineState!)
+        }
+
+        // Bounding box
+        if showingBBox, let bb = boundingBoxBuffer {
+            encoder.setVertexBuffer(bb, offset: 0, index: 0)
+            constants.colour = SIMD4<Float>(1.0, 1.0, 1.0, 1.0)
+            encoder.setVertexBytes(&constants, length: MemoryLayout<Constants>.size, index: 1)
+            encoder.drawPrimitives(type: .line, vertexStart: 0, vertexCount: bb.length / MemoryLayout<Vertex>.size)
+        }
+
         encoder.endEncoding()
         commandBuffer.present(drawable)
         commandBuffer.commit()
     }
 
+    // MARK: Depth at centre
+    func depthAtCentre() -> Float {
+        guard let mins = dataManager.minCoordinates(),
+              let mids = dataManager.midCoordinates(),
+              let maxs = dataManager.maxCoordinates() else { return 0.0 }
+        let minCoords = [mins[0], mins[1], mins[2]]
+        let midCoords = [mids[0], mids[1], mids[2]]
+        let maxCoords = [maxs[0], maxs[1], maxs[2]]
+        let range = dataManager.maxRange()
+
+        let leftUpPoint = SIMD4<Float>((minCoords[0]-midCoords[0])/range, (maxCoords[1]-midCoords[1])/range, 0.0, 1.0)
+        let rightUpPoint = SIMD4<Float>((maxCoords[0]-midCoords[0])/range, (maxCoords[1]-midCoords[1])/range, 0.0, 1.0)
+        let centreDownPoint = SIMD4<Float>(0.0, (minCoords[1]-midCoords[1])/range, 0.0, 1.0)
+
+        let mv = matrix_multiply(viewMatrix, modelMatrix)
+        let leftUp = matrix_multiply(mv, leftUpPoint)
+        let rightUp = matrix_multiply(mv, rightUpPoint)
+        let centreDown = matrix_multiply(mv, centreDownPoint)
+
+        let v1 = SIMD3<Float>(leftUp.x - centreDown.x, leftUp.y - centreDown.y, leftUp.z - centreDown.z)
+        let v2 = SIMD3<Float>(rightUp.x - centreDown.x, rightUp.y - centreDown.y, rightUp.z - centreDown.z)
+        let cp = cross(v1, v2)
+        let p3 = SIMD3<Float>(centreDown.x / centreDown.w, centreDown.y / centreDown.w, centreDown.z / centreDown.w)
+        let d = -dot(cp, p3)
+        return Float(-d / cp.z)
+    }
+
+    // MARK: Picking
+    func pickObject(at location: CGPoint) -> Int32 {
+        guard let pipeline = pickingRenderPipelineState,
+              let colorTex = pickingTexture,
+              let depthTex = pickingDepthTexture,
+              !triangleBuffers.isEmpty else { return -1 }
+
+        let scale: CGFloat = 1.0 // on iOS, points = pixels for non-Retina; use traitCollection for Retina
+        let pixelX = Int(location.x * scale)
+        let pixelY = Int(metalView.bounds.height * scale - location.y * scale)
+        guard pixelX >= 0, pixelX < colorTex.width,
+              pixelY >= 0, pixelY < colorTex.height else { return -1 }
+
+        let cb = commandQueue.makeCommandBuffer()!
+
+        let passDesc = MTLRenderPassDescriptor()
+        passDesc.colorAttachments[0].texture = colorTex
+        passDesc.colorAttachments[0].loadAction = .clear
+        passDesc.colorAttachments[0].storeAction = .store
+        passDesc.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 0)
+        passDesc.depthAttachment.texture = depthTex
+        passDesc.depthAttachment.loadAction = .clear
+        passDesc.depthAttachment.storeAction = .dontCare
+        passDesc.depthAttachment.clearDepth = 1.0
+
+        let encoder = cb.makeRenderCommandEncoder(descriptor: passDesc)!
+        encoder.setRenderPipelineState(pipeline)
+        encoder.setFrontFacing(.counterClockwise)
+        encoder.setDepthStencilState(depthStencilState)
+        encoder.setViewport(MTLViewport(originX: 0, originY: 0, width: Double(colorTex.width), height: Double(colorTex.height), znear: 0, zfar: 1))
+        encoder.setVertexBytes(&constants, length: MemoryLayout<Constants>.size, index: 1)
+        if let visBuffer = visibleStateBuffer, visibleStateCount > 0 {
+            encoder.setFragmentBuffer(visBuffer, offset: 0, index: 2)
+        } else {
+            var one: Float = 1
+            encoder.setFragmentBytes(&one, length: MemoryLayout<Float>.size, index: 2)
+        }
+
+        for tb in triangleBuffers {
+            encoder.setVertexBuffer(tb.buffer, offset: 0, index: 0)
+            encoder.drawIndexedPrimitives(type: .triangle, indexCount: tb.indexCount, indexType: .uint32, indexBuffer: tb.indexBuffer, indexBufferOffset: 0)
+        }
+        encoder.endEncoding()
+
+        let stagingBuffer = device.makeBuffer(length: 4, options: .storageModeShared)!
+        let blitEncoder = cb.makeBlitCommandEncoder()!
+        blitEncoder.copy(from: colorTex, sourceSlice: 0, sourceLevel: 0,
+                         sourceOrigin: MTLOrigin(x: pixelX, y: pixelY, z: 0),
+                         sourceSize: MTLSize(width: 1, height: 1, depth: 1),
+                         to: stagingBuffer, destinationOffset: 0,
+                         destinationBytesPerRow: 4, destinationBytesPerImage: 4)
+        blitEncoder.endEncoding()
+        cb.commit()
+        cb.waitUntilCompleted()
+
+        let pixelValue = stagingBuffer.contents().load(as: UInt32.self)
+        return pixelValue == 0 ? -1 : Int32(bitPattern: pixelValue) - 1
+    }
+
+    // MARK: Buffer updates (called from ObjC++ bridge)
+    @objc func updateVisibleStateBuffer() {
+        let count = Int(dataManager.visibleStateCount())
+        guard count > 0 else { return }
+        guard let ptr = dataManager.visibleStateData() else { return }
+        let data = Data(bytes: UnsafeRawPointer(ptr), count: count * MemoryLayout<Float>.size)
+        visibleStateCount = count
+        if visibleStateBuffer?.length ?? 0 >= data.count {
+            data.withUnsafeBytes { visibleStateBuffer!.contents().copyMemory(from: $0.baseAddress!, byteCount: data.count) }
+        } else {
+            visibleStateBuffer = data.withUnsafeBytes { device.makeBuffer(bytes: $0.baseAddress!, length: data.count, options: []) }
+        }
+    }
+
+    @objc func updateSelectionStateBuffer() {
+        let count = Int(dataManager.selectionStateCount())
+        guard count > 0 else { return }
+        guard let ptr = dataManager.selectionStateData() else { return }
+        let data = Data(bytes: UnsafeRawPointer(ptr), count: count * MemoryLayout<Float>.size)
+        selectionStateCount = count
+        if selectionStateBuffer?.length ?? 0 >= data.count {
+            data.withUnsafeBytes { selectionStateBuffer!.contents().copyMemory(from: $0.baseAddress!, byteCount: data.count) }
+        } else {
+            selectionStateBuffer = data.withUnsafeBytes { device.makeBuffer(bytes: $0.baseAddress!, length: data.count, options: []) }
+        }
+    }
+
+    // MARK: Buffer loading from DataManager
+    func reloadTriangleBuffers() {
+        triangleBuffers.removeAll()
+        dataManager.initialiseTriangleBufferIterator()
+        while !dataManager.triangleBufferIteratorEnded() {
+            var bytes: Int = 0
+            guard let vertexPtr = dataManager.currentTriangleBuffer(withSize: &bytes) else {
+                dataManager.advanceTriangleBufferIterator()
+                continue
+            }
+            var indexBytes: Int = 0
+            guard let indexPtr = dataManager.currentTriangleBufferIndices(withSize: &indexBytes) else {
+                dataManager.advanceTriangleBufferIterator()
+                continue
+            }
+            var typeLength: Int = 0
+            let typeCStr = dataManager.currentTriangleBufferType(withLength: &typeLength)
+            let type = typeCStr != nil ? String(cString: typeCStr!) : ""
+
+            let colour = dataManager.currentTriangleBufferColour()
+            let colourSIMD = colour != nil ? SIMD4<Float>(colour![0], colour![1], colour![2], colour![3]) : SIMD4<Float>(1, 1, 1, 1)
+
+            let buffer = device.makeBuffer(bytes: vertexPtr, length: bytes, options: [])!
+            let indexBuffer = device.makeBuffer(bytes: indexPtr, length: indexBytes, options: [])!
+            let indexCount = indexBytes / MemoryLayout<UInt32>.size
+
+            triangleBuffers.append(BufferWithColour(buffer: buffer, indexBuffer: indexBuffer, indexCount: indexCount, type: type, colour: colourSIMD))
+            dataManager.advanceTriangleBufferIterator()
+        }
+    }
+
+    func reloadEdgeBuffers() {
+        edgeBuffers.removeAll()
+        dataManager.initialiseEdgeBufferIterator()
+        while !dataManager.edgeBufferIteratorEnded() {
+            var bytes: Int = 0
+            guard let vertexPtr = dataManager.currentEdgeBuffer(withSize: &bytes) else {
+                dataManager.advanceEdgeBufferIterator()
+                continue
+            }
+            let colour = dataManager.currentEdgeBufferColour()
+            let colourSIMD = colour != nil ? SIMD4<Float>(colour![0], colour![1], colour![2], colour![3]) : SIMD4<Float>(0, 0, 0, 1)
+            let buffer = device.makeBuffer(bytes: vertexPtr, length: bytes, options: [])!
+            edgeBuffers.append(BufferWithColour(buffer: buffer, indexBuffer: buffer, indexCount: 0, type: "", colour: colourSIMD))
+            dataManager.advanceEdgeBufferIterator()
+        }
+    }
+
+    func regenerateBoundingBoxBuffer() {
+        guard let mins = dataManager.minCoordinates(),
+              let mids = dataManager.midCoordinates(),
+              let maxs = dataManager.maxCoordinates() else { return }
+        let minCoords = [mins[0], mins[1], mins[2]]
+        let midCoords = [mids[0], mids[1], mids[2]]
+        let maxCoords = [maxs[0], maxs[1], maxs[2]]
+        let range = dataManager.maxRange()
+
+        let corners: [SIMD3<Float>] = [
+            SIMD3<Float>((minCoords[0]-mids[0])/range, (minCoords[1]-mids[1])/range, (minCoords[2]-mids[2])/range),
+            SIMD3<Float>((maxCoords[0]-mids[0])/range, (minCoords[1]-mids[1])/range, (minCoords[2]-mids[2])/range),
+            SIMD3<Float>((maxCoords[0]-mids[0])/range, (maxCoords[1]-mids[1])/range, (minCoords[2]-mids[2])/range),
+            SIMD3<Float>((minCoords[0]-mids[0])/range, (maxCoords[1]-mids[1])/range, (minCoords[2]-mids[2])/range),
+            SIMD3<Float>((minCoords[0]-mids[0])/range, (minCoords[1]-mids[1])/range, (maxCoords[2]-mids[2])/range),
+            SIMD3<Float>((maxCoords[0]-mids[0])/range, (minCoords[1]-mids[1])/range, (maxCoords[2]-mids[2])/range),
+            SIMD3<Float>((maxCoords[0]-mids[0])/range, (maxCoords[1]-mids[1])/range, (maxCoords[2]-mids[2])/range),
+            SIMD3<Float>((minCoords[0]-mids[0])/range, (maxCoords[1]-mids[1])/range, (maxCoords[2]-mids[2])/range),
+        ]
+        let edges: [Int] = [
+            0,1, 1,2, 2,3, 3,0,
+            4,5, 5,6, 6,7, 7,4,
+            0,4, 1,5, 2,6, 3,7,
+        ]
+        var vertices = [Vertex]()
+        for i in edges {
+            vertices.append(Vertex(position: corners[i]))
+        }
+        boundingBoxBuffer = vertices.withUnsafeBytes {
+            device.makeBuffer(bytes: $0.baseAddress!, length: $0.count, options: [])
+        }
+    }
+
+    // MARK: File loading
+    func loadFile(url: URL) {
+        let path = url.path
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+            self.dataManager.parse(path)
+            self.dataManager.clearHelpers()
+            self.dataManager.updateBoundsWithLastFile()
+            self.dataManager.triangulateLastFile()
+            self.dataManager.generateEdgesForLastFile()
+            self.dataManager.clearPolygonsOfLastFile()
+            self.dataManager.regenerateTriangleBuffers(withMaximumSize: 16 * 1024 * 1024)
+            self.dataManager.regenerateEdgeBuffers(withMaximumSize: 16 * 1024 * 1024)
+
+            DispatchQueue.main.async {
+                self.reloadTriangleBuffers()
+                self.reloadEdgeBuffers()
+                self.regenerateBoundingBoxBuffer()
+                self.updateVisibleStateBuffer()
+                self.updateSelectionStateBuffer()
+            }
+        }
+    }
+
+    // MARK: Gesture recognizers
+    func setupGestures() {
+        let pan = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
+        pan.minimumNumberOfTouches = 1; pan.maximumNumberOfTouches = 1
+        metalView.addGestureRecognizer(pan)
+
+        let twoFingerPan = UIPanGestureRecognizer(target: self, action: #selector(handleTwoFingerPan(_:)))
+        twoFingerPan.minimumNumberOfTouches = 2
+        metalView.addGestureRecognizer(twoFingerPan)
+
+        let pinch = UIPinchGestureRecognizer(target: self, action: #selector(handlePinch(_:)))
+        metalView.addGestureRecognizer(pinch)
+
+        let rotation = UIRotationGestureRecognizer(target: self, action: #selector(handleRotation(_:)))
+        metalView.addGestureRecognizer(rotation)
+
+        let tap = UITapGestureRecognizer(target: self, action: #selector(handleTap(_:)))
+        metalView.addGestureRecognizer(tap)
+    }
+
+    func updateConstants() {
+        constants.modelMatrix = modelMatrix
+        constants.modelViewProjectionMatrix = matrix_multiply(projectionMatrix, matrix_multiply(viewMatrix, modelMatrix))
+        constants.modelMatrixInverseTransposed = matrix_upper_left_3x3(matrix: modelMatrix).inverse.transpose
+        constants.viewMatrixInverse = viewMatrix.inverse
+    }
+
+    func orbit(angleX: Float, angleY: Float) {
+        let forward = normalize(centre - eye)
+        let right = normalize(cross(forward, SIMD3<Float>(0, 1, 0)))
+        let up = SIMD3<Float>(0, 1, 0)
+        let rx = matrix4x4_rotation(angle: angleX, axis: right)
+        let ry = matrix4x4_rotation(angle: angleY, axis: up)
+        let rotatedForward = (ry * rx) * simd_float4(forward.x, forward.y, forward.z, 0)
+        let distance = simd_length(centre - eye)
+        eye = centre - simd_float3(rotatedForward.x, rotatedForward.y, rotatedForward.z) * distance
+        viewMatrix = matrix4x4_look_at(eye: eye, centre: centre, up: up)
+        updateConstants()
+    }
+
+    @objc func handlePan(_ gesture: UIPanGestureRecognizer) {
+        let translation = gesture.translation(in: metalView)
+        let delta = CGPoint(x: translation.x - lastPanTranslation.x, y: translation.y - lastPanTranslation.y)
+        lastPanTranslation = translation
+        if gesture.state == .began { lastPanTranslation = .zero }
+        else if gesture.state == .changed {
+            orbit(angleX: Float(delta.y) * 0.005, angleY: Float(delta.x) * 0.005)
+        } else if gesture.state == .ended || gesture.state == .cancelled { lastPanTranslation = .zero }
+    }
+
+    @objc func handleTwoFingerPan(_ gesture: UIPanGestureRecognizer) {
+        let translation = gesture.translation(in: metalView)
+        if gesture.state == .changed {
+            let forward = normalize(centre - eye)
+            let right = normalize(cross(forward, SIMD3<Float>(0, 1, 0)))
+            let up = SIMD3<Float>(0, 1, 0)
+            let shift = right * Float(-translation.x) * 0.05 + up * Float(translation.y) * 0.05
+            eye += shift
+            centre += shift
+            viewMatrix = matrix4x4_look_at(eye: eye, centre: centre, up: up)
+            updateConstants()
+        }
+        gesture.setTranslation(.zero, in: metalView)
+    }
+
+    @objc func handlePinch(_ gesture: UIPinchGestureRecognizer) {
+        if gesture.state == .changed {
+            let mag: Float = 1.0 + Float(gesture.scale - 1.0)
+            fieldOfView = 2.0 * atanf(tanf(0.5 * fieldOfView) / mag)
+            let aspect = Float(metalView.drawableSize.width / metalView.drawableSize.height)
+            projectionMatrix = matrix4x4_perspective(fieldOfView: fieldOfView, aspectRatio: aspect, nearZ: 0.001, farZ: 100.0)
+            updateConstants()
+            gesture.scale = 1.0
+        }
+    }
+
+    @objc func handleRotation(_ gesture: UIRotationGestureRecognizer) {
+        if gesture.state == .changed {
+            let axisInCamera = SIMD3<Float>(0.0, 0.0, 1.0)
+            let cameraToObject = matrix_upper_left_3x3(matrix: matrix_multiply(viewMatrix, modelMatrix)).inverse
+            let axisInObject = matrix_multiply(cameraToObject, axisInCamera)
+            modelRotationMatrix = matrix_multiply(modelRotationMatrix, matrix4x4_rotation(angle: Float(gesture.rotation), axis: axisInObject))
+            modelMatrix = matrix_multiply(matrix_multiply(modelShiftBackMatrix, modelRotationMatrix), modelTranslationToCentreOfRotationMatrix)
+            updateConstants()
+            gesture.rotation = 0
+        }
+    }
+
+    @objc func handleTap(_ gesture: UITapGestureRecognizer) {
+        let location = gesture.location(in: metalView)
+        let objectId = pickObject(at: location)
+        if objectId >= 0 {
+            let _ = dataManager.setBestHitFromObjectId(objectId)
+        }
+    }
+
     // MARK: Floating buttons
     func setupFloatingButtons() {
         let buttonConfig = UIImage.SymbolConfiguration(pointSize: 18, weight: .medium)
-
         openButton = makeFloatingButton(systemName: "folder.fill", config: buttonConfig, action: #selector(openFile))
         objectsButton = makeFloatingButton(systemName: "list.bullet", config: buttonConfig, action: #selector(showObjects))
         edgesButton = makeFloatingButton(systemName: "square.dashed", config: buttonConfig, action: #selector(toggleEdges))
@@ -149,7 +681,6 @@ class MainViewController: UIViewController, MTKViewDelegate {
         NSLayoutConstraint.activate([
             topStack.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 8),
             topStack.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 12),
-
             bottomStack.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -12),
             bottomStack.centerXAnchor.constraint(equalTo: view.centerXAnchor),
         ])
@@ -170,146 +701,13 @@ class MainViewController: UIViewController, MTKViewDelegate {
         return button
     }
 
-    // MARK: Gesture recognizers
-    func setupGestures() {
-        let pan = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
-        pan.minimumNumberOfTouches = 1
-        pan.maximumNumberOfTouches = 1
-        metalView.addGestureRecognizer(pan)
-
-        let twoFingerPan = UIPanGestureRecognizer(target: self, action: #selector(handleTwoFingerPan(_:)))
-        twoFingerPan.minimumNumberOfTouches = 2
-        metalView.addGestureRecognizer(twoFingerPan)
-
-        let pinch = UIPinchGestureRecognizer(target: self, action: #selector(handlePinch(_:)))
-        metalView.addGestureRecognizer(pinch)
-
-        let rotation = UIRotationGestureRecognizer(target: self, action: #selector(handleRotation(_:)))
-        metalView.addGestureRecognizer(rotation)
-
-        let tap = UITapGestureRecognizer(target: self, action: #selector(handleTap(_:)))
-        metalView.addGestureRecognizer(tap)
-    }
-
-    @objc func handlePan(_ gesture: UIPanGestureRecognizer) {
-        let translation = gesture.translation(in: metalView)
-        let delta = CGPoint(x: translation.x - lastPanTranslation.x,
-                           y: translation.y - lastPanTranslation.y)
-        lastPanTranslation = translation
-
-        if gesture.state == .began {
-            lastPanTranslation = .zero
-        } else if gesture.state == .changed {
-            let sensitivity: Float = 0.005
-            let angleX = Float(delta.y) * sensitivity
-            let angleY = Float(delta.x) * sensitivity
-            let forward = normalize(cameraTarget - cameraPosition)
-            let right = normalize(cross(forward, cameraUp))
-            let up = cameraUp
-
-            let rotationX = matrix4x4_rotation(angle: angleX, axis: right)
-            let rotationY = matrix4x4_rotation(angle: angleY, axis: up)
-            let rotatedForward = (rotationY * rotationX) * simd_float4(forward.x, forward.y, forward.z, 0)
-            let distance = simd_length(cameraTarget - cameraPosition)
-            cameraPosition = cameraTarget - simd_float3(rotatedForward.x, rotatedForward.y, rotatedForward.z) * distance
-        } else if gesture.state == .ended || gesture.state == .cancelled {
-            lastPanTranslation = .zero
-        }
-    }
-
-    @objc func handleTwoFingerPan(_ gesture: UIPanGestureRecognizer) {
-        let translation = gesture.translation(in: metalView)
-        if gesture.state == .changed {
-            let forward = normalize(cameraTarget - cameraPosition)
-            let right = normalize(cross(forward, cameraUp))
-            let up = cameraUp
-            let sensitivity: Float = 0.05
-            let shift = right * Float(-translation.x) * sensitivity + up * Float(translation.y) * sensitivity
-            cameraPosition += shift
-            cameraTarget += shift
-        }
-        gesture.setTranslation(.zero, in: metalView)
-    }
-
-    @objc func handlePinch(_ gesture: UIPinchGestureRecognizer) {
-        if gesture.state == .changed {
-            let forward = cameraTarget - cameraPosition
-            let distance = simd_length(forward)
-            let newDistance = distance / Float(gesture.scale)
-            let clampedDistance = max(min(newDistance, farZ * 0.9), nearZ * 2)
-            cameraPosition = cameraTarget - normalize(forward) * clampedDistance
-            gesture.scale = 1.0
-        }
-    }
-
-    @objc func handleRotation(_ gesture: UIRotationGestureRecognizer) {
-        if gesture.state == .changed {
-            let forward = normalize(cameraTarget - cameraPosition)
-            let rotation = matrix4x4_rotation(angle: Float(gesture.rotation), axis: forward)
-            let rotatedUp = rotation * simd_float4(cameraUp.x, cameraUp.y, cameraUp.z, 0)
-            cameraUp = simd_float3(rotatedUp.x, rotatedUp.y, rotatedUp.z)
-            gesture.rotation = 0
-        }
-    }
-
-    // MARK: Buffer updates (called from ObjC++ bridge)
-    @objc func updateVisibleStateBuffer() {
-    }
-
-    @objc func updateSelectionStateBuffer() {
-    }
-
-    @objc func handleTap(_ gesture: UITapGestureRecognizer) {
-        let location = gesture.location(in: metalView)
-        let width = Float(metalView.drawableSize.width)
-        let height = Float(metalView.drawableSize.height)
-
-        guard width > 0, height > 0 else { return }
-
-        let aspect = width / height
-        let projection = matrix4x4_perspective(fieldOfView: fieldOfView * .pi / 180.0,
-                                                aspectRatio: aspect, nearZ: nearZ, farZ: farZ)
-        let viewMatrix = matrix4x4_look_at(eye: cameraPosition, centre: cameraTarget, up: cameraUp)
-        let viewProjection = projection * viewMatrix
-        let invViewProjection = simd_inverse(viewProjection)
-
-        let x = (2.0 * Float(location.x) / width - 1.0)
-        let y = (1.0 - 2.0 * Float(location.y) / height)
-        let nearPoint = invViewProjection * simd_float4(x, y, 0, 1)
-        let farPoint = invViewProjection * simd_float4(x, y, 1, 1)
-        let near = simd_float3(nearPoint.x, nearPoint.y, nearPoint.z) / nearPoint.w
-        let far = simd_float3(farPoint.x, farPoint.y, farPoint.z) / farPoint.w
-
-        _ = far - near
-    }
-
     // MARK: Actions
     @objc func openFile() {
         let types: [UTType] = [.json, .xml, UTType(filenameExtension: "obj")!, UTType(filenameExtension: "off")!, UTType(filenameExtension: "poly")!, UTType(filenameExtension: "gml")!, UTType(filenameExtension: "azulview")!].compactMap { $0 }
         let picker = UIDocumentPickerViewController(forOpeningContentTypes: types, asCopy: true)
         picker.delegate = self
         picker.allowsMultipleSelection = true
-        if let scene = view.window?.windowScene,
-           let rootVC = scene.windows.first?.rootViewController {
-            rootVC.present(picker, animated: true)
-        } else {
-            present(picker, animated: true)
-        }
-    }
-
-    func loadFile(url: URL) {
-        let path = url.path
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            guard let self = self else { return }
-            self.dataManager.parse(path)
-            self.dataManager.clearHelpers()
-            self.dataManager.updateBoundsWithLastFile()
-            self.dataManager.triangulateLastFile()
-            self.dataManager.generateEdgesForLastFile()
-            self.dataManager.clearPolygonsOfLastFile()
-            self.dataManager.regenerateTriangleBuffers(withMaximumSize: 16 * 1024 * 1024)
-            self.dataManager.regenerateEdgeBuffers(withMaximumSize: 16 * 1024 * 1024)
-        }
+        present(picker, animated: true)
     }
 
     @objc func showObjects() {
@@ -317,7 +715,6 @@ class MainViewController: UIViewController, MTKViewDelegate {
         objectsVC.dataManager = dataManager
         objectsVC.delegate = self
         objectsVC.title = "Objects"
-
         let nav = UINavigationController(rootViewController: objectsVC)
         nav.modalPresentationStyle = UIDevice.current.userInterfaceIdiom == .pad ? .popover : .pageSheet
         if let popover = nav.popoverPresentationController {
@@ -338,11 +735,15 @@ class MainViewController: UIViewController, MTKViewDelegate {
     }
 
     @objc func goHome() {
-        cameraPosition = simd_float3(0, 0, 100)
-        cameraTarget = simd_float3(0, 0, 0)
-        cameraUp = simd_float3(0, 1, 0)
-        fieldOfView = 45.0
-        updateCamera()
+        fieldOfView = 1.047197551196598
+        modelTranslationToCentreOfRotationMatrix = matrix_identity_float4x4
+        modelRotationMatrix = matrix_identity_float4x4
+        modelShiftBackMatrix = matrix4x4_translation(shift: centre)
+        modelMatrix = matrix_multiply(matrix_multiply(modelShiftBackMatrix, modelRotationMatrix), modelTranslationToCentreOfRotationMatrix)
+        viewMatrix = matrix4x4_look_at(eye: eye, centre: centre, up: SIMD3<Float>(0.0, 1.0, 0.0))
+        let aspect = Float(metalView.drawableSize.width / metalView.drawableSize.height)
+        projectionMatrix = matrix4x4_perspective(fieldOfView: fieldOfView, aspectRatio: aspect, nearZ: 0.001, farZ: 100.0)
+        updateConstants()
     }
 
     override var prefersStatusBarHidden: Bool { true }
@@ -355,12 +756,9 @@ extension MainViewController: ObjectListViewControllerDelegate {
         let attrsVC = AttributeTableViewController()
         attrsVC.dataManager = dataManager
         let ident = dataManager.identifier(ofItem: item) ?? ""
-        attrsVC.title = ident.isEmpty
-            ? (dataManager.type(ofItem: item) ?? "")
-            : ident
+        attrsVC.title = ident.isEmpty ? (dataManager.type(ofItem: item) ?? "") : ident
         attrsVC.selectedItem = item
         attrsVC.tableView.reloadData()
-
         if let nav = presentedViewController as? UINavigationController {
             nav.pushViewController(attrsVC, animated: true)
         }

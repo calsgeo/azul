@@ -89,3 +89,37 @@ func deserialiseToMatrix4x4(matrix: [Float]) -> matrix_float4x4 {
                        SIMD4<Float>(matrix[8], matrix[9], matrix[10], matrix[11]),
                        SIMD4<Float>(matrix[12], matrix[13], matrix[14], matrix[15]))
 }
+
+// MARK: Shared Metal types (macOS + iOS)
+
+struct Constants {
+  var modelMatrix = matrix_identity_float4x4
+  var modelViewProjectionMatrix = matrix_identity_float4x4
+  var modelMatrixInverseTransposed = matrix_identity_float3x3
+  var viewMatrixInverse = matrix_identity_float4x4
+  var colour = SIMD4<Float>(0.0, 0.0, 0.0, 1.0)
+  var selectionColour = SIMD4<Float>(1.0, 1.0, 0.0, 1.0)
+}
+
+struct Vertex {
+  var position: SIMD3<Float>
+}
+
+struct EdgeVertex {
+  var px, py, pz: Float
+  var objectId: Float
+}
+
+struct VertexWithNormal {
+  var px, py, pz: Float
+  var objectId: Float
+  var nx, ny, nz: Float
+}
+
+struct BufferWithColour {
+  var buffer: MTLBuffer
+  var indexBuffer: MTLBuffer
+  var indexCount: Int
+  var type: String
+  var colour: SIMD4<Float>
+}

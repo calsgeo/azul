@@ -17,38 +17,6 @@
 import Metal
 import MetalKit
 
-struct Constants {
-  var modelMatrix = matrix_identity_float4x4
-  var modelViewProjectionMatrix = matrix_identity_float4x4
-  var modelMatrixInverseTransposed = matrix_identity_float3x3
-  var viewMatrixInverse = matrix_identity_float4x4
-  var colour = SIMD4<Float>(0.0, 0.0, 0.0, 1.0)
-  var selectionColour = SIMD4<Float>(1.0, 1.0, 0.0, 1.0)
-}
-
-struct Vertex {
-  var position: SIMD3<Float>
-}
-
-struct EdgeVertex {
-  var px, py, pz: Float
-  var objectId: Float
-}
-
-struct VertexWithNormal {
-  var px, py, pz: Float
-  var objectId: Float
-  var nx, ny, nz: Float
-}
-
-struct BufferWithColour {
-  var buffer: MTLBuffer
-  var indexBuffer: MTLBuffer
-  var indexCount: Int
-  var type: String
-  var colour: SIMD4<Float>
-}
-
 @objc class MetalView: MTKView {
   
   var controller: Controller?

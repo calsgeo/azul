@@ -129,6 +129,9 @@ struct DataManagerWrapper;
 - (void) toggleVisibilityForSelection:(NSOutlineView *)outlineView;
 #endif
 
+// Picking
+- (int) setBestHitFromObjectId:(int)objectId;
+
 // Selection state (GPU-based)
 - (void) updateSelectionStates;
 - (const float *) selectionStateData;

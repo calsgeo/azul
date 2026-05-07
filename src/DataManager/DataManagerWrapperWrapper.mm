@@ -141,6 +141,10 @@ struct DataManagerWrapper {
   ++dataManagerWrapper->dataManager->currentEdgeBuffer;
 }
 
+- (int) setBestHitFromObjectId:(int)objectId {
+  return dataManagerWrapper->dataManager->setBestHitFromObjectId(objectId);
+}
+
 - (BOOL) edgeBufferIteratorEnded {
   return dataManagerWrapper->dataManager->currentEdgeBuffer == dataManagerWrapper->dataManager->edgeBuffers.end();
 }
