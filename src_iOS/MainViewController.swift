@@ -538,6 +538,8 @@ class MainViewController: UIViewController, MTKViewDelegate {
 
     // MARK: File loading
     func loadFile(url: URL) {
+        let accessOK = url.startAccessingSecurityScopedResource()
+        defer { if accessOK { url.stopAccessingSecurityScopedResource() } }
         let path = url.path
         print("Loading file: \(path)")
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
@@ -709,16 +711,18 @@ class MainViewController: UIViewController, MTKViewDelegate {
     }
 
     func makeFloatingButton(systemName: String, config: UIImage.SymbolConfiguration, action: Selector) -> UIButton {
+        let isPad = UIDevice.current.userInterfaceIdiom == .pad
+        let size: CGFloat = isPad ? 40 : 32
         let image = UIImage(systemName: systemName, withConfiguration: config)
         let button = UIButton(type: .system)
         button.setImage(image, for: .normal)
         button.tintColor = .white
         button.backgroundColor = UIColor(white: 0, alpha: 0.4)
-        button.layer.cornerRadius = 20
+        button.layer.cornerRadius = size / 2
         button.layer.cornerCurve = .continuous
         button.translatesAutoresizingMaskIntoConstraints = false
-        button.widthAnchor.constraint(equalToConstant: 40).isActive = true
-        button.heightAnchor.constraint(equalToConstant: 40).isActive = true
+        button.widthAnchor.constraint(equalToConstant: size).isActive = true
+        button.heightAnchor.constraint(equalToConstant: size).isActive = true
         button.addTarget(self, action: action, for: .touchUpInside)
         return button
     }
