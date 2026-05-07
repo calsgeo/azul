@@ -59,6 +59,11 @@ class MainViewController: UIViewController, MTKViewDelegate {
     var objectsButton: UIButton!
     var homeButton: UIButton!
 
+    // MARK: Status bar
+    var statusBarView: UIView!
+    var progressBar: UIProgressView!
+    var statusLabel: UILabel!
+
     // MARK: Gesture state
     var lastPanTranslation: CGPoint = .zero
 
@@ -79,6 +84,7 @@ class MainViewController: UIViewController, MTKViewDelegate {
 
         setupMetal()
         setupFloatingButtons()
+        setupStatusBar()
         setupGestures()
         setupCamera()
 
@@ -535,46 +541,48 @@ class MainViewController: UIViewController, MTKViewDelegate {
         let accessOK = url.startAccessingSecurityScopedResource()
         defer { if accessOK { url.stopAccessingSecurityScopedResource() } }
         let path = url.path
-        print("Loading file: \(path)")
+        DispatchQueue.main.async {
+            self.updateStatus(message: "Loading...", progress: 0)
+        }
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
             guard FileManager.default.fileExists(atPath: path) else {
-                print("File not found: \(path)")
+                DispatchQueue.main.async {
+                    self.updateStatus(message: "File not found", progress: 0)
+                    self.hideStatusBar()
+                }
                 return
             }
+            DispatchQueue.main.async { self.updateStatus(message: "Parsing...", progress: 0.1) }
             self.dataManager.parse(path)
-            print("Parse complete")
             self.dataManager.clearHelpers()
             self.dataManager.updateBoundsWithLastFile()
-            print("Updating bounds")
+
+            DispatchQueue.main.async { self.updateStatus(message: "Triangulating...", progress: 0.3) }
             self.dataManager.triangulateLastFile()
-            print("Triangulation complete")
+
+            DispatchQueue.main.async { self.updateStatus(message: "Generating edges...", progress: 0.45) }
             self.dataManager.generateEdgesForLastFile()
-            print("Edges complete")
             self.dataManager.clearPolygonsOfLastFile()
+
+            DispatchQueue.main.async { self.updateStatus(message: "Building triangle buffers...", progress: 0.6) }
             self.dataManager.regenerateTriangleBuffers(withMaximumSize: 16 * 1024 * 1024)
-            print("Triangle buffers generated")
+
+            DispatchQueue.main.async { self.updateStatus(message: "Building edge buffers...", progress: 0.75) }
             self.dataManager.regenerateEdgeBuffers(withMaximumSize: 16 * 1024 * 1024)
-            print("Edge buffers generated")
 
             DispatchQueue.main.async {
-                print("Reloading GPU buffers")
-                print("0 parsedFiles count: \(self.dataManager.numberOfParsedFiles())")
+                self.updateStatus(message: "Uploading to GPU...", progress: 0.85)
                 self.reloadTriangleBuffers()
-                print("1 Triangles: \(self.triangleBuffers.count)")
+                self.updateStatus(message: "Uploading to GPU...", progress: 0.95)
                 self.reloadEdgeBuffers()
-                print("2 Edges: \(self.edgeBuffers.count)")
                 self.regenerateBoundingBoxBuffer()
-                print("3 BBox: \(self.boundingBoxBuffer?.length ?? 0)")
-                print("4 calling updateVisibleState")
                 self.dataManager.updateVisibleStates()
-                print("5 count: \(self.dataManager.visibleStateCount()) ptr: \(self.dataManager.visibleStateData() != nil ? "non-nil" : "nil")")
                 self.updateVisibleStateBuffer()
-                print("6 done visible")
                 self.dataManager.updateSelectionStates()
-                print("7 sel count: \(self.dataManager.selectionStateCount()) ptr: \(self.dataManager.selectionStateData() != nil ? "non-nil" : "nil")")
                 self.updateSelectionStateBuffer()
-                print("8 Load complete")
+                self.updateStatus(message: "Done", progress: 1.0)
+                self.hideStatusBar()
             }
         }
     }
@@ -735,6 +743,68 @@ class MainViewController: UIViewController, MTKViewDelegate {
         button.heightAnchor.constraint(equalToConstant: size).isActive = true
         button.addTarget(self, action: action, for: .touchUpInside)
         return button
+    }
+
+    // MARK: Status bar
+    func setupStatusBar() {
+        statusBarView = UIView()
+        statusBarView.backgroundColor = UIColor(white: 0, alpha: 0.7)
+        statusBarView.layer.cornerRadius = 8
+        statusBarView.layer.masksToBounds = true
+        statusBarView.translatesAutoresizingMaskIntoConstraints = false
+        statusBarView.isHidden = true
+        view.addSubview(statusBarView)
+
+        progressBar = UIProgressView(progressViewStyle: .default)
+        progressBar.translatesAutoresizingMaskIntoConstraints = false
+        statusBarView.addSubview(progressBar)
+
+        statusLabel = UILabel()
+        statusLabel.textColor = .white
+        statusLabel.font = .systemFont(ofSize: 12)
+        statusLabel.translatesAutoresizingMaskIntoConstraints = false
+        statusBarView.addSubview(statusLabel)
+
+        NSLayoutConstraint.activate([
+            statusBarView.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 12),
+            statusBarView.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -12),
+            statusBarView.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -56),
+            statusBarView.heightAnchor.constraint(equalToConstant: 44),
+
+            progressBar.leadingAnchor.constraint(equalTo: statusBarView.leadingAnchor, constant: 12),
+            progressBar.trailingAnchor.constraint(equalTo: statusBarView.trailingAnchor, constant: -12),
+            progressBar.topAnchor.constraint(equalTo: statusBarView.topAnchor, constant: 10),
+            progressBar.heightAnchor.constraint(equalToConstant: 4),
+
+            statusLabel.leadingAnchor.constraint(equalTo: statusBarView.leadingAnchor, constant: 12),
+            statusLabel.trailingAnchor.constraint(equalTo: statusBarView.trailingAnchor, constant: -12),
+            statusLabel.topAnchor.constraint(equalTo: progressBar.bottomAnchor, constant: 4),
+        ])
+
+        statusBarView.alpha = 0
+    }
+
+    func showStatusBar() {
+        statusBarView.isHidden = false
+        UIView.animate(withDuration: 0.2) {
+            self.statusBarView.alpha = 1
+        }
+    }
+
+    func updateStatus(message: String, progress: Float) {
+        statusLabel.text = message
+        progressBar.setProgress(progress, animated: true)
+        if statusBarView.isHidden {
+            showStatusBar()
+        }
+    }
+
+    func hideStatusBar() {
+        UIView.animate(withDuration: 0.2, delay: 1.0, options: []) {
+            self.statusBarView.alpha = 0
+        } completion: { _ in
+            self.statusBarView.isHidden = true
+        }
     }
 
     // MARK: Actions
