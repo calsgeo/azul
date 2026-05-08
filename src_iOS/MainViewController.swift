@@ -541,8 +541,10 @@ class MainViewController: UIViewController, MTKViewDelegate {
         let accessOK = url.startAccessingSecurityScopedResource()
         defer { if accessOK { url.stopAccessingSecurityScopedResource() } }
         let path = url.path
+        let totalWeight: Float = 75.165239
+        var progress: Float = 0
         DispatchQueue.main.async {
-            self.updateStatus(message: "Loading...", progress: 0)
+            self.updateStatus(message: "Loading \(url.lastPathComponent)...", progress: 0)
         }
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
@@ -553,35 +555,57 @@ class MainViewController: UIViewController, MTKViewDelegate {
                 }
                 return
             }
-            DispatchQueue.main.async { self.updateStatus(message: "Parsing...", progress: 0.1) }
             self.dataManager.parse(path)
+            progress += 20.071734 / totalWeight
+            DispatchQueue.main.async { self.progressBar.setProgress(progress, animated: true) }
+
             self.dataManager.clearHelpers()
+            progress += 0.51605 / totalWeight
+            DispatchQueue.main.async { self.progressBar.setProgress(progress, animated: true) }
+
             self.dataManager.updateBoundsWithLastFile()
+            progress += 0.158675 / totalWeight
+            DispatchQueue.main.async { self.progressBar.setProgress(progress, animated: true) }
 
-            DispatchQueue.main.async { self.updateStatus(message: "Triangulating...", progress: 0.3) }
             self.dataManager.triangulateLastFile()
+            progress += 45.400172 / totalWeight
+            DispatchQueue.main.async { self.progressBar.setProgress(progress, animated: true) }
 
-            DispatchQueue.main.async { self.updateStatus(message: "Generating edges...", progress: 0.45) }
             self.dataManager.generateEdgesForLastFile()
+            progress += 1.150533 / totalWeight
+            DispatchQueue.main.async { self.progressBar.setProgress(progress, animated: true) }
+
             self.dataManager.clearPolygonsOfLastFile()
+            progress += 0.359982 / totalWeight
+            DispatchQueue.main.async { self.progressBar.setProgress(progress, animated: true) }
 
-            DispatchQueue.main.async { self.updateStatus(message: "Building triangle buffers...", progress: 0.6) }
             self.dataManager.regenerateTriangleBuffers(withMaximumSize: 16 * 1024 * 1024)
+            progress += 3.535023 / totalWeight
+            DispatchQueue.main.async { self.progressBar.setProgress(progress, animated: true) }
 
-            DispatchQueue.main.async { self.updateStatus(message: "Building edge buffers...", progress: 0.75) }
             self.dataManager.regenerateEdgeBuffers(withMaximumSize: 16 * 1024 * 1024)
+            progress += 2.085606 / totalWeight
+            DispatchQueue.main.async { self.progressBar.setProgress(progress, animated: true) }
 
             DispatchQueue.main.async {
-                self.updateStatus(message: "Uploading to GPU...", progress: 0.85)
                 self.reloadTriangleBuffers()
-                self.updateStatus(message: "Uploading to GPU...", progress: 0.95)
+                progress += 1.31523 / totalWeight
+                self.progressBar.setProgress(progress, animated: true)
+
                 self.reloadEdgeBuffers()
+                progress += 0.572072 / totalWeight
+                self.progressBar.setProgress(progress, animated: true)
+
                 self.regenerateBoundingBoxBuffer()
+                progress += 0.000162 / totalWeight
+                self.progressBar.setProgress(progress, animated: true)
+
                 self.dataManager.updateVisibleStates()
                 self.updateVisibleStateBuffer()
                 self.dataManager.updateSelectionStates()
                 self.updateSelectionStateBuffer()
-                self.updateStatus(message: "Done", progress: 1.0)
+
+                self.statusLabel.text = self.dataManager.statusMessage() ?? "Done"
                 self.hideStatusBar()
             }
         }

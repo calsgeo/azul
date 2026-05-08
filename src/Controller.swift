@@ -643,7 +643,7 @@ extension NSToolbarItem.Identifier {
           if urls.last == url {
             Swift.print("status message: \(self.dataManager.statusMessage()!)")
             self.statusTextField?.stringValue = self.dataManager.statusMessage()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
               NSAnimationContext.runAnimationGroup { _ in
                 self.statusBarView?.animator().alphaValue = 0
               } completionHandler: {
