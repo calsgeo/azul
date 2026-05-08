@@ -788,10 +788,10 @@ class MainViewController: UIViewController, MTKViewDelegate {
     func setupFloatingButtons() {
         let buttonConfig = UIImage.SymbolConfiguration(pointSize: 18, weight: .medium)
         openButton = makeFloatingButton(systemName: "doc", config: buttonConfig, action: #selector(openFile))
-        objectsButton = makeFloatingButton(systemName: "list.bullet", config: buttonConfig, action: #selector(showObjects))
-        lodButton = makeFloatingButton(systemName: "square.3.stack.3d", config: buttonConfig, action: #selector(showLodPicker))
-        homeButton = makeFloatingButton(systemName: "house.fill", config: buttonConfig, action: #selector(goHome))
-
+        objectsButton = makeFloatingButton(systemName: "cube", config: buttonConfig, action: #selector(showObjects))
+        lodButton = makeFloatingButton(systemName: "plus.minus.capsule", config: buttonConfig, action: #selector(showLodPicker))
+        homeButton = makeFloatingButton(systemName: "viewfinder.circle", config: buttonConfig, action: #selector(goHome))
+        
         let bottomStack = UIStackView(arrangedSubviews: [openButton, objectsButton, lodButton, homeButton])
         bottomStack.axis = .horizontal
         bottomStack.spacing = 12
