@@ -403,25 +403,6 @@ struct DataManagerWrapper {
   [[controller metalView] setModelMatrix:matrix_multiply(matrix_multiply([[controller metalView] modelShiftBackMatrix], [[controller metalView] modelRotationMatrix]), [[controller metalView] modelTranslationToCentreOfRotationMatrix])];
 }
 
-- (void) setSearchString:(const char *)string {
-  dataManagerWrapper->dataManager->clearSearch();
-  dataManagerWrapper->dataManager->searchString = std::string(string);
-  NSLog(@"Searching: %s", string);
-}
-
-- (void) setLodFilter:(const char *)lod {
-  dataManagerWrapper->dataManager->setLodFilter(lod);
-}
-
-- (NSArray<NSString *> *) availableLods {
-  std::vector<std::string> lods = dataManagerWrapper->dataManager->getAvailableLods();
-  NSMutableArray *result = [NSMutableArray arrayWithCapacity:lods.size()];
-  for (const auto &lod : lods) {
-    [result addObject:[NSString stringWithUTF8String:lod.c_str()]];
-  }
-  return result;
-}
-
 - (NSInteger)numberOfRowsInTableView:(NSTableView *)tableView {
   if ([[controller objectsSourceList] numberOfSelectedRows] > 1) return 1;
   NSInteger objectsRow = [[controller objectsSourceList] selectedRow];
@@ -556,6 +537,25 @@ struct DataManagerWrapper {
 //  [[controller attributesTableView] reloadData];
 }
 #endif
+
+- (void) setSearchString:(const char *)string {
+  dataManagerWrapper->dataManager->clearSearch();
+  dataManagerWrapper->dataManager->searchString = std::string(string);
+  NSLog(@"Searching: %s", string);
+}
+
+- (void) setLodFilter:(const char *)lod {
+  dataManagerWrapper->dataManager->setLodFilter(lod);
+}
+
+- (NSArray<NSString *> *) availableLods {
+  std::vector<std::string> lods = dataManagerWrapper->dataManager->getAvailableLods();
+  NSMutableArray *result = [NSMutableArray arrayWithCapacity:lods.size()];
+  for (const auto &lod : lods) {
+    [result addObject:[NSString stringWithUTF8String:lod.c_str()]];
+  }
+  return result;
+}
 
 - (void) updateSelectionStates {
   dataManagerWrapper->dataManager->updateSelectionStates();

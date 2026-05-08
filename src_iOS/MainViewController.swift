@@ -60,12 +60,16 @@ class MainViewController: UIViewController, MTKViewDelegate {
     // MARK: Floating buttons
     var openButton: UIButton!
     var objectsButton: UIButton!
+    var lodButton: UIButton!
     var homeButton: UIButton!
 
     // MARK: Status bar
     var statusBarView: UIView!
     var progressBar: UIProgressView!
     var statusLabel: UILabel!
+
+    // MARK: LoD filter
+    var currentLodFilter: String = ""
 
     // MARK: Gesture state
     var lastPanTranslation: CGPoint = .zero
@@ -637,6 +641,22 @@ class MainViewController: UIViewController, MTKViewDelegate {
                 self.dataManager.updateSelectionStates()
                 self.updateSelectionStateBuffer()
 
+                let lods = self.dataManager.availableLods() ?? []
+                if !lods.isEmpty {
+                    self.currentLodFilter = "__highest__"
+                    "__highest__".withCString { pointer in
+                        self.dataManager.setLodFilter(pointer)
+                    }
+                    self.dataManager.regenerateTriangleBuffers(withMaximumSize: 16 * 1024 * 1024)
+                    self.reloadTriangleBuffers()
+                    self.dataManager.updateVisibleStates()
+                    self.updateVisibleStateBuffer()
+                    self.dataManager.updateSelectionStates()
+                    self.updateSelectionStateBuffer()
+                    self.dataManager.regenerateEdgeBuffers(withMaximumSize: 16 * 1024 * 1024)
+                    self.reloadEdgeBuffers()
+                }
+
                 self.statusLabel.text = self.dataManager.statusMessage() ?? "Done"
                 self.hideStatusBar()
             }
@@ -769,9 +789,10 @@ class MainViewController: UIViewController, MTKViewDelegate {
         let buttonConfig = UIImage.SymbolConfiguration(pointSize: 18, weight: .medium)
         openButton = makeFloatingButton(systemName: "doc", config: buttonConfig, action: #selector(openFile))
         objectsButton = makeFloatingButton(systemName: "list.bullet", config: buttonConfig, action: #selector(showObjects))
+        lodButton = makeFloatingButton(systemName: "square.3.stack.3d", config: buttonConfig, action: #selector(showLodPicker))
         homeButton = makeFloatingButton(systemName: "house.fill", config: buttonConfig, action: #selector(goHome))
 
-        let bottomStack = UIStackView(arrangedSubviews: [openButton, objectsButton, homeButton])
+        let bottomStack = UIStackView(arrangedSubviews: [openButton, objectsButton, lodButton, homeButton])
         bottomStack.axis = .horizontal
         bottomStack.spacing = 12
         bottomStack.distribution = .equalSpacing
@@ -897,8 +918,55 @@ class MainViewController: UIViewController, MTKViewDelegate {
         updateConstants()
     }
 
+    // MARK: LoD filter
+    @objc func showLodPicker() {
+        let lods = dataManager.availableLods() ?? []
+        guard !lods.isEmpty else {
+            updateStatus(message: "No LoD data available", progress: 0)
+            hideStatusBar()
+            return
+        }
+
+        let picker = LodPickerViewController()
+        picker.availableLods = lods.sorted { Double($0) ?? 0 < Double($1) ?? 0 }
+        picker.currentLod = currentLodFilter
+        picker.delegate = self
+        picker.title = "Level of Detail"
+
+        let nav = UINavigationController(rootViewController: picker)
+        nav.modalPresentationStyle = UIDevice.current.userInterfaceIdiom == .pad ? .popover : .pageSheet
+        if let popover = nav.popoverPresentationController {
+            popover.sourceView = lodButton
+            popover.permittedArrowDirections = .down
+        }
+        present(nav, animated: true)
+    }
+
+    private func applyLodFilter(_ lod: String) {
+        currentLodFilter = lod
+        lod.withCString { pointer in
+            dataManager.setLodFilter(pointer)
+        }
+        dataManager.regenerateTriangleBuffers(withMaximumSize: 16 * 1024 * 1024)
+        reloadTriangleBuffers()
+        dataManager.updateVisibleStates()
+        updateVisibleStateBuffer()
+        dataManager.updateSelectionStates()
+        updateSelectionStateBuffer()
+        dataManager.regenerateEdgeBuffers(withMaximumSize: 16 * 1024 * 1024)
+        reloadEdgeBuffers()
+        metalView?.setNeedsDisplay()
+    }
+
     override var prefersStatusBarHidden: Bool { true }
     override var prefersHomeIndicatorAutoHidden: Bool { true }
+}
+
+// MARK: LodPickerDelegate
+extension MainViewController: LodPickerDelegate {
+    func lodPickerDidSelect(_ lod: String) {
+        applyLodFilter(lod)
+    }
 }
 
 // MARK: ObjectListViewControllerDelegate
