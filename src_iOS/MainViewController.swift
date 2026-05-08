@@ -52,7 +52,10 @@ class MainViewController: UIViewController, MTKViewDelegate {
     // MARK: Scene state
     var showingBBox = false
     var selectionColour = SIMD4<Float>(1.0, 1.0, 0.0, 1.0)
+    var customLightClearColor: MTLClearColor?
+    var customDarkClearColor: MTLClearColor?
     let depthFormat = MTLPixelFormat.depth32Float
+    var isDarkMode: Bool { traitCollection.userInterfaceStyle == .dark }
 
     // MARK: Floating buttons
     var openButton: UIButton!
@@ -117,6 +120,29 @@ class MainViewController: UIViewController, MTKViewDelegate {
         metalView?.frame = view.bounds
     }
 
+    override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+        super.traitCollectionDidChange(previousTraitCollection)
+        if traitCollection.hasDifferentColorAppearance(comparedTo: previousTraitCollection) {
+            updateAppearance()
+        }
+    }
+
+    func updateAppearance() {
+        if isDarkMode {
+            if let custom = customDarkClearColor {
+                metalView.clearColor = custom
+            } else {
+                metalView.clearColor = MTLClearColorMake(0.15, 0.15, 0.20, 1.0)
+            }
+        } else {
+            if let custom = customLightClearColor {
+                metalView.clearColor = custom
+            } else {
+                metalView.clearColor = MTLClearColorMake(1.0, 1.0, 1.0, 1.0)
+            }
+        }
+    }
+
     // MARK: Metal setup
     func setupMetal() {
         metalView = MTKView(frame: view.bounds, device: device)
@@ -128,6 +154,8 @@ class MainViewController: UIViewController, MTKViewDelegate {
         metalView.autoresizesSubviews = true
         view.addSubview(metalView)
         view.sendSubviewToBack(metalView)
+
+        updateAppearance()
 
         let depthDesc = MTLDepthStencilDescriptor()
         depthDesc.depthCompareFunction = .less
@@ -323,7 +351,11 @@ class MainViewController: UIViewController, MTKViewDelegate {
         }
         for eb in edgeBuffers {
             encoder.setVertexBuffer(eb.buffer, offset: 0, index: 0)
-            constants.colour = eb.colour
+            var edgeColour = eb.colour
+            if isDarkMode && edgeColour.x == 0 && edgeColour.y == 0 && edgeColour.z == 0 {
+                edgeColour = SIMD4<Float>(1, 1, 1, 1)
+            }
+            constants.colour = edgeColour
             encoder.setVertexBytes(&constants, length: MemoryLayout<Constants>.size, index: 1)
             encoder.setFragmentBytes(&constants, length: MemoryLayout<Constants>.size, index: 0)
             encoder.drawPrimitives(type: .line, vertexStart: 0, vertexCount: eb.buffer.length / MemoryLayout<EdgeVertex>.size)
@@ -333,7 +365,7 @@ class MainViewController: UIViewController, MTKViewDelegate {
         // Bounding box
         if showingBBox, let bb = boundingBoxBuffer {
             encoder.setVertexBuffer(bb, offset: 0, index: 0)
-            constants.colour = SIMD4<Float>(1.0, 1.0, 1.0, 1.0)
+            constants.colour = isDarkMode ? SIMD4<Float>(1.0, 1.0, 1.0, 1.0) : SIMD4<Float>(0.0, 0.0, 0.0, 1.0)
             encoder.setVertexBytes(&constants, length: MemoryLayout<Constants>.size, index: 1)
             encoder.drawPrimitives(type: .line, vertexStart: 0, vertexCount: bb.length / MemoryLayout<Vertex>.size)
         }

@@ -22,7 +22,6 @@ class ObjectListViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         title = "Objects"
-        overrideUserInterfaceStyle = .dark
         view.backgroundColor = .systemBackground
 
         searchController.searchResultsUpdater = self
@@ -34,7 +33,6 @@ class ObjectListViewController: UIViewController {
         tableView.delegate = self
         tableView.dataSource = self
         tableView.register(UITableViewCell.self, forCellReuseIdentifier: "cell")
-        tableView.separatorColor = UIColor(white: 0.25, alpha: 1.0)
         tableView.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(tableView)
 
@@ -177,7 +175,7 @@ extension ObjectListViewController: UITableViewDataSource, UITableViewDelegate {
         }
         cell.textLabel?.text = displayText
         cell.textLabel?.font = .systemFont(ofSize: UIFont.smallSystemFontSize)
-        cell.textLabel?.textColor = .white
+        cell.textLabel?.textColor = .label
 
         if hasChildren {
             cell.accessoryType = .disclosureIndicator
@@ -195,7 +193,7 @@ extension ObjectListViewController: UITableViewDataSource, UITableViewDelegate {
             }
         }
 
-        cell.backgroundColor = UIColor(white: 0.12, alpha: 1.0)
+        cell.backgroundColor = .secondarySystemBackground
         cell.indentationLevel = Int(item.depth)
         cell.indentationWidth = 16
         cell.selectionStyle = .default

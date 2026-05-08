@@ -10,14 +10,12 @@ class AttributeTableViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         title = "Attributes"
-        overrideUserInterfaceStyle = .dark
         view.backgroundColor = .systemBackground
 
         tableView.delegate = self
         tableView.dataSource = self
         tableView.register(AttributeCell.self, forCellReuseIdentifier: "cell")
         tableView.separatorStyle = .singleLine
-        tableView.separatorColor = UIColor(white: 0.25, alpha: 1.0)
         tableView.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(tableView)
 
@@ -59,7 +57,7 @@ class AttributeCell: UITableViewCell {
         keyLabel.font = .systemFont(ofSize: 13, weight: .semibold)
         keyLabel.textColor = .systemGray
         valueLabel.font = .monospacedSystemFont(ofSize: 15, weight: .regular)
-        valueLabel.textColor = .white
+        valueLabel.textColor = .label
         valueLabel.numberOfLines = 0
 
         contentView.addSubview(keyLabel)
@@ -78,7 +76,7 @@ class AttributeCell: UITableViewCell {
             valueLabel.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -8),
         ])
 
-        backgroundColor = UIColor(white: 0.12, alpha: 1.0)
+        backgroundColor = .secondarySystemBackground
         selectionStyle = .none
     }
 
