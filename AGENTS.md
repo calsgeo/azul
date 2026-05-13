@@ -91,6 +91,7 @@ Xcode Cloud: macOS only; uses `ci_scripts/ci_pre_xcodebuild.sh` to install pinne
 | `src_iOS/MainViewController.swift` | iOS root VC: rendering, gestures, UI, file loading |
 | `src_iOS/ObjectListViewController.swift` | iOS expandable object hierarchy browser |
 | `src_iOS/AttributeTableViewController.swift` | iOS attribute inspector |
+| `src_iOS/LodPickerViewController.swift` | iOS LoD filter picker popover |
 | `src_iOS/Azul-Bridging-Header.h` | iOS bridging header (Swift→ObjC++) |
 | `libs-ios-device/` | iOS device static libraries |
 | `libs-ios-sim/` | iOS simulator static libraries |
@@ -108,6 +109,7 @@ This ordering matters — it's the exact sequence in `Controller.swift:loadData(
 7. `regenerateTriangleBuffers(maxBufferSize: 16*1024*1024)` — builds GPU buffers
 8. `regenerateEdgeBuffers(maxBufferSize: 16*1024*1024)` — builds edge buffers
 9. (Swift side) `reloadTriangleBuffers()`, `reloadEdgeBuffers()`, `regenerateBoundingBoxBuffer()`
+10. `availableLods()` + `setLodFilter("__highest__")` + regenerate buffers (default to highest LoD)
 
 ## Key conventions
 

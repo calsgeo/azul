@@ -38,9 +38,10 @@ The current version of azul runs on **macOS 13+** (Apple Silicon and Intel) and 
 * Zoom: pinch
 * Twist: rotate two fingers
 * Select: tap on object
-* Centre view: tap **Home** button
+* Centre view: tap **Centre** (viewfinder) button
 * Open file: tap **Open** button
-* Browse objects: tap **Objects** button
+* Browse objects: tap **Objects** (cube) button
+* Filter by level of detail: tap **LoD** (± capsule) button
 
 ## Download
 
