@@ -310,12 +310,14 @@ import MetalKit
       let desc = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: colorPixelFormat, width: w, height: h, mipmapped: false)
       desc.textureType = .type2DMultisample
       desc.sampleCount = sampleCount
+      desc.storageMode = .private
       desc.usage = .renderTarget
       msaaTexture = device!.makeTexture(descriptor: desc)
       
       let depthDesc = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: depthStencilPixelFormat, width: w, height: h, mipmapped: false)
       depthDesc.textureType = .type2DMultisample
       depthDesc.sampleCount = sampleCount
+      depthDesc.storageMode = .private
       depthDesc.usage = .renderTarget
       msaaDepthTexture = device!.makeTexture(descriptor: depthDesc)
     } else {
