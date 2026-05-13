@@ -274,11 +274,19 @@ import MetalKit
     let h = Int(drawableSize.height)
     guard w > 0, h > 0 else { return }
     
-    let desc = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .rgba8Unorm, width: w, height: h, mipmapped: false)
+    let desc = MTLTextureDescriptor()
+    desc.pixelFormat = .rgba8Unorm
+    desc.width = w
+    desc.height = h
+    desc.storageMode = .private
     desc.usage = [.renderTarget, .shaderRead]
     pickingTexture = device!.makeTexture(descriptor: desc)
     
-    let depthDesc = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: depthStencilPixelFormat, width: w, height: h, mipmapped: false)
+    let depthDesc = MTLTextureDescriptor()
+    depthDesc.pixelFormat = depthStencilPixelFormat
+    depthDesc.width = w
+    depthDesc.height = h
+    depthDesc.storageMode = .private
     depthDesc.usage = .renderTarget
     pickingDepthTexture = device!.makeTexture(descriptor: depthDesc)
   }
@@ -307,14 +315,20 @@ import MetalKit
     guard w > 0, h > 0 else { return }
     
     if sampleCount > 1 {
-      let desc = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: colorPixelFormat, width: w, height: h, mipmapped: false)
+      let desc = MTLTextureDescriptor()
+      desc.pixelFormat = colorPixelFormat
+      desc.width = w
+      desc.height = h
       desc.textureType = .type2DMultisample
       desc.sampleCount = sampleCount
       desc.storageMode = .private
       desc.usage = .renderTarget
       msaaTexture = device!.makeTexture(descriptor: desc)
       
-      let depthDesc = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: depthStencilPixelFormat, width: w, height: h, mipmapped: false)
+      let depthDesc = MTLTextureDescriptor()
+      depthDesc.pixelFormat = depthStencilPixelFormat
+      depthDesc.width = w
+      depthDesc.height = h
       depthDesc.textureType = .type2DMultisample
       depthDesc.sampleCount = sampleCount
       depthDesc.storageMode = .private
