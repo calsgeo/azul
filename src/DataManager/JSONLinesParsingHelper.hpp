@@ -38,6 +38,7 @@ public:
       return;
     } parsedFile.type = "File";
     parsedFile.id = filePath;
+    deferredParentRelationships.clear();
     
     for (auto doc: docs) {
       
@@ -140,13 +141,12 @@ public:
           }
           
           // CityObjects
-          deferredParentRelationships.clear();
           for (auto object: doc["CityObjects"].get_object()) {
             parsedFile.children.push_back(AzulObject());
             std::string_view objectId = object.unescaped_key();
             parsedFile.children.back().id = objectId;
             parseCityJSONObject(object.value().get_object(), parsedFile.children.back(), parsedFile.children.size() - 1, vertices, &geometryTemplates);
-          } buildHierarchy(parsedFile);
+          }
 
           statusMessage = "Loaded CityJSON " + std::string(docVersion) + " file";
         } else {
@@ -171,13 +171,12 @@ public:
         }
 
         // CityObjects
-        deferredParentRelationships.clear();
         for (auto object: doc["CityObjects"].get_object()) {
           parsedFile.children.push_back(AzulObject());
           std::string_view objectId = object.unescaped_key();
           parsedFile.children.back().id = objectId;
           parseCityJSONObject(object.value().get_object(), parsedFile.children.back(), parsedFile.children.size() - 1, vertices, &geometryTemplates);
-        } buildHierarchy(parsedFile);
+        }
 
       }
       
@@ -185,10 +184,8 @@ public:
         std::cout << "Found a line that isn't a CityJSONFeature";
       }
 
-    }
-    
+    } buildHierarchy(parsedFile);
 
-    
   }
 };
 
