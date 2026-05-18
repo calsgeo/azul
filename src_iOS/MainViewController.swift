@@ -384,10 +384,10 @@ class MainViewController: UIViewController, MTKViewDelegate {
         guard let mins = dataManager.minCoordinates(),
               let mids = dataManager.midCoordinates(),
               let maxs = dataManager.maxCoordinates() else { return 0.0 }
-        let minCoords = [mins[0], mins[1], mins[2]]
-        let midCoords = [mids[0], mids[1], mids[2]]
-        let maxCoords = [maxs[0], maxs[1], maxs[2]]
-        let range = dataManager.maxRange()
+        let minCoords = [mins[0], mins[1], mins[2]].map(Float.init)
+        let midCoords = [mids[0], mids[1], mids[2]].map(Float.init)
+        let maxCoords = [maxs[0], maxs[1], maxs[2]].map(Float.init)
+        let range = Float(dataManager.maxRange())
 
         let leftUpPoint = SIMD4<Float>((minCoords[0]-midCoords[0])/range, (maxCoords[1]-midCoords[1])/range, 0.0, 1.0)
         let rightUpPoint = SIMD4<Float>((maxCoords[0]-midCoords[0])/range, (maxCoords[1]-midCoords[1])/range, 0.0, 1.0)
@@ -543,20 +543,20 @@ class MainViewController: UIViewController, MTKViewDelegate {
         guard let mins = dataManager.minCoordinates(),
               let mids = dataManager.midCoordinates(),
               let maxs = dataManager.maxCoordinates() else { return }
-        let minCoords = [mins[0], mins[1], mins[2]]
-        let midCoords = [mids[0], mids[1], mids[2]]
-        let maxCoords = [maxs[0], maxs[1], maxs[2]]
-        let range = dataManager.maxRange()
+        let minCoords = [mins[0], mins[1], mins[2]].map(Float.init)
+        let midCoords = [mids[0], mids[1], mids[2]].map(Float.init)
+        let maxCoords = [maxs[0], maxs[1], maxs[2]].map(Float.init)
+        let range = Float(dataManager.maxRange())
 
         let corners: [SIMD3<Float>] = [
-            SIMD3<Float>((minCoords[0]-mids[0])/range, (minCoords[1]-mids[1])/range, (minCoords[2]-mids[2])/range),
-            SIMD3<Float>((maxCoords[0]-mids[0])/range, (minCoords[1]-mids[1])/range, (minCoords[2]-mids[2])/range),
-            SIMD3<Float>((maxCoords[0]-mids[0])/range, (maxCoords[1]-mids[1])/range, (minCoords[2]-mids[2])/range),
-            SIMD3<Float>((minCoords[0]-mids[0])/range, (maxCoords[1]-mids[1])/range, (minCoords[2]-mids[2])/range),
-            SIMD3<Float>((minCoords[0]-mids[0])/range, (minCoords[1]-mids[1])/range, (maxCoords[2]-mids[2])/range),
-            SIMD3<Float>((maxCoords[0]-mids[0])/range, (minCoords[1]-mids[1])/range, (maxCoords[2]-mids[2])/range),
-            SIMD3<Float>((maxCoords[0]-mids[0])/range, (maxCoords[1]-mids[1])/range, (maxCoords[2]-mids[2])/range),
-            SIMD3<Float>((minCoords[0]-mids[0])/range, (maxCoords[1]-mids[1])/range, (maxCoords[2]-mids[2])/range),
+            SIMD3<Float>((minCoords[0]-midCoords[0])/range, (minCoords[1]-midCoords[1])/range, (minCoords[2]-midCoords[2])/range),
+            SIMD3<Float>((maxCoords[0]-midCoords[0])/range, (minCoords[1]-midCoords[1])/range, (minCoords[2]-midCoords[2])/range),
+            SIMD3<Float>((maxCoords[0]-midCoords[0])/range, (maxCoords[1]-midCoords[1])/range, (minCoords[2]-midCoords[2])/range),
+            SIMD3<Float>((minCoords[0]-midCoords[0])/range, (maxCoords[1]-midCoords[1])/range, (minCoords[2]-midCoords[2])/range),
+            SIMD3<Float>((minCoords[0]-midCoords[0])/range, (minCoords[1]-midCoords[1])/range, (maxCoords[2]-midCoords[2])/range),
+            SIMD3<Float>((maxCoords[0]-midCoords[0])/range, (minCoords[1]-midCoords[1])/range, (maxCoords[2]-midCoords[2])/range),
+            SIMD3<Float>((maxCoords[0]-midCoords[0])/range, (maxCoords[1]-midCoords[1])/range, (maxCoords[2]-midCoords[2])/range),
+            SIMD3<Float>((minCoords[0]-midCoords[0])/range, (maxCoords[1]-midCoords[1])/range, (maxCoords[2]-midCoords[2])/range),
         ]
         let edges: [Int] = [
             0,1, 1,2, 2,3, 3,0,
@@ -993,14 +993,14 @@ extension MainViewController: ObjectListViewControllerDelegate {
               let mids = dataManager.midCoordinates(),
               let mins = dataManager.minCoordinates(),
               let maxs = dataManager.maxCoordinates() else { return }
-        let mid = [mids[0], mids[1], mids[2]]
-        let range = dataManager.maxRange()
+        let midF = [mids[0], mids[1], mids[2]].map(Float.init)
+        let range = Float(dataManager.maxRange())
         guard range > 0 else { return }
 
         let normCentroid = SIMD4<Float>(
-            (centroid[0] - mid[0]) / range,
-            (centroid[1] - mid[1]) / range,
-            (centroid[2] - mid[2]) / range,
+            (Float(centroid[0]) - midF[0]) / range,
+            (Float(centroid[1]) - midF[1]) / range,
+            (Float(centroid[2]) - midF[2]) / range,
             1.0)
 
         let objectToCamera = matrix_multiply(viewMatrix, modelMatrix)

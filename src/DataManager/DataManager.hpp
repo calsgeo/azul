@@ -114,13 +114,13 @@ public:
   std::string statusMessage;
   
   // Bounds
-  float minCoordinates[3];
-  float midCoordinates[3];
-  float maxCoordinates[3];
-  float maxRange;
+  double minCoordinates[3];
+  double midCoordinates[3];
+  double maxCoordinates[3];
+  double maxRange;
 
   // Centroid for centering view on an object (iOS)
-  float centroid[3];
+  double centroid[3];
   
   // Life cycle
   DataManager();

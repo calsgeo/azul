@@ -664,90 +664,94 @@ extension NSToolbarItem.Identifier {
     let firstMinCoordinate = dataManager.minCoordinates()
     let minCoordinatesBuffer = UnsafeBufferPointer(start: firstMinCoordinate, count: 3)
     let minCoordinatesArray = ContiguousArray(minCoordinatesBuffer)
-    let minCoordinates = [Float](minCoordinatesArray)
+    let minCoordinates = [Double](minCoordinatesArray)
     let firstMidCoordinate = dataManager.midCoordinates()
     let midCoordinatesBuffer = UnsafeBufferPointer(start: firstMidCoordinate, count: 3)
     let midCoordinatesArray = ContiguousArray(midCoordinatesBuffer)
-    let midCoordinates = [Float](midCoordinatesArray)
+    let midCoordinates = [Double](midCoordinatesArray)
     let firstMaxCoordinate = dataManager.maxCoordinates()
     let maxCoordinatesBuffer = UnsafeBufferPointer(start: firstMaxCoordinate, count: 3)
     let maxCoordinatesArray = ContiguousArray(maxCoordinatesBuffer)
-    let maxCoordinates = [Float](maxCoordinatesArray)
+    let maxCoordinates = [Double](maxCoordinatesArray)
     let maxRange = dataManager.maxRange()
+    let minCoords = minCoordinates.map(Float.init)
+    let midCoords = midCoordinates.map(Float.init)
+    let maxCoords = maxCoordinates.map(Float.init)
+    let range = Float(maxRange)
     
     // Create bounding box vertices
-    let boundingBoxVertices: [Vertex] = [Vertex(position: SIMD3<Float>((minCoordinates[0]-midCoordinates[0])/maxRange,
-                                                                       (minCoordinates[1]-midCoordinates[1])/maxRange,
-                                                                       (minCoordinates[2]-midCoordinates[2])/maxRange)),  // 000 -> 001
-                                         Vertex(position: SIMD3<Float>((minCoordinates[0]-midCoordinates[0])/maxRange,
-                                                                       (minCoordinates[1]-midCoordinates[1])/maxRange,
-                                                                       (maxCoordinates[2]-midCoordinates[2])/maxRange)),
-                                         Vertex(position: SIMD3<Float>((minCoordinates[0]-midCoordinates[0])/maxRange,
-                                                                       (minCoordinates[1]-midCoordinates[1])/maxRange,
-                                                                       (minCoordinates[2]-midCoordinates[2])/maxRange)),  // 000 -> 010
-                                         Vertex(position: SIMD3<Float>((minCoordinates[0]-midCoordinates[0])/maxRange,
-                                                                       (maxCoordinates[1]-midCoordinates[1])/maxRange,
-                                                                       (minCoordinates[2]-midCoordinates[2])/maxRange)),
-                                         Vertex(position: SIMD3<Float>((minCoordinates[0]-midCoordinates[0])/maxRange,
-                                                                       (minCoordinates[1]-midCoordinates[1])/maxRange,
-                                                                       (minCoordinates[2]-midCoordinates[2])/maxRange)),  // 000 -> 100
-                                         Vertex(position: SIMD3<Float>((maxCoordinates[0]-midCoordinates[0])/maxRange,
-                                                                       (minCoordinates[1]-midCoordinates[1])/maxRange,
-                                                                       (minCoordinates[2]-midCoordinates[2])/maxRange)),
-                                         Vertex(position: SIMD3<Float>((minCoordinates[0]-midCoordinates[0])/maxRange,
-                                                                       (minCoordinates[1]-midCoordinates[1])/maxRange,
-                                                                       (maxCoordinates[2]-midCoordinates[2])/maxRange)),  // 001 -> 011
-                                         Vertex(position: SIMD3<Float>((minCoordinates[0]-midCoordinates[0])/maxRange,
-                                                                       (maxCoordinates[1]-midCoordinates[1])/maxRange,
-                                                                       (maxCoordinates[2]-midCoordinates[2])/maxRange)),
-                                         Vertex(position: SIMD3<Float>((minCoordinates[0]-midCoordinates[0])/maxRange,
-                                                                       (minCoordinates[1]-midCoordinates[1])/maxRange,
-                                                                       (maxCoordinates[2]-midCoordinates[2])/maxRange)),  // 001 -> 101
-                                         Vertex(position: SIMD3<Float>((maxCoordinates[0]-midCoordinates[0])/maxRange,
-                                                                       (minCoordinates[1]-midCoordinates[1])/maxRange,
-                                                                       (maxCoordinates[2]-midCoordinates[2])/maxRange)),
-                                         Vertex(position: SIMD3<Float>((minCoordinates[0]-midCoordinates[0])/maxRange,
-                                                                       (maxCoordinates[1]-midCoordinates[1])/maxRange,
-                                                                       (minCoordinates[2]-midCoordinates[2])/maxRange)),  // 010 -> 011
-                                         Vertex(position: SIMD3<Float>((minCoordinates[0]-midCoordinates[0])/maxRange,
-                                                                       (maxCoordinates[1]-midCoordinates[1])/maxRange,
-                                                                       (maxCoordinates[2]-midCoordinates[2])/maxRange)),
-                                         Vertex(position: SIMD3<Float>((minCoordinates[0]-midCoordinates[0])/maxRange,
-                                                                       (maxCoordinates[1]-midCoordinates[1])/maxRange,
-                                                                       (minCoordinates[2]-midCoordinates[2])/maxRange)),  // 010 -> 110
-                                         Vertex(position: SIMD3<Float>((maxCoordinates[0]-midCoordinates[0])/maxRange,
-                                                                       (maxCoordinates[1]-midCoordinates[1])/maxRange,
-                                                                       (minCoordinates[2]-midCoordinates[2])/maxRange)),
-                                         Vertex(position: SIMD3<Float>((minCoordinates[0]-midCoordinates[0])/maxRange,
-                                                                       (maxCoordinates[1]-midCoordinates[1])/maxRange,
-                                                                       (maxCoordinates[2]-midCoordinates[2])/maxRange)),  // 011 -> 111
-                                         Vertex(position: SIMD3<Float>((maxCoordinates[0]-midCoordinates[0])/maxRange,
-                                                                       (maxCoordinates[1]-midCoordinates[1])/maxRange,
-                                                                       (maxCoordinates[2]-midCoordinates[2])/maxRange)),
-                                         Vertex(position: SIMD3<Float>((maxCoordinates[0]-midCoordinates[0])/maxRange,
-                                                                       (minCoordinates[1]-midCoordinates[1])/maxRange,
-                                                                       (minCoordinates[2]-midCoordinates[2])/maxRange)),  // 100 -> 101
-                                         Vertex(position: SIMD3<Float>((maxCoordinates[0]-midCoordinates[0])/maxRange,
-                                                                       (minCoordinates[1]-midCoordinates[1])/maxRange,
-                                                                       (maxCoordinates[2]-midCoordinates[2])/maxRange)),
-                                         Vertex(position: SIMD3<Float>((maxCoordinates[0]-midCoordinates[0])/maxRange,
-                                                                       (minCoordinates[1]-midCoordinates[1])/maxRange,
-                                                                       (minCoordinates[2]-midCoordinates[2])/maxRange)),  // 100 -> 110
-                                         Vertex(position: SIMD3<Float>((maxCoordinates[0]-midCoordinates[0])/maxRange,
-                                                                       (maxCoordinates[1]-midCoordinates[1])/maxRange,
-                                                                       (minCoordinates[2]-midCoordinates[2])/maxRange)),
-                                         Vertex(position: SIMD3<Float>((maxCoordinates[0]-midCoordinates[0])/maxRange,
-                                                                       (minCoordinates[1]-midCoordinates[1])/maxRange,
-                                                                       (maxCoordinates[2]-midCoordinates[2])/maxRange)),  // 101 -> 111
-                                         Vertex(position: SIMD3<Float>((maxCoordinates[0]-midCoordinates[0])/maxRange,
-                                                                       (maxCoordinates[1]-midCoordinates[1])/maxRange,
-                                                                       (maxCoordinates[2]-midCoordinates[2])/maxRange)),
-                                         Vertex(position: SIMD3<Float>((maxCoordinates[0]-midCoordinates[0])/maxRange,
-                                                                       (maxCoordinates[1]-midCoordinates[1])/maxRange,
-                                                                       (minCoordinates[2]-midCoordinates[2])/maxRange)),  // 110 -> 111
-                                         Vertex(position: SIMD3<Float>((maxCoordinates[0]-midCoordinates[0])/maxRange,
-                                                                       (maxCoordinates[1]-midCoordinates[1])/maxRange,
-                                                                       (maxCoordinates[2]-midCoordinates[2])/maxRange))]
+    let boundingBoxVertices: [Vertex] = [Vertex(position: SIMD3<Float>((minCoords[0]-midCoords[0])/range,
+                                                                        (minCoords[1]-midCoords[1])/range,
+                                                                        (minCoords[2]-midCoords[2])/range)),  // 000 -> 001
+                                         Vertex(position: SIMD3<Float>((minCoords[0]-midCoords[0])/range,
+                                                                        (minCoords[1]-midCoords[1])/range,
+                                                                        (maxCoords[2]-midCoords[2])/range)),
+                                         Vertex(position: SIMD3<Float>((minCoords[0]-midCoords[0])/range,
+                                                                        (minCoords[1]-midCoords[1])/range,
+                                                                        (minCoords[2]-midCoords[2])/range)),  // 000 -> 010
+                                         Vertex(position: SIMD3<Float>((minCoords[0]-midCoords[0])/range,
+                                                                        (maxCoords[1]-midCoords[1])/range,
+                                                                        (minCoords[2]-midCoords[2])/range)),
+                                         Vertex(position: SIMD3<Float>((minCoords[0]-midCoords[0])/range,
+                                                                        (minCoords[1]-midCoords[1])/range,
+                                                                        (minCoords[2]-midCoords[2])/range)),  // 000 -> 100
+                                         Vertex(position: SIMD3<Float>((maxCoords[0]-midCoords[0])/range,
+                                                                        (minCoords[1]-midCoords[1])/range,
+                                                                        (minCoords[2]-midCoords[2])/range)),
+                                         Vertex(position: SIMD3<Float>((minCoords[0]-midCoords[0])/range,
+                                                                        (minCoords[1]-midCoords[1])/range,
+                                                                        (maxCoords[2]-midCoords[2])/range)),  // 001 -> 011
+                                         Vertex(position: SIMD3<Float>((minCoords[0]-midCoords[0])/range,
+                                                                        (maxCoords[1]-midCoords[1])/range,
+                                                                        (maxCoords[2]-midCoords[2])/range)),
+                                         Vertex(position: SIMD3<Float>((minCoords[0]-midCoords[0])/range,
+                                                                        (minCoords[1]-midCoords[1])/range,
+                                                                        (maxCoords[2]-midCoords[2])/range)),  // 001 -> 101
+                                         Vertex(position: SIMD3<Float>((maxCoords[0]-midCoords[0])/range,
+                                                                        (minCoords[1]-midCoords[1])/range,
+                                                                        (maxCoords[2]-midCoords[2])/range)),
+                                         Vertex(position: SIMD3<Float>((minCoords[0]-midCoords[0])/range,
+                                                                        (maxCoords[1]-midCoords[1])/range,
+                                                                        (minCoords[2]-midCoords[2])/range)),  // 010 -> 011
+                                         Vertex(position: SIMD3<Float>((minCoords[0]-midCoords[0])/range,
+                                                                        (maxCoords[1]-midCoords[1])/range,
+                                                                        (maxCoords[2]-midCoords[2])/range)),
+                                         Vertex(position: SIMD3<Float>((minCoords[0]-midCoords[0])/range,
+                                                                        (maxCoords[1]-midCoords[1])/range,
+                                                                        (minCoords[2]-midCoords[2])/range)),  // 010 -> 110
+                                         Vertex(position: SIMD3<Float>((maxCoords[0]-midCoords[0])/range,
+                                                                        (maxCoords[1]-midCoords[1])/range,
+                                                                        (minCoords[2]-midCoords[2])/range)),
+                                         Vertex(position: SIMD3<Float>((minCoords[0]-midCoords[0])/range,
+                                                                        (maxCoords[1]-midCoords[1])/range,
+                                                                        (maxCoords[2]-midCoords[2])/range)),  // 011 -> 111
+                                         Vertex(position: SIMD3<Float>((maxCoords[0]-midCoords[0])/range,
+                                                                        (maxCoords[1]-midCoords[1])/range,
+                                                                        (maxCoords[2]-midCoords[2])/range)),
+                                         Vertex(position: SIMD3<Float>((maxCoords[0]-midCoords[0])/range,
+                                                                        (minCoords[1]-midCoords[1])/range,
+                                                                        (minCoords[2]-midCoords[2])/range)),  // 100 -> 101
+                                         Vertex(position: SIMD3<Float>((maxCoords[0]-midCoords[0])/range,
+                                                                        (minCoords[1]-midCoords[1])/range,
+                                                                        (maxCoords[2]-midCoords[2])/range)),
+                                         Vertex(position: SIMD3<Float>((maxCoords[0]-midCoords[0])/range,
+                                                                        (minCoords[1]-midCoords[1])/range,
+                                                                        (minCoords[2]-midCoords[2])/range)),  // 100 -> 110
+                                         Vertex(position: SIMD3<Float>((maxCoords[0]-midCoords[0])/range,
+                                                                        (maxCoords[1]-midCoords[1])/range,
+                                                                        (minCoords[2]-midCoords[2])/range)),
+                                         Vertex(position: SIMD3<Float>((maxCoords[0]-midCoords[0])/range,
+                                                                        (minCoords[1]-midCoords[1])/range,
+                                                                        (maxCoords[2]-midCoords[2])/range)),  // 101 -> 111
+                                         Vertex(position: SIMD3<Float>((maxCoords[0]-midCoords[0])/range,
+                                                                        (maxCoords[1]-midCoords[1])/range,
+                                                                        (maxCoords[2]-midCoords[2])/range)),
+                                         Vertex(position: SIMD3<Float>((maxCoords[0]-midCoords[0])/range,
+                                                                        (maxCoords[1]-midCoords[1])/range,
+                                                                        (minCoords[2]-midCoords[2])/range)),  // 110 -> 111
+                                         Vertex(position: SIMD3<Float>((maxCoords[0]-midCoords[0])/range,
+                                                                        (maxCoords[1]-midCoords[1])/range,
+                                                                        (maxCoords[2]-midCoords[2])/range))]
     metalView!.boundingBoxBuffer = metalView!.device!.makeBuffer(bytes: boundingBoxVertices, length: MemoryLayout<Vertex>.size*boundingBoxVertices.count, options: [])
   }
   

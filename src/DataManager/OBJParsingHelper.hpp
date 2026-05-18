@@ -52,7 +52,7 @@ public:
       
       // Vertex
       if (strncmp(definitionStart, "v ", 2) == 0) {
-        float coordinate;
+        double coordinate;
         const char *coordinateStart = definitionStart;
         ++coordinateStart;
         vertices.push_back(AzulPoint());
@@ -60,7 +60,7 @@ public:
           while (isspace(*coordinateStart) && coordinateStart != lineEnd) ++coordinateStart;
           const char *coordinateEnd = coordinateStart;
           while (!isspace(*coordinateEnd) && coordinateEnd != lineEnd) ++coordinateEnd;
-          if (!boost::spirit::x3::parse(coordinateStart, coordinateEnd, boost::spirit::x3::float_, coordinate)) {
+          if (!boost::spirit::x3::parse(coordinateStart, coordinateEnd, boost::spirit::x3::double_, coordinate)) {
             std::cout << "Invalid coordinate" << std::endl;
             for (int j = 0; j < 3; ++j) vertices.back().coordinates[j] = 0.0;
             break;

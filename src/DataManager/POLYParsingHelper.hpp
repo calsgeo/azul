@@ -88,14 +88,14 @@ public:
         if (!boost::spirit::x3::parse(vertexNumberStart, vertexNumberEnd, boost::spirit::x3::ulong_, vertexNumber)) {
           std::cout << "Invalid vertex number" << std::endl;
           return;
-        } float coordinate;
+        } double coordinate;
         const char *coordinateStart = vertexNumberEnd;
         vertices[vertexNumber] = AzulPoint();
         for (int i = 0; i < 3; ++i) {
           while (isspace(*coordinateStart) && coordinateStart != lineEnd) ++coordinateStart;
           const char *coordinateEnd = coordinateStart;
           while (!isspace(*coordinateEnd) && coordinateEnd != lineEnd) ++coordinateEnd;
-          if (!boost::spirit::x3::parse(coordinateStart, coordinateEnd, boost::spirit::x3::float_, coordinate)) {
+          if (!boost::spirit::x3::parse(coordinateStart, coordinateEnd, boost::spirit::x3::double_, coordinate)) {
             std::cout << "Invalid coordinate" << std::endl;
             for (int j = 0; j < 3; ++j) vertices[vertexNumber].coordinates[j] = 0.0;
             break;

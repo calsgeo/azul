@@ -23,7 +23,7 @@
 #include <cstdint>
 
 struct AzulPoint {
-  float coordinates[3];
+  double coordinates[3];
   AzulPoint() {}
   AzulPoint(const AzulPoint &other) {
     for (int i = 0; i < 3; ++i) coordinates[i] = other.coordinates[i];
@@ -125,7 +125,7 @@ struct EdgeBuffer {
 };
 
 struct CentroidComputation {
-  float sum[3];
+  double sum[3];
   std::size_t points;
 };
 

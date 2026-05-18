@@ -82,7 +82,7 @@ class GMLParsingHelper {
           const char *last = coordinates;
 //          std::cout << "\"" << coordinates << "\"" << std::endl;
           while (!isspace(*last) && *last != '\0') ++last;
-          if (!boost::spirit::x3::parse(coordinates, last, boost::spirit::x3::float_, parsedRing.points.back().coordinates[currentCoordinate])) {
+          if (!boost::spirit::x3::parse(coordinates, last, boost::spirit::x3::double_, parsedRing.points.back().coordinates[currentCoordinate])) {
             std::cout << "Invalid points: " << coordinates << ". Skipping..." << std::endl;
             parsedRing.points.clear();
             break;
@@ -500,8 +500,8 @@ class GMLParsingHelper {
     // Implicit geometry
     else if (strcmp(nodeType, "ImplicitGeometry") == 0) {
 //      std::cout << "Implicit geometry" << std::endl;
-      std::vector<float> transformationMatrix;
-      std::vector<float> anchorPointCoordinates;
+      std::vector<double> transformationMatrix;
+      std::vector<double> anchorPointCoordinates;
       
       AzulObject transformedChild;
       for (auto const &child: node.children()) {
@@ -513,8 +513,8 @@ class GMLParsingHelper {
           while (strlen(values) > 0) {
             const char *last = values;
             while (!isspace(*last) && *last != '\0') ++last;
-            float parsedValue;
-            if (!boost::spirit::x3::parse(values, last, boost::spirit::x3::float_, parsedValue)) {
+            double parsedValue;
+            if (!boost::spirit::x3::parse(values, last, boost::spirit::x3::double_, parsedValue)) {
               std::cout << "Invalid value: " << values << ". Skipping..." << std::endl;
             } else {
               transformationMatrix.push_back(parsedValue);
@@ -554,7 +554,7 @@ class GMLParsingHelper {
                     const char *last = coordinates;
                     while (!isspace(*last) && *last != '\0') ++last;
                     anchorPointCoordinates.push_back(0.0);
-                    if (!boost::spirit::x3::parse(coordinates, last, boost::spirit::x3::float_, anchorPointCoordinates.back())) {
+                    if (!boost::spirit::x3::parse(coordinates, last, boost::spirit::x3::double_, anchorPointCoordinates.back())) {
                       std::cout << "Invalid coordinates: " << coordinates << ". Skipping..." << std::endl;
                     } coordinates = last;
                     while (isspace(*coordinates)) ++coordinates;
@@ -575,10 +575,10 @@ class GMLParsingHelper {
           for (auto const &point: polygon.exteriorRing.points) {
             parsedObject.polygons.back().exteriorRing.points.push_back(AzulPoint());
 //            std::cout << "Point: " << point.coordinates[0] << " " << point.coordinates[1] << " " << point.coordinates[2] << std::endl;
-            float homogeneousCoordinate = (transformationMatrix[12]*point.coordinates[0] +
-                                           transformationMatrix[13]*point.coordinates[1] +
-                                           transformationMatrix[14]*point.coordinates[2] +
-                                           transformationMatrix[15]);
+            double homogeneousCoordinate = (transformationMatrix[12]*point.coordinates[0] +
+                                            transformationMatrix[13]*point.coordinates[1] +
+                                            transformationMatrix[14]*point.coordinates[2] +
+                                            transformationMatrix[15]);
             parsedObject.polygons.back().exteriorRing.points.back().coordinates[0] = (transformationMatrix[0]*point.coordinates[0] +
                                                                                       transformationMatrix[1]*point.coordinates[1] +
                                                                                       transformationMatrix[2]*point.coordinates[2] +
@@ -595,10 +595,10 @@ class GMLParsingHelper {
             parsedObject.polygons.back().interiorRings.push_back(AzulRing());
             for (auto const &point: ring.points) {
               parsedObject.polygons.back().interiorRings.back().points.push_back(AzulPoint());
-              float homogeneousCoordinate = (transformationMatrix[12]*point.coordinates[0] +
-                                             transformationMatrix[13]*point.coordinates[1] +
-                                             transformationMatrix[14]*point.coordinates[2] +
-                                             transformationMatrix[15]);
+              double homogeneousCoordinate = (transformationMatrix[12]*point.coordinates[0] +
+                                              transformationMatrix[13]*point.coordinates[1] +
+                                              transformationMatrix[14]*point.coordinates[2] +
+                                              transformationMatrix[15]);
               parsedObject.polygons.back().interiorRings.back().points.back().coordinates[0] = (transformationMatrix[0]*point.coordinates[0] +
                                                                                                 transformationMatrix[1]*point.coordinates[1] +
                                                                                                 transformationMatrix[2]*point.coordinates[2] +

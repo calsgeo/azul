@@ -393,9 +393,9 @@ void DataManager::putAzulObjectAndItsChildrenIntoEdgeBuffers(const AzulObject &o
 
 DataManager::DataManager() {
   for (int coordinate = 0; coordinate < 3; ++coordinate) {
-    minCoordinates[coordinate] = std::numeric_limits<float>::max();
-    maxCoordinates[coordinate] = std::numeric_limits<float>::lowest();
-    centroid[coordinate] = 0.0f;
+    minCoordinates[coordinate] = std::numeric_limits<double>::max();
+    maxCoordinates[coordinate] = std::numeric_limits<double>::lowest();
+    centroid[coordinate] = 0.0;
   } // std::cout << "Min: " << minCoordinates[0] << " max: " << maxCoordinates[0];
   
   // Default
@@ -523,7 +523,7 @@ void DataManager::parse(const char *filePath) {
 
 void DataManager::updateBoundsWithLastFile() {
   updateBoundsWithAzulObjectAndItsChildren(parsedFiles.back());
-  float range[3];
+  double range[3];
   for (int coordinate = 0; coordinate < 3; ++coordinate) {
     midCoordinates[coordinate] = (minCoordinates[coordinate]+maxCoordinates[coordinate])/2.0;
     range[coordinate] = maxCoordinates[coordinate]-minCoordinates[coordinate];
@@ -589,8 +589,8 @@ void DataManager::clear() {
   lastEdgeBufferBySelection.clear();
   
   for (int coordinate = 0; coordinate < 3; ++coordinate) {
-    minCoordinates[coordinate] = std::numeric_limits<float>::max();
-    maxCoordinates[coordinate] = std::numeric_limits<float>::lowest();
+    minCoordinates[coordinate] = std::numeric_limits<double>::max();
+    maxCoordinates[coordinate] = std::numeric_limits<double>::lowest();
   }
 }
 

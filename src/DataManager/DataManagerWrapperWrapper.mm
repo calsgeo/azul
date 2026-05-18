@@ -171,19 +171,19 @@ struct DataManagerWrapper {
   return dataManagerWrapper->dataManager->currentEdgeBuffer == dataManagerWrapper->dataManager->edgeBuffers.end();
 }
 
-- (float *) minCoordinates {
+- (double *) minCoordinates {
   return dataManagerWrapper->dataManager->minCoordinates;
 }
 
-- (float *) midCoordinates {
+- (double *) midCoordinates {
   return dataManagerWrapper->dataManager->midCoordinates;
 }
 
-- (float *) maxCoordinates {
+- (double *) maxCoordinates {
   return dataManagerWrapper->dataManager->maxCoordinates;
 }
 
-- (float) maxRange {
+- (double) maxRange {
   return dataManagerWrapper->dataManager->maxRange;
 }
 
@@ -377,9 +377,9 @@ struct DataManagerWrapper {
   for (int coordinate = 0; coordinate < 3; ++coordinate) centroidComputation.sum[coordinate] = 0;
   centroidComputation.points = 0;
   dataManagerWrapper->dataManager->addAzulObjectAndItsChildrenToCentroidComputation(*[currentItem iterator], centroidComputation);
-  simd_float4 centroidInObjectCoordinates = simd_make_float4((((centroidComputation.sum[0]/(float)centroidComputation.points)-dataManagerWrapper->dataManager->midCoordinates[0])/dataManagerWrapper->dataManager->maxRange),
-                                                             (((centroidComputation.sum[1]/(float)centroidComputation.points)-dataManagerWrapper->dataManager->midCoordinates[1])/dataManagerWrapper->dataManager->maxRange),
-                                                             (((centroidComputation.sum[2]/(float)centroidComputation.points)-dataManagerWrapper->dataManager->midCoordinates[2])/dataManagerWrapper->dataManager->maxRange),
+  simd_float4 centroidInObjectCoordinates = simd_make_float4((((centroidComputation.sum[0]/(double)centroidComputation.points)-dataManagerWrapper->dataManager->midCoordinates[0])/dataManagerWrapper->dataManager->maxRange),
+                                                             (((centroidComputation.sum[1]/(double)centroidComputation.points)-dataManagerWrapper->dataManager->midCoordinates[1])/dataManagerWrapper->dataManager->maxRange),
+                                                             (((centroidComputation.sum[2]/(double)centroidComputation.points)-dataManagerWrapper->dataManager->midCoordinates[2])/dataManagerWrapper->dataManager->maxRange),
                                                              1.0);
 //  NSLog(@"Centroid: %f, %f, %f", centroidInObjectCoordinates[0], centroidInObjectCoordinates[1], centroidInObjectCoordinates[2]);
   
@@ -723,7 +723,7 @@ struct DataManagerWrapper {
   dataManagerWrapper->dataManager->updateSelectionStates();
 }
 
-- (const float *) centroidOfItem:(id)item {
+- (const double *) centroidOfItem:(id)item {
   if (![item isKindOfClass:[AzulObjectIterator class]]) return nullptr;
   AzulObjectIterator *currentItem = item;
   dataManagerWrapper->dataManager->centroid[0] = 0;
@@ -736,9 +736,9 @@ struct DataManagerWrapper {
   centroidComputation.points = 0;
   dataManagerWrapper->dataManager->addAzulObjectAndItsChildrenToCentroidComputation(*[currentItem iterator], centroidComputation);
   if (centroidComputation.points > 0) {
-    dataManagerWrapper->dataManager->centroid[0] = centroidComputation.sum[0] / static_cast<float>(centroidComputation.points);
-    dataManagerWrapper->dataManager->centroid[1] = centroidComputation.sum[1] / static_cast<float>(centroidComputation.points);
-    dataManagerWrapper->dataManager->centroid[2] = centroidComputation.sum[2] / static_cast<float>(centroidComputation.points);
+    dataManagerWrapper->dataManager->centroid[0] = centroidComputation.sum[0] / static_cast<double>(centroidComputation.points);
+    dataManagerWrapper->dataManager->centroid[1] = centroidComputation.sum[1] / static_cast<double>(centroidComputation.points);
+    dataManagerWrapper->dataManager->centroid[2] = centroidComputation.sum[2] / static_cast<double>(centroidComputation.points);
   }
   return dataManagerWrapper->dataManager->centroid;
 }

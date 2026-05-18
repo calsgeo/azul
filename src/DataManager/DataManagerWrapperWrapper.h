@@ -90,10 +90,10 @@ struct DataManagerWrapper;
 - (BOOL) edgeBufferIteratorEnded;
 
 // Bounds
-- (float *) minCoordinates;
-- (float *) midCoordinates;
-- (float *) maxCoordinates;
-- (float) maxRange;
+- (double *) minCoordinates;
+- (double *) midCoordinates;
+- (double *) maxCoordinates;
+- (double) maxRange;
 
 // Search
 - (void) setSearchString:(const char *)string;
@@ -163,7 +163,7 @@ struct DataManagerWrapper;
 - (void) selectBestHitObject;
 - (void) selectItem:(id)item;
 - (void) clearSelection;
-- (const float *) centroidOfItem:(id)item;
+- (const double *) centroidOfItem:(id)item;
 - (int) centroidPointCountOfItem:(id)item;
 #endif
 
