@@ -457,16 +457,18 @@ public:
   std::string statusMessage;
   
   void parse(const char *filePath, AzulObject &parsedFile) {
+    try {
+
     simdjson::ondemand::parser parser;
     simdjson::padded_string json;
     simdjson::ondemand::document doc;
     auto error = simdjson::padded_string::load(filePath).get(json);
     if (error) {
-      std::cout << "Invalid file" << std::endl;
+      std::cout << "Failed to load file: " << simdjson::error_message(error) << std::endl;
       return;
     } error = parser.iterate(json).get(doc);
     if (error) {
-      std::cout << "Invalid JSON" << std::endl;
+      std::cout << "Failed to parse JSON: " << simdjson::error_message(error) << std::endl;
       return;
     } parsedFile.type = "File";
     parsedFile.id = filePath;
@@ -586,6 +588,12 @@ public:
       }
     } else {
       statusMessage = "JSON files other than CityJSON are not supported";
+    }
+
+    } catch (simdjson::simdjson_error &e) {
+      std::cout << "simdjson error: " << e.what() << std::endl;
+      parsedFile.type = "File";
+      parsedFile.id = filePath;
     }
   }
 
