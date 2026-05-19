@@ -67,7 +67,7 @@ extension NSToolbarItem.Identifier {
 }
 
 @main
-@objc class Controller: NSObject, NSApplicationDelegate, NSToolbarDelegate {
+@objc class Controller: NSObject, NSApplicationDelegate, NSToolbarDelegate, NSMenuItemValidation {
 
   @IBOutlet weak var window: NSWindow!
   var splitView: NSSplitView?
@@ -112,6 +112,12 @@ extension NSToolbarItem.Identifier {
   let mainSplitViewController = NSSplitViewController()
   let searchFieldDelegate = SearchFieldDelegate()
   var pendingURLs = [URL]()
+  var isLoading = false {
+    didSet {
+      newFileMenuItem?.isEnabled = !isLoading
+      openFileMenuItem?.isEnabled = !isLoading
+    }
+  }
   var preferencesWindow: NSWindow?
   var colourTypeWells: [NSColorWell] = []
   var colourTypeNames: [String] = []
@@ -307,6 +313,13 @@ extension NSToolbarItem.Identifier {
     return true
   }
   
+  func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+    if menuItem.action == #selector(new(_:)) || menuItem.action == #selector(openFile(_:)) {
+      return !isLoading
+    }
+    return true
+  }
+  
   func setupViewMenu() {
     guard let mainMenu = NSApp.mainMenu else { return }
     for item in mainMenu.items {
@@ -374,6 +387,7 @@ extension NSToolbarItem.Identifier {
   }
   
   @IBAction func new(_ sender: NSMenuItem) {
+    guard !isLoading else { return }
     Swift.print("Controller.new(NSMenuItem)")
     dataManager.clear()
     regenerateBoundingBoxBuffer()
@@ -462,6 +476,11 @@ extension NSToolbarItem.Identifier {
       Swift.print("Deferred loading until after setup: \(urls)")
       return
     }
+    guard !isLoading else {
+      Swift.print("Already loading, ignoring: \(urls)")
+      return
+    }
+    isLoading = true
     self.performanceHelper.startTimer()
     
     let progressPerFile = 100.0/Double(urls.count)
@@ -654,6 +673,9 @@ extension NSToolbarItem.Identifier {
             self.updateLodSegments()
           }
         }
+      }
+      DispatchQueue.main.async {
+        self.isLoading = false
       }
     }
   }
