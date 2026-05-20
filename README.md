@@ -46,7 +46,7 @@ The current version of azul runs on **macOS 13+** (Apple Silicon and Intel) and 
 
 ## Download
 
-You can download the latest stable release of azul in the [releases page](https://github.com/tudelft3d/azul/releases) or from the [App Store](https://itunes.apple.com/app/azul/id1173239678?mt=12). If you want more information on how to compile it from source, see below.
+You can download the latest stable release of azul in the [releases page](https://github.com/tudelft3d/azul/releases) or from the [App Store](https://apps.apple.com/app/azul/id1173239678). If you want more information on how to compile it from source, see below.
 
 ![Random3DCity](https://3d.bk.tudelft.nl/ken/img/azul/random.jpg)
 
@@ -59,6 +59,10 @@ You can download the latest stable release of azul in the [releases page](https:
 ![Leiden](https://3d.bk.tudelft.nl/ken/img/azul/leiden.jpg)
 
 ![Zurich](https://3d.bk.tudelft.nl/ken/img/azul/zurich.jpg)
+
+![iPhone](https://3d.bk.tudelft.nl/ken/img/azul/iphone.jpg)
+
+![iPad](https://3d.bk.tudelft.nl/ken/img/azul/ipad.jpg)
 
 ## Technical details
 
