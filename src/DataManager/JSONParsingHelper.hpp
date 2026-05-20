@@ -18,7 +18,14 @@
 #define JSONParsingHelper_hpp
 
 #include <any>
+#include <algorithm>
+#include <array>
 #include <cstdint>
+#include <filesystem>
+#include <map>
+#include <set>
+#include <sstream>
+#include <string>
 #include <unordered_map>
 
 #include "DataModel.hpp"
@@ -26,10 +33,569 @@
 
 class JSONParsingHelper {
 protected:
+  struct ParsedMaterial {
+    bool hasDiffuseColor;
+    float diffuseColor[3];
+    bool hasTransparency;
+    float transparency;
+
+    ParsedMaterial() {
+      hasDiffuseColor = false;
+      hasTransparency = false;
+      transparency = 0.0f;
+      diffuseColor[0] = 0.0f;
+      diffuseColor[1] = 0.0f;
+      diffuseColor[2] = 0.0f;
+    }
+  };
+
+  struct ParsedTexture {
+    std::string imageUri;
+  };
+
+  struct AppearanceContext {
+    std::vector<ParsedMaterial> materials;
+    std::vector<ParsedTexture> textures;
+    std::vector<std::array<float, 2>> textureVertices;
+    std::string defaultThemeTexture;
+    std::string defaultThemeMaterial;
+
+    void clear() {
+      materials.clear();
+      textures.clear();
+      textureVertices.clear();
+      defaultThemeTexture.clear();
+      defaultThemeMaterial.clear();
+    }
+  };
+
   std::string_view docType;
   std::string_view docVersion;
   std::vector<std::pair<std::string, size_t>> deferredParentRelationships;
-  
+
+  AppearanceContext appearanceContext;
+  std::vector<AzulAppearanceStyle> stylePool;
+  std::unordered_map<std::string, int> styleIdByKey;
+  std::set<std::string> parsedThemes;
+  std::string currentFilePath;
+
+  std::string appearanceStyleKey(const AzulAppearanceStyle &style) {
+    std::ostringstream key;
+    key << (style.hasTexture ? "T" : "N") << "|"
+        << style.theme << "|"
+        << style.textureUri << "|"
+        << (style.hasMaterial ? "M" : "N") << "|"
+        << style.materialColour[0] << ","
+        << style.materialColour[1] << ","
+        << style.materialColour[2] << ","
+        << style.materialColour[3];
+    return key.str();
+  }
+
+  int addOrGetStyleId(const AzulAppearanceStyle &style) {
+    std::string key = appearanceStyleKey(style);
+    auto found = styleIdByKey.find(key);
+    if (found != styleIdByKey.end()) return found->second;
+    stylePool.push_back(style);
+    int newId = static_cast<int>(stylePool.size()-1);
+    styleIdByKey[key] = newId;
+    return newId;
+  }
+
+  void resetAppearanceForNewFile() {
+    appearanceContext.clear();
+    stylePool.clear();
+    styleIdByKey.clear();
+    parsedThemes.clear();
+  }
+
+  void finalizeAppearanceForFile(AzulObject &parsedFile) {
+    parsedFile.appearanceStyles = stylePool;
+    parsedFile.appearanceThemes.assign(parsedThemes.begin(), parsedThemes.end());
+  }
+
+  std::string resolveImageUri(const std::string &imageUri) const {
+    if (imageUri.empty()) return "";
+    if (imageUri.find("://") != std::string::npos) return imageUri;
+    if (imageUri[0] == '/') return imageUri;
+    if (imageUri.size() > 1 && imageUri[1] == ':') return imageUri;
+    std::filesystem::path sourcePath(currentFilePath);
+    std::filesystem::path resolved = sourcePath.parent_path() / std::filesystem::path(imageUri);
+    return resolved.lexically_normal().string();
+  }
+
+  bool isNumberValue(simdjson::ondemand::value value, unsigned long long &out) {
+    if (value.type() != simdjson::ondemand::json_type::number) return false;
+    auto result = value.get_uint64();
+    if (result.error()) return false;
+    out = static_cast<unsigned long long>(result.value_unsafe());
+    return true;
+  }
+
+  bool isNumberValue(simdjson::ondemand::value value, double &out) {
+    if (value.type() != simdjson::ondemand::json_type::number) return false;
+    auto result = value.get_double();
+    if (result.error()) return false;
+    out = result.value_unsafe();
+    return true;
+  }
+
+  bool isNumberValue(simdjson::simdjson_result<simdjson::ondemand::value> valueResult, unsigned long long &out) {
+    if (valueResult.error()) return false;
+    return isNumberValue(valueResult.value_unsafe(), out);
+  }
+
+  bool isNumberValue(simdjson::simdjson_result<simdjson::ondemand::value> valueResult, double &out) {
+    if (valueResult.error()) return false;
+    return isNumberValue(valueResult.value_unsafe(), out);
+  }
+
+  bool parseAnyArray(simdjson::ondemand::value value, std::vector<std::any> &out) {
+    if (value.type() != simdjson::ondemand::json_type::array) return false;
+    simdjson::ondemand::array jsonArray;
+    if (value.get_array().get(jsonArray)) return false;
+    parseNestedArray(jsonArray, out);
+    return true;
+  }
+
+  bool parseColourTriplet(simdjson::ondemand::value value, float colour[3]) {
+    if (value.type() != simdjson::ondemand::json_type::array) return false;
+    simdjson::ondemand::array array;
+    if (value.get_array().get(array)) return false;
+
+    std::vector<double> values;
+    for (auto entry: array) {
+      double current = 0.0;
+      if (!isNumberValue(entry, current)) return false;
+      values.push_back(current);
+    }
+    if (values.size() != 3) return false;
+    colour[0] = static_cast<float>(values[0]);
+    colour[1] = static_cast<float>(values[1]);
+    colour[2] = static_cast<float>(values[2]);
+    return true;
+  }
+
+  void parseAppearanceObject(simdjson::ondemand::object appearanceObject) {
+    appearanceContext.clear();
+
+    simdjson::ondemand::array materialsArray;
+    if (!appearanceObject["materials"].get(materialsArray)) {
+      for (auto materialValue: materialsArray) {
+        ParsedMaterial parsedMaterial;
+        simdjson::ondemand::object materialObject;
+        if (materialValue.get(materialObject)) {
+          appearanceContext.materials.push_back(parsedMaterial);
+          continue;
+        }
+        for (auto field: materialObject) {
+          std::string_view key = field.unescaped_key().value();
+          if (key == "diffuseColor") {
+            float colour[3];
+            if (parseColourTriplet(field.value(), colour)) {
+              parsedMaterial.hasDiffuseColor = true;
+              parsedMaterial.diffuseColor[0] = colour[0];
+              parsedMaterial.diffuseColor[1] = colour[1];
+              parsedMaterial.diffuseColor[2] = colour[2];
+            }
+          } else if (key == "transparency") {
+            double transparency = 0.0;
+            if (isNumberValue(field.value(), transparency)) {
+              parsedMaterial.hasTransparency = true;
+              parsedMaterial.transparency = static_cast<float>(transparency);
+            }
+          }
+        }
+        appearanceContext.materials.push_back(parsedMaterial);
+      }
+    }
+
+    simdjson::ondemand::array texturesArray;
+    if (!appearanceObject["textures"].get(texturesArray)) {
+      for (auto textureValue: texturesArray) {
+        ParsedTexture parsedTexture;
+        simdjson::ondemand::object textureObject;
+        if (textureValue.get(textureObject)) {
+          appearanceContext.textures.push_back(parsedTexture);
+          continue;
+        }
+        auto imageResult = textureObject["image"].get_string();
+        if (!imageResult.error()) {
+          parsedTexture.imageUri = resolveImageUri(std::string(imageResult.value_unsafe()));
+        }
+        appearanceContext.textures.push_back(parsedTexture);
+      }
+    }
+
+    simdjson::ondemand::array uvVertices;
+    if (!appearanceObject["vertices-texture"].get(uvVertices)) {
+      for (auto uvValue: uvVertices) {
+        simdjson::ondemand::array uvPair;
+        if (uvValue.get(uvPair)) continue;
+        std::vector<double> values;
+        for (auto coord: uvPair) {
+          double current = 0.0;
+          if (!isNumberValue(coord, current)) {
+            values.clear();
+            break;
+          }
+          values.push_back(current);
+        }
+        if (values.size() == 2) {
+          appearanceContext.textureVertices.push_back({
+            static_cast<float>(values[0]),
+            static_cast<float>(values[1])
+          });
+        }
+      }
+    }
+
+    auto defaultTextureTheme = appearanceObject["default-theme-texture"].get_string();
+    if (!defaultTextureTheme.error()) {
+      appearanceContext.defaultThemeTexture = std::string(defaultTextureTheme.value_unsafe());
+    }
+    auto defaultMaterialTheme = appearanceObject["default-theme-material"].get_string();
+    if (!defaultMaterialTheme.error()) {
+      appearanceContext.defaultThemeMaterial = std::string(defaultMaterialTheme.value_unsafe());
+    }
+  }
+
+  void parseAppearanceFromDocument(simdjson::ondemand::object docObject) {
+    simdjson::ondemand::object appearanceObject;
+    if (docObject["appearance"].get(appearanceObject)) {
+      appearanceContext.clear();
+      return;
+    }
+    parseAppearanceObject(appearanceObject);
+  }
+
+  bool anyAsVector(const std::any &value, std::vector<std::any> &asVector) {
+    if (!value.has_value()) return false;
+    auto casted = std::any_cast<std::vector<std::any>>(&value);
+    if (casted == nullptr) return false;
+    asVector = *casted;
+    return true;
+  }
+
+  bool anyAsIndex(const std::any &value, unsigned long long &index) {
+    if (!value.has_value()) return false;
+    auto casted = std::any_cast<unsigned long long>(&value);
+    if (casted == nullptr) return false;
+    index = *casted;
+    return true;
+  }
+
+  std::any copyAnyAt(const std::vector<std::any> &values, std::size_t index) {
+    if (index >= values.size()) return std::any();
+    return values[index];
+  }
+
+  bool parseGeometryThemeAssignments(simdjson::ondemand::object geometryObject,
+                                     const char *fieldName,
+                                     const std::string &defaultTheme,
+                                     bool allowSingleValue,
+                                     std::any &assignment,
+                                     std::string &selectedTheme) {
+    assignment = std::any();
+    selectedTheme.clear();
+
+    simdjson::ondemand::object assignmentsByTheme;
+    if (geometryObject[fieldName].get(assignmentsByTheme)) return false;
+
+    std::map<std::string, std::any> candidates;
+    for (auto themeField: assignmentsByTheme) {
+      std::string themeName = std::string(themeField.unescaped_key().value());
+      simdjson::ondemand::object themeObject;
+      if (themeField.value().get(themeObject)) continue;
+
+      simdjson::ondemand::array valuesArray;
+      if (!themeObject["values"].get(valuesArray)) {
+        std::vector<std::any> nested;
+        parseNestedArray(valuesArray, nested);
+        candidates[themeName] = nested;
+        continue;
+      }
+
+      if (allowSingleValue) {
+        auto valueIndex = themeObject["value"].get_uint64();
+        if (!valueIndex.error()) {
+          candidates[themeName] = static_cast<unsigned long long>(valueIndex.value_unsafe());
+        }
+      }
+    }
+
+    if (candidates.empty()) return false;
+
+    if (!defaultTheme.empty() && candidates.count(defaultTheme) > 0) {
+      selectedTheme = defaultTheme;
+      assignment = candidates[defaultTheme];
+    } else {
+      selectedTheme = candidates.begin()->first;
+      assignment = candidates.begin()->second;
+    }
+    return true;
+  }
+
+  void collectPolygonPointers(AzulObject &object, std::vector<AzulPolygon *> &polygons) {
+    for (auto &polygon: object.polygons) polygons.push_back(&polygon);
+    for (auto &child: object.children) collectPolygonPointers(child, polygons);
+  }
+
+  void flattenRingVertexIndices(const std::vector<std::any> &boundaries,
+                                int nesting,
+                                std::vector<std::vector<std::vector<unsigned long long>>> &result) {
+    if (nesting > 1) {
+      for (const auto &entry: boundaries) {
+        std::vector<std::any> child;
+        if (!anyAsVector(entry, child)) continue;
+        flattenRingVertexIndices(child, nesting-1, result);
+      }
+      return;
+    }
+
+    std::vector<std::vector<unsigned long long>> polygonRings;
+    for (const auto &ringAny: boundaries) {
+      std::vector<std::any> ring;
+      if (!anyAsVector(ringAny, ring)) continue;
+      std::vector<unsigned long long> indices;
+      for (const auto &value: ring) {
+        unsigned long long index = 0;
+        if (anyAsIndex(value, index)) indices.push_back(index);
+      }
+      polygonRings.push_back(indices);
+    }
+    result.push_back(polygonRings);
+  }
+
+  void flattenNestedAssignments(const std::any &value,
+                                int depth,
+                                std::vector<std::any> &result,
+                                bool propagateScalar = false) {
+    if (depth <= 1) {
+      result.push_back(value);
+      return;
+    }
+
+    std::vector<std::any> asVector;
+    if (anyAsVector(value, asVector)) {
+      for (const auto &child: asVector) {
+        flattenNestedAssignments(child, depth-1, result, propagateScalar);
+      }
+      return;
+    }
+
+    if (propagateScalar && value.has_value()) {
+      result.push_back(value);
+      return;
+    }
+
+    result.push_back(std::any());
+  }
+
+  bool parseTextureRingAssignment(const std::any &value,
+                                  std::vector<std::vector<unsigned long long>> &textureAssignmentsByRing,
+                                  std::vector<bool> &ringHasTexture) {
+    textureAssignmentsByRing.clear();
+    ringHasTexture.clear();
+
+    std::vector<std::any> rings;
+    if (!anyAsVector(value, rings)) return false;
+
+    for (const auto &ringAny: rings) {
+      std::vector<unsigned long long> ringValues;
+      bool hasTexture = true;
+
+      std::vector<std::any> ringAsVector;
+      if (!anyAsVector(ringAny, ringAsVector)) {
+        ringHasTexture.push_back(false);
+        textureAssignmentsByRing.push_back(ringValues);
+        continue;
+      }
+
+      for (const auto &item: ringAsVector) {
+        unsigned long long current = 0;
+        if (anyAsIndex(item, current)) {
+          ringValues.push_back(current);
+        } else {
+          hasTexture = false;
+          break;
+        }
+      }
+
+      if (ringValues.empty()) hasTexture = false;
+      ringHasTexture.push_back(hasTexture);
+      textureAssignmentsByRing.push_back(ringValues);
+    }
+
+    return true;
+  }
+
+  bool assignTextureCoordinatesToRing(AzulRing &ring,
+                                      const std::vector<unsigned long long> &ringVertices,
+                                      const std::vector<unsigned long long> &ringTextureIndices) {
+    if (ringTextureIndices.size() < 2) return false;
+    std::size_t expected = ringVertices.size();
+    if (ringTextureIndices.size() != expected + 1) return false;
+    if (ring.points.size() != expected + 1) return false;
+
+    ring.textureCoordinates.clear();
+    ring.textureCoordinates.reserve(ring.points.size());
+
+    for (std::size_t i = 1; i < ringTextureIndices.size(); ++i) {
+      unsigned long long uvIndex = ringTextureIndices[i];
+      if (uvIndex >= appearanceContext.textureVertices.size()) {
+        ring.textureCoordinates.clear();
+        ring.hasTextureCoordinates = false;
+        return false;
+      }
+      ring.textureCoordinates.push_back(appearanceContext.textureVertices[uvIndex]);
+    }
+
+    if (!ring.textureCoordinates.empty()) {
+      ring.textureCoordinates.push_back(ring.textureCoordinates.front());
+      ring.hasTextureCoordinates = true;
+      return true;
+    }
+
+    ring.hasTextureCoordinates = false;
+    return false;
+  }
+
+  void applyGeometryAppearanceAssignments(simdjson::ondemand::object currentGeometry,
+                                          const std::vector<std::any> &boundaries,
+                                          int nesting,
+                                          AzulObject &lodObject) {
+    std::any materialAssignment;
+    std::string materialTheme;
+    bool hasMaterialAssignment = parseGeometryThemeAssignments(currentGeometry,
+                                                               "material",
+                                                               appearanceContext.defaultThemeMaterial,
+                                                               true,
+                                                               materialAssignment,
+                                                               materialTheme);
+
+    std::any textureAssignment;
+    std::string textureTheme;
+    bool hasTextureAssignment = parseGeometryThemeAssignments(currentGeometry,
+                                                              "texture",
+                                                              appearanceContext.defaultThemeTexture,
+                                                              false,
+                                                              textureAssignment,
+                                                              textureTheme);
+
+    if (!hasMaterialAssignment && !hasTextureAssignment) return;
+
+    std::vector<AzulPolygon *> polygons;
+    collectPolygonPointers(lodObject, polygons);
+    if (polygons.empty()) return;
+
+    std::vector<std::vector<std::vector<unsigned long long>>> polygonRings;
+    flattenRingVertexIndices(boundaries, nesting, polygonRings);
+    if (polygonRings.empty()) return;
+
+    std::size_t polygonCount = std::min(polygons.size(), polygonRings.size());
+
+    std::vector<std::any> materialPerPolygon;
+    if (hasMaterialAssignment) {
+      flattenNestedAssignments(materialAssignment, nesting-1, materialPerPolygon, true);
+    }
+
+    std::vector<std::any> texturePerPolygon;
+    if (hasTextureAssignment) {
+      flattenNestedAssignments(textureAssignment, nesting, texturePerPolygon, false);
+    }
+
+    for (std::size_t polygonIndex = 0; polygonIndex < polygonCount; ++polygonIndex) {
+      AzulAppearanceStyle style;
+      bool hasStyle = false;
+
+      if (hasMaterialAssignment && polygonIndex < materialPerPolygon.size()) {
+        unsigned long long materialIndex = 0;
+        if (anyAsIndex(materialPerPolygon[polygonIndex], materialIndex) &&
+            materialIndex < appearanceContext.materials.size()) {
+          const ParsedMaterial &material = appearanceContext.materials[materialIndex];
+          if (material.hasDiffuseColor) {
+            style.hasMaterial = true;
+            style.materialColour[0] = material.diffuseColor[0];
+            style.materialColour[1] = material.diffuseColor[1];
+            style.materialColour[2] = material.diffuseColor[2];
+            float transparency = material.hasTransparency ? material.transparency : 0.0f;
+            if (transparency < 0.0f) transparency = 0.0f;
+            if (transparency > 1.0f) transparency = 1.0f;
+            style.materialColour[3] = 1.0f-transparency;
+            style.theme = materialTheme;
+            hasStyle = true;
+          }
+        }
+      }
+
+      if (hasTextureAssignment && polygonIndex < texturePerPolygon.size()) {
+        std::vector<std::vector<unsigned long long>> ringTextureAssignments;
+        std::vector<bool> ringHasTexture;
+        if (parseTextureRingAssignment(texturePerPolygon[polygonIndex], ringTextureAssignments, ringHasTexture)) {
+          bool polygonHasTexture = true;
+          unsigned long long textureIndexForPolygon = 0;
+          bool textureIndexSet = false;
+
+          std::vector<AzulRing *> polygonRingsTargets;
+          polygonRingsTargets.push_back(&polygons[polygonIndex]->exteriorRing);
+          for (auto &innerRing: polygons[polygonIndex]->interiorRings) {
+            polygonRingsTargets.push_back(&innerRing);
+          }
+
+          if (ringTextureAssignments.size() != polygonRingsTargets.size() ||
+              polygonRingsTargets.size() != polygonRings[polygonIndex].size()) {
+            polygonHasTexture = false;
+          }
+
+          if (polygonHasTexture) {
+            for (std::size_t ringIndex = 0; ringIndex < polygonRingsTargets.size(); ++ringIndex) {
+              if (!ringHasTexture[ringIndex]) {
+                polygonHasTexture = false;
+                break;
+              }
+              const auto &ringAssignment = ringTextureAssignments[ringIndex];
+              if (ringAssignment.empty()) {
+                polygonHasTexture = false;
+                break;
+              }
+              if (!textureIndexSet) {
+                textureIndexForPolygon = ringAssignment[0];
+                textureIndexSet = true;
+              } else if (textureIndexForPolygon != ringAssignment[0]) {
+                polygonHasTexture = false;
+                break;
+              }
+
+              if (!assignTextureCoordinatesToRing(*polygonRingsTargets[ringIndex],
+                                                  polygonRings[polygonIndex][ringIndex],
+                                                  ringAssignment)) {
+                polygonHasTexture = false;
+                break;
+              }
+            }
+          }
+
+          if (polygonHasTexture && textureIndexSet && textureIndexForPolygon < appearanceContext.textures.size()) {
+            const ParsedTexture &texture = appearanceContext.textures[textureIndexForPolygon];
+            if (!texture.imageUri.empty()) {
+              style.hasTexture = true;
+              style.textureUri = texture.imageUri;
+              if (style.theme.empty()) style.theme = textureTheme;
+              hasStyle = true;
+            }
+          }
+        }
+      }
+
+      if (hasStyle) {
+        if (!style.theme.empty()) parsedThemes.insert(style.theme);
+        int styleId = addOrGetStyleId(style);
+        polygons[polygonIndex]->appearanceStyleId = styleId;
+      }
+    }
+  }
+
   void parseCityJSONObject(simdjson::ondemand::object jsonObject, AzulObject &object, size_t childIdx, std::vector<std::tuple<double, double, double>> &vertices, AzulObject *geometryTemplates) {
 
     // Type (mandatory)
@@ -38,21 +604,16 @@ protected:
     } catch (simdjson::simdjson_error &e) {
       std::cout << "no type specified" << std::endl;
       return;
-    } // std::cout << object.type << std::endl;
-    
+    }
+
     // Geometry (optional)
     try {
       for (auto geometry: jsonObject["geometry"]) {
         parseCityJSONObjectGeometry(geometry.get_object(), object, vertices, geometryTemplates);
       }
     } catch (simdjson::simdjson_error &e) {
-//      std::cout << "\tno geometry" << std::endl;
     }
-//    std::cout << "\tgeometries:" << std::endl;
-//    for (auto const &geometry: object.children) {
-//      std::cout << "\t\t" << geometry.type << " " << geometry.id << std::endl;
-//    }
-    
+
     // Attributes (optional)
     {
       simdjson::ondemand::object attributesObject;
@@ -80,11 +641,7 @@ protected:
         }
       }
     }
-//    std::cout << "\tattributes:" << std::endl;
-//    for (const auto &attribute: object.attributes) {
-//      std::cout << "\t\t" << attribute.first << ": " << attribute.second << std::endl;
-//    }
-    
+
     // Parents (optional)
     {
       simdjson::ondemand::array parents;
@@ -105,15 +662,13 @@ protected:
     unsigned long long templateIndex;
     bool withSemantics = false;
 
-//    std::cout << currentGeometry << std::endl;
-
     // Mandatory
     try {
       geometryType = currentGeometry["type"].get_string().value();
     } catch (simdjson::simdjson_error &e) {
       std::cout << "no geometry type specified" << std::endl;
       return;
-    } // std::cout << "\tgeometry type: " << geometryType << std::endl;
+    }
 
     try {
       switch (currentGeometry["lod"].type()) {
@@ -121,7 +676,7 @@ protected:
           geometryLod = currentGeometry["lod"].get_string().value();
           break;
         case simdjson::ondemand::json_type::number:
-          geometryLod = std::to_string(currentGeometry["lod"].get_double()); // invalid but common error
+          geometryLod = std::to_string(currentGeometry["lod"].get_double());
           break;
         default:
           std::cout << "unknown lod type" << std::endl;
@@ -130,15 +685,12 @@ protected:
     } catch (simdjson::simdjson_error &e) {
       if (geometryType != "GeometryInstance") std::cout << "no LoD specified" << std::endl;
       geometryLod = "unknown";
-    } // std::cout << "\tLoD: " << geometryLod << std::endl;
+    }
 
     std::vector<std::any> boundaries;
     parseNestedArray(currentGeometry["boundaries"].get_array(), boundaries);
-//    std::cout << "boundaries: ";
-//    dump(boundaries);
-//    std::cout << std::endl;
 
-    // Optional
+    // Optional semantics
     std::vector<std::any> semantics;
     simdjson::ondemand::object element;
     auto error = currentGeometry["semantics"].get(element);
@@ -167,16 +719,10 @@ protected:
               break;
           }
         }
-      } parseNestedArray(element["values"].get_array(), semantics);
-//      std::cout << "semantic surfaces: " << std::endl;
-//      for (auto &surface: semanticSurfaces) {
-//        for (auto &property: surface) {
-//          std::cout << "\t" << property.first << ": " << property.second << "    ";
-//        } std::cout << std::endl;
-//      } std::cout << "semantics: ";
-//      dump(semantics);
-//      std::cout << std::endl;
-    } // else std::cout << "no semantics found" << std::endl;
+      }
+      parseNestedArray(element["values"].get_array(), semantics);
+    }
+
     error = currentGeometry["template"].get_uint64().get(templateIndex);
     if (error) templateIndex = 0;
     simdjson::ondemand::array transformationMatrixArray;
@@ -192,6 +738,7 @@ protected:
         object.children.back().type = "LoD";
         object.children.back().id = geometryLod;
         parseCityJSONGeometry(boundaries, semanticsAsAny, withSemantics, semanticSurfaces, 2, object.children.back(), vertices);
+        applyGeometryAppearanceAssignments(currentGeometry, boundaries, 2, object.children.back());
       }
 
       else if (geometryType == "Solid") {
@@ -199,6 +746,7 @@ protected:
         object.children.back().type = "LoD";
         object.children.back().id = geometryLod;
         parseCityJSONGeometry(boundaries, semanticsAsAny, withSemantics, semanticSurfaces, 3, object.children.back(), vertices);
+        applyGeometryAppearanceAssignments(currentGeometry, boundaries, 3, object.children.back());
       }
 
       else if (geometryType == "MultiSolid" ||
@@ -207,6 +755,7 @@ protected:
         object.children.back().type = "LoD";
         object.children.back().id = geometryLod;
         parseCityJSONGeometry(boundaries, semanticsAsAny, withSemantics, semanticSurfaces, 4, object.children.back(), vertices);
+        applyGeometryAppearanceAssignments(currentGeometry, boundaries, 4, object.children.back());
       }
 
       else if (geometryType == "GeometryInstance") {
@@ -234,7 +783,8 @@ protected:
               point.coordinates[0] = x;
               point.coordinates[1] = y;
               point.coordinates[2] = z;
-            } for (auto &ring: polygon.interiorRings) {
+            }
+            for (auto &ring: polygon.interiorRings) {
               for (auto &point: ring.points) {
                 float homogeneousCoordinate = (transformationMatrix[12]*point.coordinates[0] +
                                                transformationMatrix[13]*point.coordinates[1] +
@@ -259,7 +809,6 @@ protected:
             }
           }
         }
-
       }
     }
   }
@@ -273,7 +822,8 @@ protected:
           parseNestedArray(array.get_array(), newArray);
           nestedArray.push_back(newArray);
           break;
-        } case simdjson::ondemand::json_type::number:
+        }
+        case simdjson::ondemand::json_type::number:
           nestedArray.push_back((unsigned long long)array.get_uint64());
           break;
         case simdjson::ondemand::json_type::null:
@@ -287,15 +837,8 @@ protected:
   }
 
   void parseCityJSONGeometry(std::vector<std::any> &boundaries, std::any &semantics, bool withSemantics, std::vector<std::map<std::string_view, std::string_view>> &semanticSurfaces, int nesting, AzulObject &object, std::vector<std::tuple<double, double, double>> &vertices) {
-
-//    std::cout << "nesting: " << nesting << std::endl;
-//    std::cout << "boundaries: "; dump(boundaries); std::cout << std::endl;
-//    std::cout << "semantics: "; dump(semantics); std::cout << std::endl;
-
     if (nesting > 1) {
       if (semantics.has_value()) {
-
-        // Vector
         try {
           std::vector<std::any> semanticsAsVector = std::any_cast<std::vector<std::any>>(semantics);
           if (!semanticsAsVector.empty()) {
@@ -307,20 +850,15 @@ protected:
               ++boundary;
               ++semantic;
             }
-          }
-          
-          // Empty vector
-          else {
+          } else {
             for (auto boundary: boundaries) {
               std::vector<std::any> boundaryAsVector = std::any_cast<std::vector<std::any>>(boundary);
               std::any empty;
               parseCityJSONGeometry(boundaryAsVector, empty, false, semanticSurfaces, nesting-1, object, vertices);
             }
           }
-          
         } catch (const std::bad_any_cast &e) {}
 
-        // Index (that applies to whole list)
         try {
           unsigned long long semanticsAsIndex = std::any_cast<unsigned long long>(semantics);
 #pragma unused(semanticsAsIndex)
@@ -331,7 +869,6 @@ protected:
         } catch (const std::bad_any_cast &e) {}
       }
 
-      // Null
       else {
         for (auto boundary: boundaries) {
           std::vector<std::any> boundaryAsVector = std::any_cast<std::vector<std::any>>(boundary);
@@ -351,13 +888,18 @@ protected:
               if (attribute.first == "type") {
                 object.children.back().type = attribute.second;
               } else object.children.back().attributes.push_back(std::pair<std::string, std::string>(attribute.first, attribute.second));
-            } object.children.back().polygons.push_back(AzulPolygon());
+            }
+            object.children.back().polygons.push_back(AzulPolygon());
             parseCityJSONPolygon(boundaries, object.children.back().polygons.back(), vertices);
           } else {
             object.polygons.push_back(AzulPolygon());
             parseCityJSONPolygon(boundaries, object.polygons.back(), vertices);
           }
-        } catch (const std::bad_any_cast &e) {}
+        } catch (const std::bad_any_cast &e) {
+          // null semantics entry => still keep geometry
+          object.polygons.push_back(AzulPolygon());
+          parseCityJSONPolygon(boundaries, object.polygons.back(), vertices);
+        }
       } else {
         object.polygons.push_back(AzulPolygon());
         parseCityJSONPolygon(boundaries, object.polygons.back(), vertices);
@@ -396,7 +938,8 @@ protected:
       } catch (const std::bad_any_cast &e) {
         std::cout << "Vertex index is not an integer" << std::endl;
       }
-    } ring.points.push_back(ring.points.front());
+    }
+    if (!ring.points.empty()) ring.points.push_back(ring.points.front());
   }
 
   void buildHierarchy(AzulObject &parsedFile) {
@@ -455,7 +998,7 @@ protected:
 
 public:
   std::string statusMessage;
-  
+
   void parse(const char *filePath, AzulObject &parsedFile) {
     simdjson::ondemand::parser parser;
     simdjson::padded_string json;
@@ -464,14 +1007,19 @@ public:
     if (error) {
       std::cout << "Invalid file" << std::endl;
       return;
-    } error = parser.iterate(json).get(doc);
+    }
+    error = parser.iterate(json).get(doc);
     if (error) {
       std::cout << "Invalid JSON" << std::endl;
       return;
-    } parsedFile.type = "File";
+    }
+
+    resetAppearanceForNewFile();
+    currentFilePath = std::string(filePath);
+
+    parsedFile.type = "File";
     parsedFile.id = filePath;
 
-    // Check what we have
     if (doc.type() != simdjson::ondemand::json_type::object) return;
     for (auto element: doc.get_object()) {
       if (element.key().value().is_equal("type")) {
@@ -518,21 +1066,29 @@ public:
                 translation.push_back(axis.get_double().value());
               }
             }
-          } if (scale.size() != 3) {
+          }
+          if (scale.size() != 3) {
             scale.clear();
             for (int i = 0; i < 3; ++i) scale.push_back(1.0);
             std::cout << "Transform scale incorrect: set to " << scale[0] << ", " << scale[1] << ", " << scale[2] << std::endl;
-          } else std::cout << "Transform scale: " << scale[0] << ", " << scale[1] << ", " << scale[2] << std::endl;
+          }
           if (translation.size() != 3) {
             translation.clear();
             for (int i = 0; i < 3; ++i) translation.push_back(0.0);
             std::cout << "Transform translation incorrect: set to " << translation[0] << ", " << translation[1] << ", " << translation[2] << std::endl;
-          } else std::cout << "Transform translation: " << translation[0] << ", " << translation[1] << ", " << translation[2] << std::endl;
+          }
         } else {
           for (int i = 0; i < 3; ++i) scale.push_back(1.0);
-          std::cout << "Transform scale not provided: set to " << scale[0] << ", " << scale[1] << ", " << scale[2] << std::endl;
           for (int i = 0; i < 3; ++i) translation.push_back(0.0);
-          std::cout << "Transform translation not provided: set to " << translation[0] << ", " << translation[1] << ", " << translation[2] << std::endl;
+        }
+
+        // Appearance object
+        simdjson::ondemand::object appearanceObject;
+        error = doc["appearance"].get(appearanceObject);
+        if (!error) {
+          parseAppearanceObject(appearanceObject);
+        } else {
+          appearanceContext.clear();
         }
 
         // Geometry templates
@@ -540,19 +1096,13 @@ public:
         std::vector<std::tuple<double, double, double>> geometryTemplatesVertices;
         error = doc["geometry-templates"].get(object);
         if (!error) {
-
-          // Template vertices
           for (auto vertex: object["vertices-templates"].get_array()) {
             std::vector<double> coordinates;
             for (auto coordinate: vertex) coordinates.push_back(coordinate.get_double().value());
             if (coordinates.size() == 3) geometryTemplatesVertices.push_back(std::tuple<double, double, double>(coordinates[0], coordinates[1], coordinates[2]));
-            else {
-              std::cout << "Template vertex has " << coordinates.size() << " coordinates" << std::endl;
-              geometryTemplatesVertices.push_back(std::tuple<double, double, double>(0, 0, 0));
-            }
+            else geometryTemplatesVertices.push_back(std::tuple<double, double, double>(0, 0, 0));
           }
 
-          // Templates
           for (auto t: object["templates"].get_array()) {
             parseCityJSONObjectGeometry(t.get_object(), geometryTemplates, geometryTemplatesVertices, NULL);
           }
@@ -566,20 +1116,20 @@ public:
           if (coordinates.size() == 3) vertices.push_back(std::tuple<double, double, double>(scale[0]*coordinates[0]+translation[0],
                                                                                              scale[1]*coordinates[1]+translation[1],
                                                                                              scale[2]*coordinates[2]+translation[2]));
-          else {
-            std::cout << "Vertex has " << coordinates.size() << " coordinates" << std::endl;
-            vertices.push_back(std::tuple<double, double, double>(0, 0, 0));
-          }
+          else vertices.push_back(std::tuple<double, double, double>(0, 0, 0));
         }
 
         // CityObjects
-        for (auto object: doc["CityObjects"].get_object()) {
+        deferredParentRelationships.clear();
+        for (auto objectElement: doc["CityObjects"].get_object()) {
           parsedFile.children.push_back(AzulObject());
-          std::string_view objectId = object.unescaped_key();
+          std::string_view objectId = objectElement.unescaped_key();
           parsedFile.children.back().id = objectId;
-          parseCityJSONObject(object.value().get_object(), parsedFile.children.back(), parsedFile.children.size() - 1, vertices, &geometryTemplates);
-        } buildHierarchy(parsedFile);
+          parseCityJSONObject(objectElement.value().get_object(), parsedFile.children.back(), parsedFile.children.size() - 1, vertices, &geometryTemplates);
+        }
+        buildHierarchy(parsedFile);
 
+        finalizeAppearanceForFile(parsedFile);
         statusMessage = "Loaded CityJSON " + std::string(docVersion) + " file";
       } else {
         statusMessage = "CityJSON " + std::string(docVersion) + " is not supported";
@@ -611,6 +1161,11 @@ public:
 
   void clearDOM() {
     deferredParentRelationships.clear();
+    appearanceContext.clear();
+    stylePool.clear();
+    styleIdByKey.clear();
+    parsedThemes.clear();
+    currentFilePath.clear();
   }
 };
 

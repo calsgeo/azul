@@ -36,7 +36,15 @@ public:
     if (error) {
       std::cout << "Invalid JSON" << std::endl;
       return;
-    } parsedFile.type = "File";
+    }
+
+    resetAppearanceForNewFile();
+    currentFilePath = std::string(filePath);
+    scale.clear();
+    translation.clear();
+    geometryTemplates = AzulObject();
+
+    parsedFile.type = "File";
     parsedFile.id = filePath;
     
     for (auto doc: docs) {
@@ -58,6 +66,15 @@ public:
             docVersion == "2.0") {
           
           simdjson::ondemand::object object;
+
+          // Appearance object (root-level CityJSON)
+          simdjson::ondemand::object appearanceObject;
+          error = doc["appearance"].get(appearanceObject);
+          if (!error) {
+            parseAppearanceObject(appearanceObject);
+          } else {
+            appearanceContext.clear();
+          }
           
           // Metadata
           error = doc["metadata"].get(object);
@@ -155,6 +172,14 @@ public:
       }
       
       else if (docType == "CityJSONFeature") {
+        simdjson::ondemand::object appearanceObject;
+        error = doc["appearance"].get(appearanceObject);
+        if (!error) {
+          // Appearance in CityJSONFeature is local to this feature.
+          parseAppearanceObject(appearanceObject);
+        } else {
+          appearanceContext.clear();
+        }
         
         // Vertices
         std::vector<std::tuple<double, double, double>> vertices;
@@ -186,9 +211,8 @@ public:
       }
 
     }
-    
 
-    
+    finalizeAppearanceForFile(parsedFile);
   }
 };
 

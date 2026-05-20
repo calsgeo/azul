@@ -366,7 +366,7 @@ extension NSToolbarItem.Identifier {
     let previousTheme = currentAppearanceTheme
     popUpButton.removeAllItems()
     if sortedThemes.isEmpty {
-      popUpButton.addItem(withTitle: "No themes")
+      popUpButton.addItem(withTitle: "No Appearances")
       popUpButton.isEnabled = false
       appearanceThemeToolbarItem?.isEnabled = false
       currentAppearanceTheme = ""
@@ -377,18 +377,18 @@ extension NSToolbarItem.Identifier {
     }
     popUpButton.isEnabled = true
     appearanceThemeToolbarItem?.isEnabled = true
-    popUpButton.addItem(withTitle: "All themes")
+    popUpButton.addItem(withTitle: "All Appearances")
     for theme in sortedThemes {
       popUpButton.addItem(withTitle: theme)
     }
     if previousTheme.isEmpty {
       currentAppearanceTheme = ""
-      popUpButton.selectItem(withTitle: "All themes")
+      popUpButton.selectItem(withTitle: "All Appearances")
     } else if sortedThemes.contains(currentAppearanceTheme) {
       popUpButton.selectItem(withTitle: currentAppearanceTheme)
     } else {
       currentAppearanceTheme = ""
-      popUpButton.selectItem(withTitle: "All themes")
+      popUpButton.selectItem(withTitle: "All Appearances")
     }
     currentAppearanceTheme.withCString { pointer in
       dataManager.setAppearanceTheme(pointer)
@@ -439,7 +439,7 @@ extension NSToolbarItem.Identifier {
       popUpButton.target = self
       popUpButton.action = #selector(appearanceThemeChanged(_:))
       item.view = popUpButton
-      item.label = "Appearance Theme"
+      item.label = "Appearances"
       item.minSize = NSSize(width: 140, height: 26)
       item.maxSize = NSSize(width: 260, height: 26)
       appearanceThemePopUpButton = popUpButton
@@ -584,8 +584,8 @@ extension NSToolbarItem.Identifier {
   }
 
   @objc func appearanceThemeChanged(_ sender: NSPopUpButton) {
-    guard let selectedTheme = sender.selectedItem?.title, selectedTheme != "No themes" else { return }
-    currentAppearanceTheme = selectedTheme == "All themes" ? "" : selectedTheme
+    guard let selectedTheme = sender.selectedItem?.title, selectedTheme != "No Appearances" else { return }
+    currentAppearanceTheme = selectedTheme == "All Appearances" ? "" : selectedTheme
     currentAppearanceTheme.withCString { pointer in
       dataManager.setAppearanceTheme(pointer)
     }
