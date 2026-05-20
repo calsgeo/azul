@@ -42,6 +42,10 @@ import MetalKit
   var pickingRenderPipelineState: MTLRenderPipelineState?
   var pickingTexture: MTLTexture?
   var pickingDepthTexture: MTLTexture?
+
+  var exportLitRenderPipelineState: MTLRenderPipelineState?
+  var exportUnlitRenderPipelineState: MTLRenderPipelineState?
+  var exportEdgeRenderPipelineState: MTLRenderPipelineState?
   
   var viewEdges: Bool = true
   var viewBoundingBox: Bool = false
@@ -222,6 +226,42 @@ import MetalKit
       pickingRenderPipelineState = try device.makeRenderPipelineState(descriptor: pickingPipelineDescriptor)
     } catch {
       Swift.print("Unable to compile picking pipeline state: \(error)")
+    }
+
+    let exportLitDesc = MTLRenderPipelineDescriptor()
+    exportLitDesc.vertexFunction = library.makeFunction(name: "vertexLit")
+    exportLitDesc.fragmentFunction = library.makeFunction(name: "fragmentLit")
+    exportLitDesc.colorAttachments[0].pixelFormat = .rgba8Unorm
+    exportLitDesc.colorAttachments[0].isBlendingEnabled = true
+    exportLitDesc.colorAttachments[0].sourceRGBBlendFactor = .sourceAlpha
+    exportLitDesc.colorAttachments[0].sourceAlphaBlendFactor = .sourceAlpha
+    exportLitDesc.colorAttachments[0].destinationRGBBlendFactor = .oneMinusSourceAlpha
+    exportLitDesc.colorAttachments[0].destinationAlphaBlendFactor = .oneMinusSourceAlpha
+    exportLitDesc.depthAttachmentPixelFormat = depthStencilPixelFormat
+    exportLitDesc.rasterSampleCount = sampleCount
+
+    let exportUnlitDesc = MTLRenderPipelineDescriptor()
+    exportUnlitDesc.vertexFunction = library.makeFunction(name: "vertexUnlit")
+    exportUnlitDesc.fragmentFunction = library.makeFunction(name: "fragmentUnlit")
+    exportUnlitDesc.colorAttachments[0].pixelFormat = .rgba8Unorm
+    exportUnlitDesc.colorAttachments[0].isBlendingEnabled = false
+    exportUnlitDesc.depthAttachmentPixelFormat = depthStencilPixelFormat
+    exportUnlitDesc.rasterSampleCount = sampleCount
+
+    let exportEdgeDesc = MTLRenderPipelineDescriptor()
+    exportEdgeDesc.vertexFunction = library.makeFunction(name: "vertexEdge")
+    exportEdgeDesc.fragmentFunction = library.makeFunction(name: "fragmentEdge")
+    exportEdgeDesc.colorAttachments[0].pixelFormat = .rgba8Unorm
+    exportEdgeDesc.colorAttachments[0].isBlendingEnabled = false
+    exportEdgeDesc.depthAttachmentPixelFormat = depthStencilPixelFormat
+    exportEdgeDesc.rasterSampleCount = sampleCount
+
+    do {
+      exportLitRenderPipelineState = try device.makeRenderPipelineState(descriptor: exportLitDesc)
+      exportUnlitRenderPipelineState = try device.makeRenderPipelineState(descriptor: exportUnlitDesc)
+      exportEdgeRenderPipelineState = try device.makeRenderPipelineState(descriptor: exportEdgeDesc)
+    } catch {
+      Swift.print("Unable to compile export pipeline states: \(error)")
     }
   }
 
@@ -787,6 +827,170 @@ import MetalKit
     return result
   }
   
+  @objc func exportImage(width: Int, height: Int, transparentBackground: Bool) -> NSImage? {
+    guard !triangleBuffers.isEmpty else { return nil }
+    guard width > 0, height > 0 else { return nil }
+    guard let litPSO = exportLitRenderPipelineState,
+          let unlitPSO = exportUnlitRenderPipelineState,
+          let edgePSO = exportEdgeRenderPipelineState else { return nil }
+
+    let texDesc = MTLTextureDescriptor()
+    texDesc.pixelFormat = .rgba8Unorm
+    texDesc.width = width
+    texDesc.height = height
+    texDesc.storageMode = .private
+    texDesc.usage = [.renderTarget, .shaderRead]
+    guard let exportTexture = device!.makeTexture(descriptor: texDesc) else { return nil }
+
+    let commandBuffer = commandQueue!.makeCommandBuffer()!
+    let renderPassDescriptor = MTLRenderPassDescriptor()
+    if sampleCount > 1 {
+      let msaaDesc = MTLTextureDescriptor()
+      msaaDesc.pixelFormat = .rgba8Unorm
+      msaaDesc.width = width
+      msaaDesc.height = height
+      msaaDesc.textureType = .type2DMultisample
+      msaaDesc.sampleCount = sampleCount
+      msaaDesc.storageMode = .private
+      msaaDesc.usage = .renderTarget
+      guard let exportMSAATexture = device!.makeTexture(descriptor: msaaDesc) else { return nil }
+
+      let msaaDepthDesc = MTLTextureDescriptor()
+      msaaDepthDesc.pixelFormat = depthStencilPixelFormat
+      msaaDepthDesc.width = width
+      msaaDepthDesc.height = height
+      msaaDepthDesc.textureType = .type2DMultisample
+      msaaDepthDesc.sampleCount = sampleCount
+      msaaDepthDesc.storageMode = .private
+      msaaDepthDesc.usage = .renderTarget
+      guard let exportMSAADepthTexture = device!.makeTexture(descriptor: msaaDepthDesc) else { return nil }
+
+      renderPassDescriptor.colorAttachments[0].texture = exportMSAATexture
+      renderPassDescriptor.colorAttachments[0].resolveTexture = exportTexture
+      renderPassDescriptor.colorAttachments[0].storeAction = .multisampleResolve
+      renderPassDescriptor.depthAttachment.texture = exportMSAADepthTexture
+      renderPassDescriptor.depthAttachment.storeAction = .dontCare
+    } else {
+      renderPassDescriptor.colorAttachments[0].texture = exportTexture
+      renderPassDescriptor.colorAttachments[0].storeAction = .store
+      renderPassDescriptor.depthAttachment.texture = device!.makeTexture(descriptor: {
+        let d = MTLTextureDescriptor()
+        d.pixelFormat = depthStencilPixelFormat
+        d.width = width
+        d.height = height
+        d.storageMode = .private
+        d.usage = .renderTarget
+        return d
+      }())
+      renderPassDescriptor.depthAttachment.storeAction = .dontCare
+    }
+    renderPassDescriptor.colorAttachments[0].loadAction = .clear
+    if transparentBackground {
+      renderPassDescriptor.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 0)
+    } else {
+      renderPassDescriptor.colorAttachments[0].clearColor = clearColor
+    }
+    renderPassDescriptor.depthAttachment.loadAction = .clear
+    renderPassDescriptor.depthAttachment.clearDepth = 1.0
+
+    guard let renderEncoder = commandBuffer.makeRenderCommandEncoder(descriptor: renderPassDescriptor) else { return nil }
+
+    renderEncoder.setViewport(MTLViewport(originX: 0, originY: 0, width: Double(width), height: Double(height), znear: 0, zfar: 1))
+    renderEncoder.setFrontFacing(.counterClockwise)
+    renderEncoder.setDepthStencilState(depthStencilState)
+    renderEncoder.setRenderPipelineState(litPSO)
+
+    if let selBuffer = selectionStateBuffer, selectionStateCount > 0 {
+      renderEncoder.setFragmentBuffer(selBuffer, offset: 0, index: 2)
+    } else {
+      var zero: Float = 0
+      renderEncoder.setFragmentBytes(&zero, length: MemoryLayout<Float>.size, index: 2)
+    }
+    if let visBuffer = visibleStateBuffer, visibleStateCount > 0 {
+      renderEncoder.setFragmentBuffer(visBuffer, offset: 0, index: 3)
+    } else {
+      var one: Float = 1
+      renderEncoder.setFragmentBytes(&one, length: MemoryLayout<Float>.size, index: 3)
+    }
+
+    for triangleBuffer in triangleBuffers where triangleBuffer.colour.w == 1.0 {
+      renderEncoder.setVertexBuffer(triangleBuffer.buffer, offset: 0, index: 0)
+      constants.colour = triangleBuffer.colour
+      renderEncoder.setVertexBytes(&constants, length: MemoryLayout<Constants>.size, index: 1)
+      renderEncoder.setFragmentBytes(&constants, length: MemoryLayout<Constants>.size, index: 0)
+      renderEncoder.drawIndexedPrimitives(type: .triangle, indexCount: triangleBuffer.indexCount, indexType: .uint32, indexBuffer: triangleBuffer.indexBuffer, indexBufferOffset: 0)
+    }
+
+    for triangleBuffer in triangleBuffers where triangleBuffer.colour.w != 1.0 {
+      renderEncoder.setVertexBuffer(triangleBuffer.buffer, offset: 0, index: 0)
+      constants.colour = triangleBuffer.colour
+      renderEncoder.setVertexBytes(&constants, length: MemoryLayout<Constants>.size, index: 1)
+      renderEncoder.setFragmentBytes(&constants, length: MemoryLayout<Constants>.size, index: 0)
+      renderEncoder.drawIndexedPrimitives(type: .triangle, indexCount: triangleBuffer.indexCount, indexType: .uint32, indexBuffer: triangleBuffer.indexBuffer, indexBufferOffset: 0)
+    }
+
+    if viewEdges {
+      renderEncoder.setRenderPipelineState(edgePSO)
+      if let visBuffer = visibleStateBuffer, visibleStateCount > 0 {
+        renderEncoder.setFragmentBuffer(visBuffer, offset: 0, index: 2)
+      } else {
+        var one: Float = 1
+        renderEncoder.setFragmentBytes(&one, length: MemoryLayout<Float>.size, index: 2)
+      }
+      for edgeBuffer in edgeBuffers {
+        renderEncoder.setVertexBuffer(edgeBuffer.buffer, offset: 0, index: 0)
+        var edgeColour = edgeBuffer.colour
+        if isDarkMode && edgeColour.x == 0 && edgeColour.y == 0 && edgeColour.z == 0 {
+          edgeColour = SIMD4<Float>(1, 1, 1, 1)
+        }
+        constants.colour = edgeColour
+        renderEncoder.setVertexBytes(&constants, length: MemoryLayout<Constants>.size, index: 1)
+        renderEncoder.setFragmentBytes(&constants, length: MemoryLayout<Constants>.size, index: 0)
+        renderEncoder.drawPrimitives(type: .line, vertexStart: 0, vertexCount: edgeBuffer.buffer.length / MemoryLayout<EdgeVertex>.size)
+      }
+      renderEncoder.setRenderPipelineState(unlitPSO)
+    }
+
+    if viewBoundingBox, let bb = boundingBoxBuffer {
+      renderEncoder.setVertexBuffer(bb, offset: 0, index: 0)
+      constants.colour = isDarkMode ? SIMD4<Float>(1.0, 1.0, 1.0, 1.0) : SIMD4<Float>(0.0, 0.0, 0.0, 1.0)
+      renderEncoder.setVertexBytes(&constants, length: MemoryLayout<Constants>.size, index: 1)
+      renderEncoder.drawPrimitives(type: .line, vertexStart: 0, vertexCount: bb.length / MemoryLayout<Vertex>.size)
+    }
+
+    renderEncoder.endEncoding()
+
+    let bytesPerRow = width * 4
+    let stagingBuffer = device!.makeBuffer(length: bytesPerRow * height, options: .storageModeShared)!
+    let blitEncoder = commandBuffer.makeBlitCommandEncoder()!
+    blitEncoder.copy(from: exportTexture, sourceSlice: 0, sourceLevel: 0,
+                     sourceOrigin: MTLOrigin(x: 0, y: 0, z: 0),
+                     sourceSize: MTLSize(width: width, height: height, depth: 1),
+                     to: stagingBuffer, destinationOffset: 0,
+                     destinationBytesPerRow: bytesPerRow, destinationBytesPerImage: bytesPerRow * height)
+    blitEncoder.endEncoding()
+
+    commandBuffer.commit()
+    commandBuffer.waitUntilCompleted()
+
+    let pixelData = Data(bytes: stagingBuffer.contents(), count: bytesPerRow * height)
+    guard let provider = CGDataProvider(data: pixelData as CFData) else { return nil }
+    let bitmapInfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue)
+    guard let cgImage = CGImage(width: width,
+                                height: height,
+                                bitsPerComponent: 8,
+                                bitsPerPixel: 32,
+                                bytesPerRow: bytesPerRow,
+                                space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                                bitmapInfo: bitmapInfo,
+                                provider: provider,
+                                decode: nil,
+                                shouldInterpolate: false,
+                                intent: .defaultIntent) else { return nil }
+
+    return NSImage(cgImage: cgImage, size: NSSize(width: width, height: height))
+  }
+
   @objc func updateVisibleStateBuffer(_ data: Data) {
     visibleStateCount = data.count / MemoryLayout<Float>.size
     guard visibleStateCount > 0 else {

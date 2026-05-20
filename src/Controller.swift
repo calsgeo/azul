@@ -307,8 +307,46 @@ extension NSToolbarItem.Identifier {
       loadData(from: urls)
     }
     setupViewMenu()
+    setupFileMenu()
   }
   
+  func setupFileMenu() {
+    guard let mainMenu = NSApp.mainMenu else { return }
+    for item in mainMenu.items {
+      guard item.title == "File", let fileMenu = item.submenu else { continue }
+      let exportItem = NSMenuItem(title: "Export Image…", action: #selector(exportImage(_:)), keyEquivalent: "e")
+      exportItem.target = self
+      fileMenu.addItem(NSMenuItem.separator())
+      fileMenu.addItem(exportItem)
+      break
+    }
+  }
+
+  @IBAction func exportImage(_ sender: NSMenuItem) {
+    let savePanel = NSSavePanel()
+    savePanel.allowedContentTypes = [UTType.png]
+    savePanel.canCreateDirectories = true
+
+    let transparentCheckbox = NSButton(checkboxWithTitle: "Transparent background", target: nil, action: nil)
+    transparentCheckbox.state = .off
+    let accessoryView = NSView(frame: NSRect(x: 0, y: 0, width: 220, height: 32))
+    transparentCheckbox.frame = NSRect(x: 0, y: 4, width: 220, height: 24)
+    accessoryView.addSubview(transparentCheckbox)
+    savePanel.accessoryView = accessoryView
+
+    savePanel.beginSheetModal(for: window) { result in
+      guard result == .OK, let url = savePanel.url else { return }
+      let transparent = transparentCheckbox.state == .on
+      let w = Int(self.metalView!.drawableSize.width)
+      let h = Int(self.metalView!.drawableSize.height)
+      guard let image = self.metalView!.exportImage(width: w, height: h, transparentBackground: transparent),
+            let data = image.tiffRepresentation,
+            let bitmap = NSBitmapImageRep(data: data),
+            let pngData = bitmap.representation(using: .png, properties: [:]) else { return }
+      try? pngData.write(to: url)
+    }
+  }
+
   func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
     return true
   }
@@ -316,6 +354,9 @@ extension NSToolbarItem.Identifier {
   func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
     if menuItem.action == #selector(new(_:)) || menuItem.action == #selector(openFile(_:)) {
       return !isLoading
+    }
+    if menuItem.action == #selector(exportImage(_:)) {
+      return !(metalView?.triangleBuffers.isEmpty ?? true)
     }
     return true
   }
