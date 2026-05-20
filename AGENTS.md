@@ -32,7 +32,7 @@ Xcode Cloud: macOS only; uses `ci_scripts/ci_pre_xcodebuild.sh` to install pinne
 - **Entry point**: `src/Controller.swift` (`@NSApplicationMain` app delegate)
 - **Swift → C++ bridge**: `DataManagerWrapperWrapper.{h,mm}` + `PerformanceHelperWrapperWrapper.{h,mm}` expose C++ `DataManager` to Swift via Objective-C++. The bridging header (Swift→ObjC) is `src/Azul-Bridging-Header.h`. The `.mm` files also import `"azul-Swift.h"` (Xcode-generated ObjC→Swift header) to call back into Swift types.
 - **C++ core**: `src/DataManager/DataManager.cpp` owns all data, file parsing, triangulation, edge generation, selection, LOD filtering. Parsing helpers in `src/DataManager/*ParsingHelper.hpp`.
-- **Rendering**: `src/MetalView.swift` (MTKView subclass) + `src/Shaders.metal`. MSAA configurable (1/2/4x). Lit/unlit/picking pipelines cached as binary archive (`azul.metalar`).
+- **Rendering**: `src/MetalView.swift` (MTKView subclass) + `src/Shaders.metal`. MSAA configurable (1/2/4x). Lit/unlit/picking pipelines cached as binary archive (`azul.metalar`). Export pipelines (`exportLitRenderPipelineState`, etc.) use `.rgba8Unorm` with MSAA matching the view setting.
 - **UI**: Menu bar loaded from `src/Base.lproj/MainMenu.xib` (XIB); all other UI (NSSplitView, NSOutlineView sidebar, NSTableView attributes) is programmatic. App icon and CityGML type icons in `src/Assets.xcassets/`; document type icons in `src/Icons/`.
 
 ### iOS
@@ -126,6 +126,7 @@ This ordering matters — it's the exact sequence in `Controller.swift:loadData(
 - Search string is matched against object IDs, types, and attribute keys/values.
 - Visible state is a tri-state char: `'Y'` (all visible), `'N'` (all invisible), `'P'` (partly). Toggling regenerates GPU buffers.
 - View parameters can be saved/loaded as `.azulview` JSON files.
+- Image export renders the view to PNG via an offscreen render pass (MSAA-aware, supports transparent background). Resolution 1×/2×/4× of drawable size. File → Export Image… (`⌘E`) with options in the save panel accessory view.
 - `BOOL` return values in ObjC wrappers are `YES`/`NO` proper, not `true`/`false`.
 - iOS conditional compilation uses `#if TARGET_OS_OSX` / `#if !TARGET_OS_OSX` in ObjC++ files.
 - iOS uses `matrix4x4_perspective_shorter_dim()` (FOV constrained by shorter dimension) vs macOS which now also uses this function.

@@ -18,6 +18,7 @@ The current version of azul runs on **macOS 13+** (Apple Silicon and Intel) and 
 * Open file (import): o or cmd+o
 * Load view (camera) parameters: l or cmd+l
 * Save view (camera) parameters: shift+cmd+s
+* Export image: cmd+e
 * Copy selected object ids: c or cmd+c
 * Find objects: f or cmd+f
 * Filter by level of detail: click LoD segment in sidebar
