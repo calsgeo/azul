@@ -638,6 +638,11 @@ public:
     parsedFile.id = filePath;
     doc.load_file(filePath);
     parseGML(doc.root(), parsedFile);
+    pugi::xpath_node srsNode = doc.select_node("//*[@srsName]");
+    if (srsNode) {
+      parsedFile.crsIdentifier = srsNode.node().attribute("srsName").value();
+      std::cout << "CRS: " << parsedFile.crsIdentifier << std::endl;
+    }
   }
   
   void clearDOM() {

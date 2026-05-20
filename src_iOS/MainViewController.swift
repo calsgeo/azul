@@ -599,6 +599,8 @@ class MainViewController: UIViewController, MTKViewDelegate {
             progress += 0.51605 / totalWeight
             DispatchQueue.main.async { self.progressBar.setProgress(progress, animated: true) }
 
+            self.dataManager.transformGeographicCoordinates()
+
             self.dataManager.updateBoundsWithLastFile()
             progress += 0.158675 / totalWeight
             DispatchQueue.main.async { self.progressBar.setProgress(progress, animated: true) }

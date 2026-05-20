@@ -77,6 +77,7 @@ struct AzulEdge {
 struct AzulObject {
   std::string type;
   std::string id;
+  std::string crsIdentifier;
   bool selected;
   int objectId;
   char visible; // 'Y'es, 'N'o, 'P'artly
@@ -99,6 +100,7 @@ struct AzulObject {
   AzulObject(const AzulObject &other) {
     type = other.type;
     id = other.id;
+    crsIdentifier = other.crsIdentifier;
     selected = other.selected;
     objectId = other.objectId;
     visible = other.visible;

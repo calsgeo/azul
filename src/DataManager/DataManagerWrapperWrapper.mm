@@ -67,6 +67,10 @@ struct DataManagerWrapper {
   dataManagerWrapper->dataManager->clearHelpers();
 }
 
+- (void) transformGeographicCoordinates {
+  dataManagerWrapper->dataManager->transformGeographicCoordinates();
+}
+
 - (void) clear {
   dataManagerWrapper->dataManager->clear();
 }

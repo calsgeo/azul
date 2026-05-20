@@ -628,6 +628,9 @@ extension NSToolbarItem.Identifier {
           self.statusBarView?.isHidden = false
         }
         
+        Swift.print("Transforming geographic CRS (if needed)...")
+        self.dataManager.transformGeographicCoordinates()
+
         Swift.print("Updating bounds...")
         self.dataManager.updateBoundsWithLastFile()
         self.performanceHelper.printTimeSpent()

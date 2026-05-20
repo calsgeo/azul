@@ -498,6 +498,10 @@ public:
             std::string_view attributeName = element.unescaped_key();
             if (element.value().type() == simdjson::ondemand::json_type::string) {
               std::string_view attributeValue = element.value().get_string();
+              if (attributeName == "referenceSystem") {
+                parsedFile.crsIdentifier = attributeValue;
+                std::cout << "CRS: " << parsedFile.crsIdentifier << std::endl;
+              }
               parsedFile.attributes.push_back(std::pair<std::string, std::string>(attributeName, attributeValue));
             } else {
               std::cout << attributeName << " is a complex attribute. Skipped." << std::endl;

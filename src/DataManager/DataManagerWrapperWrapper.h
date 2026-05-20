@@ -66,6 +66,7 @@ struct DataManagerWrapper;
 // Tasks in order
 - (void) parse:(const char *)filePath;
 - (void) clearHelpers;
+- (void) transformGeographicCoordinates;
 - (void) updateBoundsWithLastFile;
 - (void) triangulateLastFile;
 - (void) generateEdgesForLastFile;

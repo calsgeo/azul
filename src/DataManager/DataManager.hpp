@@ -61,6 +61,8 @@ private:
   void putAzulObjectAndItsChildrenIntoTriangleBuffers(const AzulObject &object, const std::string &typeWithColour, const long maxBufferSize, bool underMatchingLod = false);
   void putAzulObjectAndItsChildrenIntoEdgeBuffers(const AzulObject &object, const long maxBufferSize, bool underMatchingLod = false);
   void printAzulObject(const AzulObject &object, unsigned int tabs);
+  void boundsOfAzulObjectAndItsChildren(const AzulObject &object, double *min, double *max);
+  void transformAzulObjectAndItsChildren(AzulObject &object, double centerLon, double centerLat, double cosCenterLat, double R);
   void setMatchesSearch(AzulObject &object, char matches);
   bool matchesSearch(AzulObject &object);
   std::string computeLodMatches(AzulObject &object);
@@ -130,6 +132,7 @@ public:
   void parse(const char *filePath);
   void clearHelpers();
   void updateBoundsWithLastFile();
+  void transformGeographicCoordinates();
   void triangulateLastFile();
   void generateEdgesForLastFile();
   void clearPolygonsOfLastFile();

@@ -17,7 +17,102 @@
 #include <set>
 #include <functional>
 #include <cctype>
+#include <cmath>
 #include "DataManager.hpp"
+
+void DataManager::boundsOfAzulObjectAndItsChildren(const AzulObject &object, double *min, double *max) {
+  for (const auto &child: object.children) boundsOfAzulObjectAndItsChildren(child, min, max);
+  for (const auto &polygon: object.polygons) {
+    for (const auto &point: polygon.exteriorRing.points) {
+      for (int coordinate = 0; coordinate < 3; ++coordinate) {
+        if (point.coordinates[coordinate] < min[coordinate]) min[coordinate] = point.coordinates[coordinate];
+        if (point.coordinates[coordinate] > max[coordinate]) max[coordinate] = point.coordinates[coordinate];
+      }
+    }
+  }
+}
+
+void DataManager::transformAzulObjectAndItsChildren(AzulObject &object, double centerLon, double centerLat, double cosCenterLat, double R) {
+  for (auto &child: object.children) transformAzulObjectAndItsChildren(child, centerLon, centerLat, cosCenterLat, R);
+  for (auto &polygon: object.polygons) {
+    for (auto &point: polygon.exteriorRing.points) {
+      double lon = point.coordinates[0];
+      double lat = point.coordinates[1];
+      point.coordinates[0] = R * cosCenterLat * (lon - centerLon) * (M_PI / 180.0);
+      point.coordinates[1] = R * (lat - centerLat) * (M_PI / 180.0);
+    }
+    for (auto &ring: polygon.interiorRings) {
+      for (auto &point: ring.points) {
+        double lon = point.coordinates[0];
+        double lat = point.coordinates[1];
+        point.coordinates[0] = R * cosCenterLat * (lon - centerLon) * (M_PI / 180.0);
+        point.coordinates[1] = R * (lat - centerLat) * (M_PI / 180.0);
+      }
+    }
+  }
+}
+
+void DataManager::transformGeographicCoordinates() {
+  auto &file = parsedFiles.back();
+  if (file.crsIdentifier.empty()) return;
+
+  // Extract EPSG code from identifier
+  std::string code;
+  auto epsgPos = file.crsIdentifier.find("EPSG:");
+  if (epsgPos != std::string::npos) {
+    code = file.crsIdentifier.substr(epsgPos + 5);
+  } else {
+    auto slashPos = file.crsIdentifier.rfind('/');
+    if (slashPos != std::string::npos) {
+      code = file.crsIdentifier.substr(slashPos + 1);
+    }
+  }
+  if (code.empty()) return;
+
+  int epsgCode;
+  try {
+    epsgCode = std::stoi(code);
+  } catch (...) {
+    return;
+  }
+
+  // Known geographic (angle-based) CRS codes
+  static const std::set<int> geographicCodes = {
+    4326, 4979,  // WGS84 (2D/3D)
+    4258, 4937,  // ETRS89 (2D/3D)
+    4269, 4966,  // NAD83 (2D/3D)
+    4617, 4955,  // NAD83(CSRS) (2D/3D)
+    4277, 7405,  // OSGB36 (2D/3D)
+    7844, 7845,  // GDA2020 (2D/3D)
+    4322, 4987,  // WGS72 (2D/3D)
+    4230, 4938,  // ED50 (2D/3D)
+    4674, 4989,  // SIRGAS2000 (2D/3D)
+    4301,        // Tokyo
+    4742, 4751,  // JGD2011 (2D/3D)
+    4312,        // MGI (2D)
+    4555,        // ETRS89 + Baltic 1957 height (3D)
+    4259, 4940,  // OSGB70 / SN
+    4171, 4965,  // RGR92 (2D/3D)
+    7070, 7071,  // RGAF09 (2D/3D)
+  };
+  if (geographicCodes.find(epsgCode) == geographicCodes.end()) return;
+
+  std::cout << "Geographic CRS detected: " << file.crsIdentifier << ". Applying plate carrée projection." << std::endl;
+
+  // Compute file bounds for projection center
+  double fileMin[3] = {std::numeric_limits<double>::max(), std::numeric_limits<double>::max(), std::numeric_limits<double>::max()};
+  double fileMax[3] = {std::numeric_limits<double>::lowest(), std::numeric_limits<double>::lowest(), std::numeric_limits<double>::lowest()};
+  boundsOfAzulObjectAndItsChildren(file, fileMin, fileMax);
+
+  double centerLon = (fileMin[0] + fileMax[0]) / 2.0;
+  double centerLat = (fileMin[1] + fileMax[1]) / 2.0;
+  double cosCenterLat = std::cos(centerLat * M_PI / 180.0);
+  double R = 6378137.0; // WGS84 semi-major axis
+
+  transformAzulObjectAndItsChildren(file, centerLon, centerLat, cosCenterLat, R);
+
+  statusMessage += " (projected from geographic CRS)";
+}
 
 void DataManager::printAzulObject(const AzulObject &object, unsigned int tabs) {
   for (unsigned int tab = 0; tab < tabs; ++tab) std::cout << "\t";
