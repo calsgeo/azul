@@ -322,23 +322,65 @@ extension NSToolbarItem.Identifier {
     }
   }
 
+  private var exportHandlerAssociationKey: UInt8 = 0
+
+  private class ExportSizeHandler {
+    let closure: (Int) -> Void
+    init(_ closure: @escaping (Int) -> Void) { self.closure = closure }
+    @objc func popupChanged(_ sender: NSPopUpButton) { closure(sender.indexOfSelectedItem) }
+  }
+
   @IBAction func exportImage(_ sender: NSMenuItem) {
     let savePanel = NSSavePanel()
     savePanel.allowedContentTypes = [UTType.png]
     savePanel.canCreateDirectories = true
 
+    let drawableSize = metalView!.drawableSize
+    let accessoryView = NSView(frame: NSRect(x: 0, y: 0, width: 280, height: 64))
+
+    let sizeLabel = NSTextField(labelWithString: "Resolution:")
+    sizeLabel.frame = NSRect(x: 0, y: 38, width: 72, height: 20)
+    accessoryView.addSubview(sizeLabel)
+
+    let sizes: [(label: String, multiplier: Float)] = [
+      ("1x", 1),
+      ("2x", 2),
+      ("4x", 4),
+    ]
+    let sizePopup = NSPopUpButton(frame: NSRect(x: 76, y: 34, width: 140, height: 24))
+    for s in sizes { sizePopup.addItem(withTitle: s.label) }
+    sizePopup.selectItem(at: 1)
+    accessoryView.addSubview(sizePopup)
+
+    let dimensionLabel = NSTextField(labelWithString: String(format: "Output: %d × %d", Int(drawableSize.width * 2), Int(drawableSize.height * 2)))
+    dimensionLabel.frame = NSRect(x: 0, y: 14, width: 280, height: 18)
+    dimensionLabel.font = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)
+    dimensionLabel.textColor = .secondaryLabelColor
+    accessoryView.addSubview(dimensionLabel)
+
     let transparentCheckbox = NSButton(checkboxWithTitle: "Transparent background", target: nil, action: nil)
-    transparentCheckbox.state = .off
-    let accessoryView = NSView(frame: NSRect(x: 0, y: 0, width: 220, height: 32))
-    transparentCheckbox.frame = NSRect(x: 0, y: 4, width: 220, height: 24)
+    transparentCheckbox.frame = NSRect(x: 0, y: 0, width: 200, height: 20)
     accessoryView.addSubview(transparentCheckbox)
+
     savePanel.accessoryView = accessoryView
 
-    savePanel.beginSheetModal(for: window) { result in
-      guard result == .OK, let url = savePanel.url else { return }
-      let transparent = transparentCheckbox.state == .on
-      let w = Int(self.metalView!.drawableSize.width)
-      let h = Int(self.metalView!.drawableSize.height)
+    let handler = ExportSizeHandler { [weak dimensionLabel] index in
+      guard let label = dimensionLabel else { return }
+      let mult = index < sizes.count ? sizes[index].multiplier : 1
+      label.stringValue = String(format: "Output: %d × %d", Int(drawableSize.width * CGFloat(mult) + 0.5), Int(drawableSize.height * CGFloat(mult) + 0.5))
+    }
+    sizePopup.target = handler
+    sizePopup.action = #selector(ExportSizeHandler.popupChanged(_:))
+    objc_setAssociatedObject(sizePopup, &exportHandlerAssociationKey, handler, .OBJC_ASSOCIATION_RETAIN)
+
+    savePanel.beginSheetModal(for: window) { [weak sizePopup, weak transparentCheckbox] result in
+      guard result == .OK, let url = savePanel.url,
+            let popup = sizePopup, let checkbox = transparentCheckbox else { return }
+      let transparent = checkbox.state == .on
+      let index = popup.indexOfSelectedItem
+      let mult = CGFloat(index < sizes.count ? sizes[index].multiplier : 1)
+      let w = Int(drawableSize.width * mult + 0.5)
+      let h = Int(drawableSize.height * mult + 0.5)
       guard let image = self.metalView!.exportImage(width: w, height: h, transparentBackground: transparent),
             let data = image.tiffRepresentation,
             let bitmap = NSBitmapImageRep(data: data),
