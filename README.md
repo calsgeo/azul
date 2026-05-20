@@ -66,12 +66,9 @@ azul is written in a mix of C++17, Swift 5, Objective-C 2 and Objective-C++. The
 
 ## Not implemented / ideas for the future
 
-* Removing (unloading) files
+* Removing (unloading) individual files
 * Icons for missing types
-* Better handling of big coordinates
 * Improved search with live viewing of matching objects
-* Way to navigate xlinks / implicit parent-child relationships
-* Use status bar to indicate actions, success/failure
 * More complex materials
 * Materials and textures (loaded from files)
 * Shifting the rotation point out of the data plane
