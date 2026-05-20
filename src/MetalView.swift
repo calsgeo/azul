@@ -18,19 +18,27 @@ import Metal
 import MetalKit
 
 @objc class MetalView: MTKView {
-  
+
   var controller: Controller?
   var dataManager: DataManagerWrapperWrapper?
-  
+
   var commandQueue: MTLCommandQueue?
   var litRenderPipelineState: MTLRenderPipelineState?
+  var texturedRenderPipelineState: MTLRenderPipelineState?
   var unlitRenderPipelineState: MTLRenderPipelineState?
   var edgeRenderPipelineState: MTLRenderPipelineState?
   var depthStencilState: MTLDepthStencilState?
-  
+  var textureSamplerState: MTLSamplerState?
+  var textureLoader: MTKTextureLoader?
+  var loadedTextures = [String: MTLTexture]()
+  var failedTexturePaths = Set<String>()
+  var permissionDeniedTextureDirectories = Set<String>()
+  var loggedTextureFailureCount: Int = 0
+  let maxLoggedTextureFailures: Int = 40
+
   var msaaTexture: MTLTexture?
   var msaaDepthTexture: MTLTexture?
-  
+
   var triangleBuffers = [BufferWithColour]()
   var edgeBuffers = [BufferWithColour]()
   var boundingBoxBuffer: MTLBuffer?
@@ -38,13 +46,18 @@ import MetalKit
   var selectionStateCount: Int = 0
   var visibleStateBuffer: MTLBuffer?
   var visibleStateCount: Int = 0
-  
+
   var pickingRenderPipelineState: MTLRenderPipelineState?
   var pickingTexture: MTLTexture?
   var pickingDepthTexture: MTLTexture?
-  
+
   var viewEdges: Bool = true
   var viewBoundingBox: Bool = false
+  @objc var showTextures: Bool = true {
+    didSet {
+      needsDisplay = true
+    }
+  }
   var selectionColour: SIMD4<Float> = SIMD4<Float>(1.0, 1.0, 0.0, 1.0) {
     didSet {
       constants.selectionColour = selectionColour
@@ -67,16 +80,16 @@ import MetalKit
       needsDisplay = true
     }
   }
-  
+
   @objc var multipleSelection: Bool {
     NSEvent.modifierFlags.contains(.command) || NSEvent.modifierFlags.contains(.shift)
   }
   var dragOverlay: CAShapeLayer?
-  
+
   var isDarkMode: Bool {
     effectiveAppearance.name.rawValue.contains("Dark")
   }
-  
+
   func updateAppearance() {
     if isDarkMode {
       if let custom = customDarkClearColor, let srgb = custom.usingColorSpace(.sRGB) {
@@ -94,69 +107,71 @@ import MetalKit
     }
     needsDisplay = true
   }
-  
+
   var constants = Constants()
-  
+
   var eye = SIMD3<Float>(0.0, 0.0, 0.0)
   var centre = SIMD3<Float>(0.0, 0.0, -1.0)
   var fieldOfView: Float = 1.047197551196598
-  
+
   @objc var modelTranslationToCentreOfRotationMatrix = matrix_identity_float4x4
   @objc var modelRotationMatrix = matrix_identity_float4x4
   @objc var modelShiftBackMatrix = matrix_identity_float4x4
-  
+
   @objc var modelMatrix = matrix_identity_float4x4
   @objc var viewMatrix = matrix_identity_float4x4
   @objc var projectionMatrix = matrix_identity_float4x4
-  
+
   override init(frame frameRect: CGRect, device: MTLDevice?) {
     Swift.print("MetalView.init(CGRect, MTLDevice)")
     super.init(frame: frameRect, device: device)
-    
+
     // View
     colorPixelFormat = .bgra8Unorm
     depthStencilPixelFormat = .depth32Float
     self.sampleCount = 4
-    
+
     // Command queue
     commandQueue = device!.makeCommandQueue()
-    
+
     // Store library
     library = device!.makeDefaultLibrary()
-    
+    textureLoader = MTKTextureLoader(device: device!)
+    textureSamplerState = buildTextureSamplerState()
+
     // Build pipelines
     recreatePipelines()
-    
+
     // Cache compiled pipeline states as a binary archive for faster launches
     cachePipelineArchive()
-    
+
     // Depth stencil
     let depthSencilDescriptor = MTLDepthStencilDescriptor()
     depthSencilDescriptor.depthCompareFunction = .less
     depthSencilDescriptor.isDepthWriteEnabled = true
     depthStencilState = device!.makeDepthStencilState(descriptor: depthSencilDescriptor)
-    
+
     // MSAA textures
     createMSAATextures(size: drawableSize)
     createPickingTextures()
-    
+
     // Matrices
     modelShiftBackMatrix = matrix4x4_translation(shift: centre)
     modelMatrix = matrix_multiply(matrix_multiply(modelShiftBackMatrix, modelRotationMatrix), modelTranslationToCentreOfRotationMatrix)
     viewMatrix = matrix4x4_look_at(eye: eye, centre: centre, up: SIMD3<Float>(0.0, 1.0, 0.0))
     projectionMatrix = matrix4x4_perspective_shorter_dim(fieldOfView: fieldOfView, width: Float(bounds.size.width), height: Float(bounds.size.height), nearZ: 0.001, farZ: 100.0)
-    
+
     constants.modelMatrix = modelMatrix
     constants.modelViewProjectionMatrix = matrix_multiply(projectionMatrix, matrix_multiply(viewMatrix, modelMatrix))
     constants.modelMatrixInverseTransposed = matrix_upper_left_3x3(matrix: modelMatrix).inverse.transpose
     constants.viewMatrixInverse = viewMatrix.inverse
-    
+
     // Initial appearance
     updateAppearance()
-    
+
     // Allow dragging
     registerForDraggedTypes([NSPasteboard.PasteboardType.fileURL])
-    
+
     // Drag-and-drop visual overlay
     let overlay = CAShapeLayer()
     overlay.frame = bounds
@@ -168,11 +183,11 @@ import MetalKit
     overlay.isHidden = true
     layer?.addSublayer(overlay)
     dragOverlay = overlay
-    
+
     self.isPaused = true
     self.enableSetNeedsDisplay = true
   }
-  
+
   func recreatePipelines() {
     guard let library = library, let device = device else { return }
 
@@ -204,8 +219,21 @@ import MetalKit
     edgePipelineDescriptor.depthAttachmentPixelFormat = depthStencilPixelFormat
     edgePipelineDescriptor.rasterSampleCount = msaaSampleCount
 
+    let texturedPipelineDescriptor = MTLRenderPipelineDescriptor()
+    texturedPipelineDescriptor.vertexFunction = library.makeFunction(name: "vertexLitTextured")
+    texturedPipelineDescriptor.fragmentFunction = library.makeFunction(name: "fragmentLitTextured")
+    texturedPipelineDescriptor.colorAttachments[0].pixelFormat = colorPixelFormat
+    texturedPipelineDescriptor.colorAttachments[0].isBlendingEnabled = true
+    texturedPipelineDescriptor.colorAttachments[0].sourceRGBBlendFactor = .sourceAlpha
+    texturedPipelineDescriptor.colorAttachments[0].sourceAlphaBlendFactor = .sourceAlpha
+    texturedPipelineDescriptor.colorAttachments[0].destinationRGBBlendFactor = .oneMinusSourceAlpha
+    texturedPipelineDescriptor.colorAttachments[0].destinationAlphaBlendFactor = .oneMinusSourceAlpha
+    texturedPipelineDescriptor.depthAttachmentPixelFormat = depthStencilPixelFormat
+    texturedPipelineDescriptor.rasterSampleCount = msaaSampleCount
+
     do {
       litRenderPipelineState = try device.makeRenderPipelineState(descriptor: litPipelineDescriptor)
+      texturedRenderPipelineState = try device.makeRenderPipelineState(descriptor: texturedPipelineDescriptor)
       unlitRenderPipelineState = try device.makeRenderPipelineState(descriptor: unlitPipelineDescriptor)
       edgeRenderPipelineState = try device.makeRenderPipelineState(descriptor: edgePipelineDescriptor)
     } catch {
@@ -248,6 +276,18 @@ import MetalKit
     unlitPipelineDescriptor.depthAttachmentPixelFormat = depthStencilPixelFormat
     unlitPipelineDescriptor.rasterSampleCount = msaaSampleCount
 
+    let texturedPipelineDescriptor = MTLRenderPipelineDescriptor()
+    texturedPipelineDescriptor.vertexFunction = library.makeFunction(name: "vertexLitTextured")
+    texturedPipelineDescriptor.fragmentFunction = library.makeFunction(name: "fragmentLitTextured")
+    texturedPipelineDescriptor.colorAttachments[0].pixelFormat = colorPixelFormat
+    texturedPipelineDescriptor.colorAttachments[0].isBlendingEnabled = true
+    texturedPipelineDescriptor.colorAttachments[0].sourceRGBBlendFactor = .sourceAlpha
+    texturedPipelineDescriptor.colorAttachments[0].sourceAlphaBlendFactor = .sourceAlpha
+    texturedPipelineDescriptor.colorAttachments[0].destinationRGBBlendFactor = .oneMinusSourceAlpha
+    texturedPipelineDescriptor.colorAttachments[0].destinationAlphaBlendFactor = .oneMinusSourceAlpha
+    texturedPipelineDescriptor.depthAttachmentPixelFormat = depthStencilPixelFormat
+    texturedPipelineDescriptor.rasterSampleCount = msaaSampleCount
+
     let fileManager = FileManager.default
     let appSupportURL = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         .appendingPathComponent("azul", isDirectory: true)
@@ -257,6 +297,7 @@ import MetalKit
     if !fileManager.fileExists(atPath: archiveURL.path) {
       if let archive = try? device.makeBinaryArchive(descriptor: MTLBinaryArchiveDescriptor()) {
         try? archive.addRenderPipelineFunctions(descriptor: litPipelineDescriptor)
+        try? archive.addRenderPipelineFunctions(descriptor: texturedPipelineDescriptor)
         try? archive.addRenderPipelineFunctions(descriptor: unlitPipelineDescriptor)
         if let pickFunction = library.makeFunction(name: "pick") {
           let pickDesc = MTLComputePipelineDescriptor()
@@ -273,25 +314,151 @@ import MetalKit
     let w = Int(drawableSize.width)
     let h = Int(drawableSize.height)
     guard w > 0, h > 0 else { return }
-    
-    let desc = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .rgba8Unorm, width: w, height: h, mipmapped: false)
-    desc.usage = [.renderTarget, .shaderRead]
-    pickingTexture = device!.makeTexture(descriptor: desc)
-    
-    let depthDesc = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: depthStencilPixelFormat, width: w, height: h, mipmapped: false)
+
+          let desc = MTLTextureDescriptor()
+          desc.pixelFormat = .rgba8Unorm
+          desc.width = w
+          desc.height = h
+          desc.storageMode = .private
+          desc.usage = [.renderTarget, .shaderRead]
+          pickingTexture = device!.makeTexture(descriptor: desc)
+
+          let depthDesc = MTLTextureDescriptor()
+          depthDesc.pixelFormat = depthStencilPixelFormat
+          depthDesc.width = w
+          depthDesc.height = h
+          depthDesc.storageMode = .private
     depthDesc.usage = .renderTarget
     pickingDepthTexture = device!.makeTexture(descriptor: depthDesc)
   }
-  
+
+  func buildTextureSamplerState() -> MTLSamplerState? {
+    guard let device = device else { return nil }
+    let samplerDescriptor = MTLSamplerDescriptor()
+    samplerDescriptor.minFilter = .linear
+    samplerDescriptor.magFilter = .linear
+    samplerDescriptor.mipFilter = .linear
+    samplerDescriptor.sAddressMode = .repeat
+    samplerDescriptor.tAddressMode = .repeat
+    samplerDescriptor.rAddressMode = .repeat
+    samplerDescriptor.normalizedCoordinates = true
+    return device.makeSamplerState(descriptor: samplerDescriptor)
+  }
+
+  func textureURL(from path: String) -> URL? {
+    if path.isEmpty {
+      return nil
+    }
+    if let parsed = URL(string: path), parsed.scheme != nil {
+      return parsed
+    }
+    return URL(fileURLWithPath: path)
+  }
+
+  func logTextureFailure(_ message: String) {
+    if loggedTextureFailureCount < maxLoggedTextureFailures {
+      Swift.print(message)
+    } else if loggedTextureFailureCount == maxLoggedTextureFailures {
+      Swift.print("Texture load failed: additional failures suppressed.")
+    }
+    loggedTextureFailureCount += 1
+  }
+
+  func errorIndicatesPermissionDenied(_ error: NSError) -> Bool {
+    if error.domain == NSCocoaErrorDomain && error.code == NSFileReadNoPermissionError {
+      return true
+    }
+    if error.domain == NSURLErrorDomain && error.code == NSURLErrorNoPermissionsToReadFile {
+      return true
+    }
+    if error.localizedDescription.localizedCaseInsensitiveContains("permission") {
+      return true
+    }
+    if let underlyingError = error.userInfo[NSUnderlyingErrorKey] as? NSError {
+      return errorIndicatesPermissionDenied(underlyingError)
+    }
+    return false
+  }
+
+  func recordPermissionDeniedDirectory(for textureURL: URL, error: Error) {
+    guard textureURL.isFileURL else { return }
+    let nsError = error as NSError
+    if errorIndicatesPermissionDenied(nsError) {
+      permissionDeniedTextureDirectories.insert(textureURL.deletingLastPathComponent().path)
+    }
+  }
+
+  func textureForPath(_ texturePath: String) -> MTLTexture? {
+    if let loaded = loadedTextures[texturePath] {
+      return loaded
+    }
+    if failedTexturePaths.contains(texturePath) {
+      return nil
+    }
+    guard let loader = textureLoader,
+          let textureURL = textureURL(from: texturePath) else {
+      let wasNewFailure = failedTexturePaths.insert(texturePath).inserted
+      if wasNewFailure {
+        logTextureFailure("Texture load failed (\(texturePath)): invalid texture path")
+      }
+      return nil
+    }
+    do {
+      let options: [MTKTextureLoader.Option: Any] = [
+        .origin: MTKTextureLoader.Origin.bottomLeft,
+        .SRGB: false
+      ]
+      let loaded = try loader.newTexture(URL: textureURL, options: options)
+      loadedTextures[texturePath] = loaded
+      return loaded
+    } catch {
+      let wasNewFailure = failedTexturePaths.insert(texturePath).inserted
+      if wasNewFailure {
+        recordPermissionDeniedDirectory(for: textureURL, error: error)
+        logTextureFailure("Texture load failed (\(texturePath)): \(error.localizedDescription)")
+      }
+      return nil
+    }
+  }
+
+  @objc func clearFailedTexturePaths() {
+    failedTexturePaths.removeAll()
+    permissionDeniedTextureDirectories.removeAll()
+    loggedTextureFailureCount = 0
+  }
+
+  @objc func consumePermissionDeniedTextureDirectories() -> [String] {
+    let directories = Array(permissionDeniedTextureDirectories).sorted()
+    permissionDeniedTextureDirectories.removeAll()
+    return directories
+  }
+
+  @objc func failedTextureDirectories() -> [String] {
+    let directories: Set<String> = Set<String>(failedTexturePaths.compactMap { texturePath in
+      guard let textureURL = textureURL(from: texturePath), textureURL.isFileURL else { return nil }
+      return textureURL.deletingLastPathComponent().path
+    })
+    return Array(directories).sorted()
+  }
+
+  @objc func primeTexturesForCurrentBuffers() {
+    let texturePaths = Set(triangleBuffers.compactMap { buffer in
+      buffer.texturePath.isEmpty ? nil : buffer.texturePath
+    })
+    for texturePath in texturePaths {
+      _ = textureForPath(texturePath)
+    }
+  }
+
   required init(coder: NSCoder) {
     Swift.print("MetalView.init(NSCoder)")
     super.init(coder: coder)
   }
-  
+
   override var acceptsFirstResponder: Bool {
     return true
   }
-  
+
   override func viewDidMoveToWindow() {
     super.viewDidMoveToWindow()
     updateAppearance()
@@ -300,24 +467,30 @@ import MetalKit
   override func viewDidChangeEffectiveAppearance() {
     updateAppearance()
   }
-  
+
   func createMSAATextures(size: CGSize) {
     let w = Int(size.width)
     let h = Int(size.height)
     guard w > 0, h > 0 else { return }
-    
-    if sampleCount > 1 {
-      let desc = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: colorPixelFormat, width: w, height: h, mipmapped: false)
-      desc.textureType = .type2DMultisample
-      desc.sampleCount = sampleCount
-      desc.storageMode = .private
-      desc.usage = .renderTarget
-      msaaTexture = device!.makeTexture(descriptor: desc)
-      
-      let depthDesc = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: depthStencilPixelFormat, width: w, height: h, mipmapped: false)
-      depthDesc.textureType = .type2DMultisample
-      depthDesc.sampleCount = sampleCount
-      depthDesc.storageMode = .private
+
+      if sampleCount > 1 {
+            let desc = MTLTextureDescriptor()
+            desc.pixelFormat = colorPixelFormat
+            desc.width = w
+            desc.height = h
+            desc.textureType = .type2DMultisample
+            desc.sampleCount = sampleCount
+            desc.storageMode = .private
+            desc.usage = .renderTarget
+            msaaTexture = device!.makeTexture(descriptor: desc)
+
+            let depthDesc = MTLTextureDescriptor()
+            depthDesc.pixelFormat = depthStencilPixelFormat
+            depthDesc.width = w
+            depthDesc.height = h
+            depthDesc.textureType = .type2DMultisample
+            depthDesc.sampleCount = sampleCount
+            depthDesc.storageMode = .private
       depthDesc.usage = .renderTarget
       msaaDepthTexture = device!.makeTexture(descriptor: depthDesc)
     } else {
@@ -325,14 +498,14 @@ import MetalKit
       msaaDepthTexture = nil
     }
   }
-  
+
   override func draw(_ dirtyRect: NSRect) {
 //    Swift.print("MetalView.draw(NSRect)")
-    
+
     if dirtyRect.width == 0 {
       return
     }
-    
+
     let commandBuffer = commandQueue!.makeCommandBuffer()!
     let renderPassDescriptor = MTLRenderPassDescriptor()
     if sampleCount > 1 {
@@ -353,11 +526,11 @@ import MetalKit
     renderPassDescriptor.depthAttachment.clearDepth = 1.0
     renderPassDescriptor.depthAttachment.loadAction = .clear
     let renderEncoder = commandBuffer.makeRenderCommandEncoder(descriptor: renderPassDescriptor)!
-    
+
     renderEncoder.setFrontFacing(.counterClockwise)
     renderEncoder.setDepthStencilState(depthStencilState)
     renderEncoder.setRenderPipelineState(litRenderPipelineState!)
-    
+
     if let selBuffer = selectionStateBuffer, selectionStateCount > 0 {
       renderEncoder.setFragmentBuffer(selBuffer, offset: 0, index: 2)
     } else {
@@ -371,26 +544,34 @@ import MetalKit
       renderEncoder.setFragmentBytes(&one, length: MemoryLayout<Float>.size, index: 3)
     }
 
-    for triangleBuffer in triangleBuffers {
-      if triangleBuffer.colour.w == 1.0 {
-        renderEncoder.setVertexBuffer(triangleBuffer.buffer, offset:0, index:0)
-        constants.colour = triangleBuffer.colour
-        renderEncoder.setVertexBytes(&constants, length: MemoryLayout<Constants>.size, index: 1)
-        renderEncoder.setFragmentBytes(&constants, length: MemoryLayout<Constants>.size, index: 0)
-        renderEncoder.drawIndexedPrimitives(type: .triangle, indexCount: triangleBuffer.indexCount, indexType: .uint32, indexBuffer: triangleBuffer.indexBuffer, indexBufferOffset: 0)
+    func drawTriangleBuffer(_ triangleBuffer: BufferWithColour) {
+      let useTexture = showTextures && !triangleBuffer.texturePath.isEmpty
+      if useTexture,
+         let texturedPipeline = texturedRenderPipelineState,
+         let texture = textureForPath(triangleBuffer.texturePath) {
+        renderEncoder.setRenderPipelineState(texturedPipeline)
+        renderEncoder.setFragmentTexture(texture, index: 0)
+        renderEncoder.setFragmentSamplerState(textureSamplerState, index: 0)
+      } else {
+        renderEncoder.setRenderPipelineState(litRenderPipelineState!)
+        renderEncoder.setFragmentTexture(nil, index: 0)
+        renderEncoder.setFragmentSamplerState(nil, index: 0)
       }
+      renderEncoder.setVertexBuffer(triangleBuffer.buffer, offset:0, index:0)
+      constants.colour = triangleBuffer.colour
+      renderEncoder.setVertexBytes(&constants, length: MemoryLayout<Constants>.size, index: 1)
+      renderEncoder.setFragmentBytes(&constants, length: MemoryLayout<Constants>.size, index: 0)
+      renderEncoder.drawIndexedPrimitives(type: .triangle, indexCount: triangleBuffer.indexCount, indexType: .uint32, indexBuffer: triangleBuffer.indexBuffer, indexBufferOffset: 0)
     }
-    
-    for triangleBuffer in triangleBuffers {
-      if triangleBuffer.colour.w != 1.0 {
-        renderEncoder.setVertexBuffer(triangleBuffer.buffer, offset:0, index:0)
-        constants.colour = triangleBuffer.colour
-        renderEncoder.setVertexBytes(&constants, length: MemoryLayout<Constants>.size, index: 1)
-        renderEncoder.setFragmentBytes(&constants, length: MemoryLayout<Constants>.size, index: 0)
-        renderEncoder.drawIndexedPrimitives(type: .triangle, indexCount: triangleBuffer.indexCount, indexType: .uint32, indexBuffer: triangleBuffer.indexBuffer, indexBufferOffset: 0)
-      }
+
+    for triangleBuffer in triangleBuffers where triangleBuffer.colour.w == 1.0 {
+      drawTriangleBuffer(triangleBuffer)
     }
-    
+
+    for triangleBuffer in triangleBuffers where triangleBuffer.colour.w != 1.0 {
+      drawTriangleBuffer(triangleBuffer)
+    }
+
     if viewEdges {
       renderEncoder.setRenderPipelineState(edgeRenderPipelineState!)
       if let visBuffer = visibleStateBuffer, visibleStateCount > 0 {
@@ -412,24 +593,24 @@ import MetalKit
       }
       renderEncoder.setRenderPipelineState(unlitRenderPipelineState!)
     }
-    
+
     if viewBoundingBox && boundingBoxBuffer != nil {
       renderEncoder.setVertexBuffer(boundingBoxBuffer, offset:0, index:0)
       constants.colour = isDarkMode ? SIMD4<Float>(1.0, 1.0, 1.0, 1.0) : SIMD4<Float>(0.0, 0.0, 0.0, 1.0)
       renderEncoder.setVertexBytes(&constants, length: MemoryLayout<Constants>.size, index: 1)
       renderEncoder.drawPrimitives(type: .line, vertexStart: 0, vertexCount: boundingBoxBuffer!.length/MemoryLayout<Vertex>.size)
     }
-   
+
     renderEncoder.endEncoding()
     let drawable = currentDrawable!
     commandBuffer.present(drawable)
     commandBuffer.commit()
   }
-  
+
   override func setFrameSize(_ newSize: NSSize) {
 //    Swift.print("MetalView.setFrameSize(NSSize)")
     super.setFrameSize(newSize)
-    
+
     CATransaction.begin()
     CATransaction.setDisableActions(true)
     dragOverlay?.frame = bounds
@@ -438,7 +619,7 @@ import MetalKit
     createMSAATextures(size: drawableSize)
     createPickingTextures()
     projectionMatrix = matrix4x4_perspective_shorter_dim(fieldOfView: fieldOfView, width: Float(bounds.size.width), height: Float(bounds.size.height), nearZ: 0.001, farZ: 100.0)
-    
+
     constants.modelViewProjectionMatrix = matrix_multiply(projectionMatrix, matrix_multiply(viewMatrix, modelMatrix))
     needsDisplay = true
     if let statusBar = controller?.statusBarView {
@@ -449,9 +630,9 @@ import MetalKit
       controller?.statusTextField?.frame = NSRect(x: barWidth - 188, y: 11, width: 180, height: 14)
     }
   }
-  
+
   @objc func depthAtCentre() -> Float {
-    
+
     let firstMinCoordinate = dataManager!.minCoordinates()
     let minCoordinatesBuffer = UnsafeBufferPointer(start: firstMinCoordinate, count: 3)
     let minCoordinatesArray = ContiguousArray(minCoordinatesBuffer)
@@ -518,7 +699,7 @@ import MetalKit
     constants.viewMatrixInverse = viewMatrix.inverse
     needsDisplay = true
   }
-  
+
   override func magnify(with event: NSEvent) {
     //    Swift.print("MetalView.magnify()")
     //    Swift.print("Pinched: \(event.magnification)")
@@ -526,32 +707,32 @@ import MetalKit
     fieldOfView = 2.0*atanf(tanf(0.5*fieldOfView)/magnification)
     //    Swift.print("Field of view: \(fieldOfView)")
     projectionMatrix = matrix4x4_perspective_shorter_dim(fieldOfView: fieldOfView, width: Float(bounds.size.width), height: Float(bounds.size.height), nearZ: 0.001, farZ: 100.0)
-    
+
     constants.modelViewProjectionMatrix = matrix_multiply(projectionMatrix, matrix_multiply(viewMatrix, modelMatrix))
     needsDisplay = true
   }
-  
+
   override func rotate(with event: NSEvent) {
     //    Swift.print("MetalView.rotate()")
     //    Swift.print("Rotation angle: \(event.rotation)")
-    
+
     let axisInCameraCoordinates = SIMD3<Float>(0.0, 0.0, 1.0)
     let cameraToObject = matrix_upper_left_3x3(matrix: matrix_multiply(viewMatrix, modelMatrix)).inverse
     let axisInObjectCoordinates = matrix_multiply(cameraToObject, axisInCameraCoordinates)
     modelRotationMatrix = matrix_multiply(modelRotationMatrix, matrix4x4_rotation(angle: 3.14159*event.rotation/180.0, axis: axisInObjectCoordinates))
     modelMatrix = matrix_multiply(matrix_multiply(modelShiftBackMatrix, modelRotationMatrix), modelTranslationToCentreOfRotationMatrix)
-    
+
     constants.modelMatrix = modelMatrix
     constants.modelViewProjectionMatrix = matrix_multiply(projectionMatrix, matrix_multiply(viewMatrix, modelMatrix))
     constants.modelMatrixInverseTransposed = matrix_upper_left_3x3(matrix: modelMatrix).inverse.transpose
     constants.viewMatrixInverse = viewMatrix.inverse
     needsDisplay = true
   }
-  
+
   override func mouseDragged(with event: NSEvent) {
     //    Swift.print("mouseDragged()")
     let viewFrameInWindowCoordinates = convert(bounds, to: nil)
-    
+
     // Compute the current and last mouse positions and their depth on a sphere
     let currentX: Float = Float(-1.0 + 2.0*(window!.mouseLocationOutsideOfEventStream.x-viewFrameInWindowCoordinates.origin.x) / bounds.size.width)
     let currentY: Float = Float(-1.0 + 2.0*(window!.mouseLocationOutsideOfEventStream.y-viewFrameInWindowCoordinates.origin.y) / bounds.size.height)
@@ -566,7 +747,7 @@ import MetalKit
     if currentPosition.x == lastPosition.x && currentPosition.y == lastPosition.y && currentPosition.z == lastPosition.z {
       return
     }
-    
+
     // Compute the angle between the two and use it to move in camera space
     let angle = acos(dot(lastPosition, currentPosition))
     if !angle.isNaN && angle > 0.0 {
@@ -575,7 +756,7 @@ import MetalKit
       let axisInObjectCoordinates = matrix_multiply(cameraToObject, axisInCameraCoordinates)
       modelRotationMatrix = matrix_multiply(modelRotationMatrix, matrix4x4_rotation(angle: angle, axis: axisInObjectCoordinates))
       modelMatrix = matrix_multiply(matrix_multiply(modelShiftBackMatrix, modelRotationMatrix), modelTranslationToCentreOfRotationMatrix)
-      
+
       constants.modelMatrix = modelMatrix
       constants.modelViewProjectionMatrix = matrix_multiply(projectionMatrix, matrix_multiply(viewMatrix, modelMatrix))
       constants.modelMatrixInverseTransposed = matrix_upper_left_3x3(matrix: modelMatrix).inverse.transpose
@@ -585,21 +766,21 @@ import MetalKit
       //      Swift.print("NaN!")
     }
   }
-  
+
   override func rightMouseDragged(with event: NSEvent) {
     //    Swift.print("MetalView.rightMouseDragged()")
     //    Swift.print("Delta: (\(event.deltaX), \(event.deltaY))")
-    
+
     let zoomSensitivity: Float = 0.005
     let magnification: Float = 1.0+zoomSensitivity*Float(event.deltaY)
     fieldOfView = 2.0*atanf(tanf(0.5*fieldOfView)/magnification)
     //    Swift.print("Field of view: \(fieldOfView)")
     projectionMatrix = matrix4x4_perspective_shorter_dim(fieldOfView: fieldOfView, width: Float(bounds.size.width), height: Float(bounds.size.height), nearZ: 0.001, farZ: 100.0)
-    
+
     constants.modelViewProjectionMatrix = matrix_multiply(projectionMatrix, matrix_multiply(viewMatrix, modelMatrix))
     needsDisplay = true
   }
-  
+
   override func mouseUp(with event: NSEvent) {
     //    Swift.print("MetalView.mouseUp()")
     switch event.clickCount {
@@ -612,47 +793,47 @@ import MetalKit
       break
     }
   }
-  
+
   func click(with event: NSEvent) {
     Swift.print("MetalView.click()")
     let startTime = CACurrentMediaTime()
     dataManager!.click()
     Swift.print("Click computed in \(CACurrentMediaTime()-startTime) seconds.")
   }
-  
+
   func doubleClick(with event: NSEvent) {
         Swift.print("MetalView.doubleClick()")
     //    Swift.print("Mouse location X: \(window!.mouseLocationOutsideOfEventStream.x), Y: \(window!.mouseLocationOutsideOfEventStream.y)")
     let viewFrameInWindowCoordinates = convert(bounds, to: nil)
     //    Swift.print("View X: \(viewFrameInWindowCoordinates.origin.x), Y: \(viewFrameInWindowCoordinates.origin.y)")
-    
+
     // Compute the current mouse position
     let currentX: Float = Float(-1.0 + 2.0*(window!.mouseLocationOutsideOfEventStream.x-viewFrameInWindowCoordinates.origin.x) / bounds.size.width)
     let currentY: Float = Float(-1.0 + 2.0*(window!.mouseLocationOutsideOfEventStream.y-viewFrameInWindowCoordinates.origin.y) / bounds.size.height)
     //    Swift.print("currentX: \(currentX), currentY: \(currentY)")
-    
+
     // Compute two points on the ray represented by the mouse position at the near and far planes
     let mvpInverse = matrix_multiply(projectionMatrix, matrix_multiply(viewMatrix, modelMatrix)).inverse
     let pointOnNearPlaneInProjectionCoordinates = SIMD4<Float>(currentX, currentY, -1.0, 1.0)
     let pointOnNearPlaneInObjectCoordinates = matrix_multiply(mvpInverse, pointOnNearPlaneInProjectionCoordinates)
     let pointOnFarPlaneInProjectionCoordinates = SIMD4<Float>(currentX, currentY, 1.0, 1.0)
     let pointOnFarPlaneInObjectCoordinates = matrix_multiply(mvpInverse, pointOnFarPlaneInProjectionCoordinates)
-    
+
     // Interpolate the points to obtain the intersection with the data plane z = 0
     let alpha: Float = -(pointOnFarPlaneInObjectCoordinates.z/pointOnFarPlaneInObjectCoordinates.w)/((pointOnNearPlaneInObjectCoordinates.z/pointOnNearPlaneInObjectCoordinates.w)-(pointOnFarPlaneInObjectCoordinates.z/pointOnFarPlaneInObjectCoordinates.w))
     let clickedPointInObjectCoordinates = SIMD4<Float>(alpha*(pointOnNearPlaneInObjectCoordinates.x/pointOnNearPlaneInObjectCoordinates.w)+(1.0-alpha)*(pointOnFarPlaneInObjectCoordinates.x/pointOnFarPlaneInObjectCoordinates.w), alpha*(pointOnNearPlaneInObjectCoordinates.y/pointOnNearPlaneInObjectCoordinates.w)+(1.0-alpha)*(pointOnFarPlaneInObjectCoordinates.y/pointOnFarPlaneInObjectCoordinates.w), 0.0, 1.0)
-    
+
     // Use the intersection to compute the shift in the view space
     let objectToCamera = matrix_multiply(viewMatrix, modelMatrix)
     let clickedPointInCameraCoordinates = matrix_multiply(objectToCamera, clickedPointInObjectCoordinates)
-    
+
     // Compute shift in object space
     let shiftInCameraCoordinates = SIMD3<Float>(-clickedPointInCameraCoordinates.x, -clickedPointInCameraCoordinates.y, 0.0)
     var cameraToObject = matrix_upper_left_3x3(matrix: objectToCamera).inverse
     let shiftInObjectCoordinates = matrix_multiply(cameraToObject, shiftInCameraCoordinates)
     modelTranslationToCentreOfRotationMatrix = matrix_multiply(modelTranslationToCentreOfRotationMatrix, matrix4x4_translation(shift: shiftInObjectCoordinates))
     modelMatrix = matrix_multiply(matrix_multiply(modelShiftBackMatrix, modelRotationMatrix), modelTranslationToCentreOfRotationMatrix)
-    
+
     // Correct shift so that the point of rotation remains at the same depth as the data
     cameraToObject = matrix_upper_left_3x3(matrix: matrix_multiply(viewMatrix, modelMatrix)).inverse
     let depthOffset = 1.0+depthAtCentre()
@@ -660,32 +841,32 @@ import MetalKit
     let depthOffsetInObjectCoordinates = matrix_multiply(cameraToObject, depthOffsetInCameraCoordinates)
     modelTranslationToCentreOfRotationMatrix = matrix_multiply(modelTranslationToCentreOfRotationMatrix, matrix4x4_translation(shift: depthOffsetInObjectCoordinates))
     modelMatrix = matrix_multiply(matrix_multiply(modelShiftBackMatrix, modelRotationMatrix), modelTranslationToCentreOfRotationMatrix)
-    
+
     // Put model matrix in arrays and render
     constants.modelMatrix = modelMatrix
     constants.modelViewProjectionMatrix = matrix_multiply(projectionMatrix, matrix_multiply(viewMatrix, modelMatrix))
     constants.modelMatrixInverseTransposed = matrix_upper_left_3x3(matrix: modelMatrix).inverse.transpose
     needsDisplay = true
   }
-  
+
   func goHome() {
-    
+
     fieldOfView = 1.047197551196598
-    
+
     modelTranslationToCentreOfRotationMatrix = matrix_identity_float4x4
     modelRotationMatrix = matrix_identity_float4x4
     modelShiftBackMatrix = matrix4x4_translation(shift: centre)
     modelMatrix = matrix_multiply(matrix_multiply(modelShiftBackMatrix, modelRotationMatrix), modelTranslationToCentreOfRotationMatrix)
     viewMatrix = matrix4x4_look_at(eye: eye, centre: centre, up: SIMD3<Float>(0.0, 1.0, 0.0))
     projectionMatrix = matrix4x4_perspective_shorter_dim(fieldOfView: fieldOfView, width: Float(bounds.size.width), height: Float(bounds.size.height), nearZ: 0.001, farZ: 100.0)
-    
+
     constants.modelMatrix = modelMatrix
     constants.modelViewProjectionMatrix = matrix_multiply(projectionMatrix, matrix_multiply(viewMatrix, modelMatrix))
     constants.modelMatrixInverseTransposed = matrix_upper_left_3x3(matrix: modelMatrix).inverse.transpose
     constants.viewMatrixInverse = viewMatrix.inverse
     needsDisplay = true
   }
-  
+
   @objc func pickObjectAtX(_ windowX: CGFloat, y windowY: CGFloat) -> Int32 {
     guard let pipeline = pickingRenderPipelineState else {
       Swift.print("pickObject: no pipeline")
@@ -703,7 +884,7 @@ import MetalKit
       Swift.print("pickObject: no triangle buffers")
       return -1
     }
-    
+
     let viewFrameInWindow = convert(bounds, to: nil)
     let viewX = windowX - viewFrameInWindow.origin.x
     let viewY = windowY - viewFrameInWindow.origin.y
@@ -715,9 +896,9 @@ import MetalKit
       Swift.print("pickObject: pixel out of bounds: \(pixelX), \(pixelY) (tex: \(colorTex.width)x\(colorTex.height))")
       return -1
     }
-    
+
     let commandBuffer = commandQueue!.makeCommandBuffer()!
-    
+
     let passDescriptor = MTLRenderPassDescriptor()
     passDescriptor.colorAttachments[0].texture = colorTex
     passDescriptor.colorAttachments[0].loadAction = .clear
@@ -727,7 +908,7 @@ import MetalKit
     passDescriptor.depthAttachment.loadAction = .clear
     passDescriptor.depthAttachment.storeAction = .dontCare
     passDescriptor.depthAttachment.clearDepth = 1.0
-    
+
     let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: passDescriptor)!
     encoder.setRenderPipelineState(pipeline)
     encoder.setFrontFacing(.counterClockwise)
@@ -743,14 +924,14 @@ import MetalKit
       var one: Float = 1
       encoder.setFragmentBytes(&one, length: MemoryLayout<Float>.size, index: 2)
     }
-    
+
     for triangleBuffer in triangleBuffers {
       encoder.setVertexBuffer(triangleBuffer.buffer, offset: 0, index: 0)
       encoder.drawIndexedPrimitives(type: .triangle, indexCount: triangleBuffer.indexCount, indexType: .uint32, indexBuffer: triangleBuffer.indexBuffer, indexBufferOffset: 0)
     }
-    
+
     encoder.endEncoding()
-    
+
     let stagingBuffer = device!.makeBuffer(length: 4, options: .storageModeShared)!
     let blitEncoder = commandBuffer.makeBlitCommandEncoder()!
     blitEncoder.copy(from: colorTex, sourceSlice: 0, sourceLevel: 0,
@@ -759,16 +940,16 @@ import MetalKit
                      to: stagingBuffer, destinationOffset: 0,
                      destinationBytesPerRow: 4, destinationBytesPerImage: 4)
     blitEncoder.endEncoding()
-    
+
     commandBuffer.commit()
     commandBuffer.waitUntilCompleted()
-    
+
     let pixelValue = stagingBuffer.contents().load(as: UInt32.self)
     let result: Int32 = pixelValue == 0 ? -1 : Int32(bitPattern: pixelValue) - 1
     Swift.print("pickObject: pixelValue=\(pixelValue) result=\(result)")
     return result
   }
-  
+
   @objc func updateVisibleStateBuffer(_ data: Data) {
     visibleStateCount = data.count / MemoryLayout<Float>.size
     guard visibleStateCount > 0 else {
@@ -785,7 +966,7 @@ import MetalKit
       }
     }
   }
-  
+
   @objc func updateSelectionStateBuffer(_ data: Data) {
     selectionStateCount = data.count / MemoryLayout<Float>.size
     guard selectionStateCount > 0 else {
@@ -802,29 +983,31 @@ import MetalKit
       }
     }
   }
-  
+
   func new() {
-    
+
     triangleBuffers.removeAll()
     edgeBuffers.removeAll()
-    
+    loadedTextures.removeAll()
+    clearFailedTexturePaths()
+
     fieldOfView = 1.047197551196598
-    
+
     modelTranslationToCentreOfRotationMatrix = matrix_identity_float4x4
     modelRotationMatrix = matrix_identity_float4x4
     modelShiftBackMatrix = matrix4x4_translation(shift: centre)
     modelMatrix = matrix_multiply(matrix_multiply(modelShiftBackMatrix, modelRotationMatrix), modelTranslationToCentreOfRotationMatrix)
     viewMatrix = matrix4x4_look_at(eye: eye, centre: centre, up: SIMD3<Float>(0.0, 1.0, 0.0))
     projectionMatrix = matrix4x4_perspective_shorter_dim(fieldOfView: fieldOfView, width: Float(bounds.size.width), height: Float(bounds.size.height), nearZ: 0.001, farZ: 100.0)
-    
+
     constants.modelMatrix = modelMatrix
     constants.modelViewProjectionMatrix = matrix_multiply(projectionMatrix, matrix_multiply(viewMatrix, modelMatrix))
     constants.modelMatrixInverseTransposed = matrix_upper_left_3x3(matrix: modelMatrix).inverse.transpose
     constants.viewMatrixInverse = viewMatrix.inverse
-    
+
     needsDisplay = true
   }
-  
+
   override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
     let acceptedFileTypes: Set = ["gml", "xml", "json", "jsonl", "obj", "off", "poly"]
     if let urls = sender.draggingPasteboard.readObjects(forClasses: [NSURL.self], options: [:]) as? [URL] {
@@ -837,11 +1020,11 @@ import MetalKit
     }
     return [];
   }
-  
+
   override func draggingExited(_ sender: NSDraggingInfo?) {
     dragOverlay?.isHidden = true
   }
-  
+
   override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
     dragOverlay?.isHidden = true
     if let urls = sender.draggingPasteboard.readObjects(forClasses: [NSURL.self], options: [:]) as? [URL] {
@@ -849,10 +1032,10 @@ import MetalKit
     }
     return true
   }
-  
+
   override func keyDown(with event: NSEvent) {
 //    Swift.print(event.charactersIgnoringModifiers![(event.charactersIgnoringModifiers?.startIndex)!])
-    
+
     switch event.charactersIgnoringModifiers![(event.charactersIgnoringModifiers?.startIndex)!] {
     case "b":
       controller!.toggleViewBoundingBox(controller!.toggleViewBoundingBoxMenuItem)
@@ -876,5 +1059,5 @@ import MetalKit
       break
     }
   }
-  
+
 }

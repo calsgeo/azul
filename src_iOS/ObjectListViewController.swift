@@ -151,6 +151,7 @@ extension ObjectListViewController: UITableViewDataSource, UITableViewDelegate {
         let item = filteredFlatItems[indexPath.row]
 
         let typeName = dataManager.type(ofItem: item) ?? ""
+        let displayTypeName = dataManager.displayType(ofItem: item) ?? typeName
         let identifier = dataManager.identifier(ofItem: item) ?? ""
         let hasChildren = dataManager.isItemExpandable(item)
         let visible = dataManager.visibleState(ofItem: item)
@@ -169,7 +170,7 @@ extension ObjectListViewController: UITableViewDataSource, UITableViewDelegate {
             }
         }
 
-        var displayText = typeName
+        var displayText = displayTypeName
         if !identifier.isEmpty {
             displayText += " — \(identifier)"
         }

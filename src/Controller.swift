@@ -30,6 +30,9 @@ struct ViewParameters: Codable {
   var projectionMatrix: [Float]
   var viewEdges: Bool
   var viewBoundingBox: Bool
+  var showTextures: Bool?
+  var showAppearances: Bool?
+  var appearanceTheme: String?
 }
 
 class SearchFieldDelegate: NSObject, NSSearchFieldDelegate {
@@ -64,6 +67,8 @@ extension NSToolbarItem.Identifier {
   static let lodSelector = NSToolbarItem.Identifier("azul.lodSelector")
   static let search = NSToolbarItem.Identifier("azul.search")
   static let toggleEdges = NSToolbarItem.Identifier("azul.toggleEdges")
+  static let toggleAppearances = NSToolbarItem.Identifier("azul.toggleAppearances")
+  static let appearanceThemeSelector = NSToolbarItem.Identifier("azul.appearanceThemeSelector")
 }
 
 @main
@@ -76,6 +81,9 @@ extension NSToolbarItem.Identifier {
   @objc var lodSegmentedControl: NSSegmentedControl?
   @objc var lodToolbarItem: NSToolbarItem?
   @objc var toggleEdgesToolbarItem: NSToolbarItem?
+  @objc var toggleAppearancesToolbarItem: NSToolbarItem?
+  @objc var appearanceThemePopUpButton: NSPopUpButton?
+  @objc var appearanceThemeToolbarItem: NSToolbarItem?
   var objectsScrollView: NSScrollView?
   var objectsClipView: NSClipView?
   @objc var objectsSourceList: OutlineView?
@@ -92,6 +100,7 @@ extension NSToolbarItem.Identifier {
   
   @objc var metalView: MetalView?
   var openFiles = Set<URL>()
+  var retainedSecurityScopedURLs = [String: URL]()
   
   @IBOutlet weak var toggleViewEdgesMenuItem: NSMenuItem!
   @IBOutlet weak var toggleViewBoundingBoxMenuItem: NSMenuItem!
@@ -105,7 +114,9 @@ extension NSToolbarItem.Identifier {
   @IBOutlet weak var saveViewParametersMenuItem: NSMenuItem!
   @IBOutlet weak var toggleFullScreenMenuItem: NSMenuItem!
   var lodMenuItem: NSMenuItem?
+  var showAppearancesMenuItem: NSMenuItem?
   var currentLodFilter: String = "__highest__"
+  var currentAppearanceTheme: String = ""
   
   let dataManager = DataManagerWrapperWrapper()!
   let performanceHelper = PerformanceHelperWrapperWrapper()!
@@ -115,6 +126,7 @@ extension NSToolbarItem.Identifier {
   var preferencesWindow: NSWindow?
   var colourTypeWells: [NSColorWell] = []
   var colourTypeNames: [String] = []
+  let showAppearancesDefaultsKey = "azulShowAppearances"
 
   func applicationDidFinishLaunching(_ aNotification: Notification) {
     Swift.print("Controller.applicationDidFinishLaunching(Notification)")
@@ -123,7 +135,7 @@ extension NSToolbarItem.Identifier {
     leftSplitView!.dividerStyle = .thin
     
     objectsScrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 200, height: 474))
-    objectsScrollView!.translatesAutoresizingMaskIntoConstraints = false
+    objectsScrollView!.translatesAutoresizingMaskIntoConstraints = true
     objectsScrollView!.hasVerticalScroller = true
     objectsScrollView!.hasHorizontalScroller = false
     objectsScrollView!.horizontalScrollElasticity = .none
@@ -155,7 +167,7 @@ extension NSToolbarItem.Identifier {
     objectsSourceList!.outlineTableColumn = objectsSourceListColumn
     
     attributesScrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 200, height: 126))
-    attributesScrollView!.translatesAutoresizingMaskIntoConstraints = false
+    attributesScrollView!.translatesAutoresizingMaskIntoConstraints = true
     attributesScrollView!.hasVerticalScroller = true
     attributesScrollView!.hasHorizontalScroller = false
     attributesScrollView!.horizontalScrollElasticity = .none
@@ -180,15 +192,6 @@ extension NSToolbarItem.Identifier {
     attributeValuesColumn!.resizingMask = .autoresizingMask
     attributesTableView!.addTableColumn(attributeNamesColumn!)
     attributesTableView!.addTableColumn(attributeValuesColumn!)
-    
-    // Only constrain the unmanaged axis (horizontal). NSSplitView handles vertical internally.
-    NSLayoutConstraint.activate([
-      objectsScrollView!.leadingAnchor.constraint(equalTo: leftSplitView!.leadingAnchor),
-      objectsScrollView!.trailingAnchor.constraint(equalTo: leftSplitView!.trailingAnchor),
-      
-      attributesScrollView!.leadingAnchor.constraint(equalTo: leftSplitView!.leadingAnchor),
-      attributesScrollView!.trailingAnchor.constraint(equalTo: leftSplitView!.trailingAnchor),
-    ])
     
     DispatchQueue.main.async {
       self.leftSplitView?.setPosition(474, ofDividerAt: 0)
@@ -308,29 +311,101 @@ extension NSToolbarItem.Identifier {
   }
   
   func setupViewMenu() {
-    guard let mainMenu = NSApp.mainMenu else { return }
-    for item in mainMenu.items {
-      guard item.title == "View", let viewMenu = item.submenu else { continue }
-      let lodMenuItem = NSMenuItem(title: "Level of Detail", action: nil, keyEquivalent: "")
+    guard let viewMenu = resolvedViewMenu() else { return }
+    let edgesIndex = max(viewMenu.index(of: toggleViewEdgesMenuItem), 0)
+
+    if lodMenuItem == nil {
+      lodMenuItem = NSMenuItem(title: "Level of Detail", action: nil, keyEquivalent: "")
       let lodSubmenu = NSMenu(title: "Level of Detail")
       let placeholder = NSMenuItem(title: "None", action: nil, keyEquivalent: "")
       placeholder.isEnabled = false
       lodSubmenu.addItem(placeholder)
-      lodMenuItem.submenu = lodSubmenu
-      viewMenu.insertItem(lodMenuItem, at: 2)
-      self.lodMenuItem = lodMenuItem
-      break
+      lodMenuItem?.submenu = lodSubmenu
+    }
+    if let lodMenuItem = lodMenuItem, lodMenuItem.menu !== viewMenu {
+      if lodMenuItem.menu != nil { lodMenuItem.menu?.removeItem(lodMenuItem) }
+      viewMenu.insertItem(lodMenuItem, at: min(edgesIndex, viewMenu.items.count))
+    }
+
+    if showAppearancesMenuItem == nil {
+      let appearancesItem = NSMenuItem(title: "Show Appearances", action: #selector(toggleShowAppearances(_:)), keyEquivalent: "")
+      appearancesItem.target = self
+      showAppearancesMenuItem = appearancesItem
+    }
+    if let showAppearancesMenuItem = showAppearancesMenuItem, showAppearancesMenuItem.menu !== viewMenu {
+      if showAppearancesMenuItem.menu != nil { showAppearancesMenuItem.menu?.removeItem(showAppearancesMenuItem) }
+      let lodIndex = max(viewMenu.index(of: lodMenuItem!), 0)
+      viewMenu.insertItem(showAppearancesMenuItem, at: min(lodIndex+1, viewMenu.items.count))
+    }
+    updateAppearanceUIState()
+  }
+
+  func resolvedViewMenu() -> NSMenu? {
+    if let directMenu = toggleViewEdgesMenuItem.menu { return directMenu }
+    guard let mainMenu = NSApp.mainMenu else { return nil }
+    for topLevelItem in mainMenu.items {
+      guard let submenu = topLevelItem.submenu else { continue }
+      if submenu.items.contains(where: { $0.action == #selector(toggleViewEdges(_:)) }) {
+        return submenu
+      }
+    }
+    return nil
+  }
+
+  func updateAppearanceUIState() {
+    let appearancesEnabled = metalView?.showTextures == true
+    showAppearancesMenuItem?.state = appearancesEnabled ? .on : .off
+    toggleAppearancesToolbarItem?.image = NSImage(systemSymbolName: appearancesEnabled ? "photo.fill" : "photo", accessibilityDescription: "Toggle appearances")
+    toggleAppearancesToolbarItem?.toolTip = appearancesEnabled ? "Hide appearances" : "Show appearances"
+  }
+
+  func updateAppearanceThemeOptions() {
+    guard let popUpButton = appearanceThemePopUpButton else { return }
+    let themes = dataManager.availableAppearanceThemes() ?? []
+    let sortedThemes = themes.sorted()
+    let previousTheme = currentAppearanceTheme
+    popUpButton.removeAllItems()
+    if sortedThemes.isEmpty {
+      popUpButton.addItem(withTitle: "No themes")
+      popUpButton.isEnabled = false
+      appearanceThemeToolbarItem?.isEnabled = false
+      currentAppearanceTheme = ""
+      "".withCString { pointer in
+        dataManager.setAppearanceTheme(pointer)
+      }
+      return
+    }
+    popUpButton.isEnabled = true
+    appearanceThemeToolbarItem?.isEnabled = true
+    popUpButton.addItem(withTitle: "All themes")
+    for theme in sortedThemes {
+      popUpButton.addItem(withTitle: theme)
+    }
+    if previousTheme.isEmpty {
+      currentAppearanceTheme = ""
+      popUpButton.selectItem(withTitle: "All themes")
+    } else if sortedThemes.contains(currentAppearanceTheme) {
+      popUpButton.selectItem(withTitle: currentAppearanceTheme)
+    } else {
+      currentAppearanceTheme = ""
+      popUpButton.selectItem(withTitle: "All themes")
+    }
+    currentAppearanceTheme.withCString { pointer in
+      dataManager.setAppearanceTheme(pointer)
+    }
+    if previousTheme != currentAppearanceTheme && metalView?.showTextures == true {
+      refreshAppearanceRendering(requestAuthorization: false)
     }
   }
   
   // MARK: - NSToolbarDelegate
   
   func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-    return [.toggleEdges, .lodSelector, .flexibleSpace, .search]
+    return [.toggleEdges, .toggleAppearances, .appearanceThemeSelector, .lodSelector, .flexibleSpace, .search]
   }
 
   func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-    return [.toggleEdges, .lodSelector, .search]
+    return [.toggleEdges, .toggleAppearances, .appearanceThemeSelector, .lodSelector, .search, .flexibleSpace]
   }
   
   func toolbar(_ toolbar: NSToolbar, itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier, willBeInsertedIntoToolbar flag: Bool) -> NSToolbarItem? {
@@ -344,6 +419,32 @@ extension NSToolbarItem.Identifier {
       item.action = #selector(toggleViewEdges(_:))
       item.isBordered = true
       toggleEdgesToolbarItem = item
+      return item
+
+    case .toggleAppearances:
+      let item = NSToolbarItem(itemIdentifier: itemIdentifier)
+      let appearancesOn = metalView?.showTextures ?? false
+      item.image = NSImage(systemSymbolName: appearancesOn ? "photo.fill" : "photo", accessibilityDescription: "Toggle appearances")
+      item.label = "Appearances"
+      item.target = self
+      item.action = #selector(toggleShowAppearances(_:))
+      item.isBordered = true
+      item.toolTip = appearancesOn ? "Hide appearances" : "Show appearances"
+      toggleAppearancesToolbarItem = item
+      return item
+
+    case .appearanceThemeSelector:
+      let item = NSToolbarItem(itemIdentifier: itemIdentifier)
+      let popUpButton = NSPopUpButton(frame: NSRect(x: 0, y: 0, width: 170, height: 26), pullsDown: false)
+      popUpButton.target = self
+      popUpButton.action = #selector(appearanceThemeChanged(_:))
+      item.view = popUpButton
+      item.label = "Appearance Theme"
+      item.minSize = NSSize(width: 140, height: 26)
+      item.maxSize = NSSize(width: 260, height: 26)
+      appearanceThemePopUpButton = popUpButton
+      appearanceThemeToolbarItem = item
+      updateAppearanceThemeOptions()
       return item
 
     case .lodSelector:
@@ -380,10 +481,17 @@ extension NSToolbarItem.Identifier {
     metalView!.new()
     objectsSourceList!.reloadData()
     attributesTableView!.reloadData()
+    releaseAllRetainedSecurityScopes()
     openFiles = Set<URL>()
     self.window.representedURL = nil
     self.window.title = "azul"
     self.statusBarView?.isHidden = true
+    currentAppearanceTheme = ""
+    metalView?.showTextures = false
+    dataManager.setUseAppearances(false)
+    dataManager.setAppearanceTheme("")
+    updateAppearanceThemeOptions()
+    updateAppearanceUIState()
     self.updateLodSegments()
   }
   
@@ -437,6 +545,54 @@ extension NSToolbarItem.Identifier {
     }
     metalView!.needsDisplay = true
   }
+
+  @objc func refreshAppearanceRendering(requestAuthorization: Bool) {
+    guard let metalView = metalView else { return }
+    let appearancesEnabled = metalView.showTextures
+    dataManager.setUseAppearances(appearancesEnabled)
+    currentAppearanceTheme.withCString { pointer in
+      dataManager.setAppearanceTheme(pointer)
+    }
+    dataManager.regenerateTriangleBuffers(withMaximumSize: 16*1024*1024)
+    reloadTriangleBuffers()
+    updateVisibleStateBuffer()
+    updateSelectionStateBuffer()
+    if appearancesEnabled {
+      metalView.clearFailedTexturePaths()
+      metalView.primeTexturesForCurrentBuffers()
+      if requestAuthorization {
+        let sourceURL = window.representedURL ?? openFiles.first
+        if let sourceURL {
+          requestTextureDirectoryAccessIfNeeded(for: sourceURL)
+        }
+      }
+    } else {
+      metalView.clearFailedTexturePaths()
+    }
+    objectsSourceList?.reloadData()
+    metalView.needsDisplay = true
+  }
+
+  @IBAction func toggleShowAppearances(_ sender: Any) {
+    metalView!.showTextures.toggle()
+    if let menuItem = sender as? NSMenuItem {
+      menuItem.state = metalView!.showTextures ? .on : .off
+    }
+    UserDefaults.standard.set(metalView!.showTextures, forKey: showAppearancesDefaultsKey)
+    updateAppearanceUIState()
+    refreshAppearanceRendering(requestAuthorization: metalView!.showTextures)
+  }
+
+  @objc func appearanceThemeChanged(_ sender: NSPopUpButton) {
+    guard let selectedTheme = sender.selectedItem?.title, selectedTheme != "No themes" else { return }
+    currentAppearanceTheme = selectedTheme == "All themes" ? "" : selectedTheme
+    currentAppearanceTheme.withCString { pointer in
+      dataManager.setAppearanceTheme(pointer)
+    }
+    if metalView?.showTextures == true {
+      refreshAppearanceRendering(requestAuthorization: true)
+    }
+  }
   
   @IBAction func goHome(_ sender: NSMenuItem) {
     metalView!.goHome()
@@ -455,12 +611,113 @@ extension NSToolbarItem.Identifier {
     guard let searchField = searchField else { return }
     window.makeFirstResponder(searchField)
   }
+
+  @discardableResult
+  func retainSecurityScopeIfAvailable(for fileURL: URL) -> Bool {
+    guard fileURL.isFileURL else { return false }
+    let standardizedURL = fileURL.standardizedFileURL
+    let path = standardizedURL.path
+    if retainedSecurityScopedURLs[path] != nil {
+      return true
+    }
+    guard standardizedURL.startAccessingSecurityScopedResource() else {
+      return false
+    }
+    retainedSecurityScopedURLs[path] = standardizedURL
+    return true
+  }
+
+  func retainSecurityScopes(for fileURL: URL) {
+    guard fileURL.isFileURL else { return }
+    var seenPaths = Set<String>()
+    let candidates = [fileURL.standardizedFileURL, fileURL.deletingLastPathComponent().standardizedFileURL]
+    for candidate in candidates {
+      let path = candidate.path
+      if seenPaths.contains(path) { continue }
+      seenPaths.insert(path)
+      _ = retainSecurityScopeIfAvailable(for: candidate)
+    }
+  }
+
+  func hasRetainedSecurityScope(for fileURL: URL) -> Bool {
+    retainedSecurityScopedURLs[fileURL.standardizedFileURL.path] != nil
+  }
+
+  func releaseAllRetainedSecurityScopes() {
+    for scopedURL in retainedSecurityScopedURLs.values {
+      scopedURL.stopAccessingSecurityScopedResource()
+    }
+    retainedSecurityScopedURLs.removeAll()
+  }
+
+  func promptForTextureDirectoryAccess(requestedDirectory: URL, sourceURL: URL) -> URL? {
+    let openPanel = NSOpenPanel()
+    openPanel.allowsMultipleSelection = false
+    openPanel.canChooseDirectories = true
+    openPanel.canChooseFiles = false
+    openPanel.directoryURL = requestedDirectory
+    openPanel.prompt = "Allow"
+    openPanel.message = "azul needs access to texture files for \(sourceURL.lastPathComponent). Select the texture directory."
+    guard openPanel.runModal() == .OK else { return nil }
+    return openPanel.url
+  }
+
+  func requestTextureDirectoryAccessIfNeeded(for sourceURL: URL) {
+    guard let metalView = metalView else { return }
+    var deniedDirectories = Set(metalView.consumePermissionDeniedTextureDirectories())
+    if deniedDirectories.isEmpty {
+      deniedDirectories.formUnion(metalView.failedTextureDirectories())
+    }
+    guard !deniedDirectories.isEmpty else { return }
+
+    var grantedNewAccess = false
+    for deniedDirectory in deniedDirectories.sorted() {
+      let deniedDirectoryURL = URL(fileURLWithPath: deniedDirectory)
+      if hasRetainedSecurityScope(for: deniedDirectoryURL) {
+        continue
+      }
+      Swift.print("Texture directory access missing (\(sourceURL.lastPathComponent)): \(deniedDirectory)")
+      guard let selectedDirectoryURL = promptForTextureDirectoryAccess(requestedDirectory: deniedDirectoryURL, sourceURL: sourceURL) else {
+        Swift.print("Texture directory access not granted for: \(deniedDirectory)")
+        continue
+      }
+      if retainSecurityScopeIfAvailable(for: selectedDirectoryURL) {
+        Swift.print("Texture directory access granted: \(selectedDirectoryURL.path)")
+        grantedNewAccess = true
+      } else {
+        Swift.print("Texture directory access still unavailable: \(selectedDirectoryURL.path)")
+      }
+    }
+
+    if grantedNewAccess {
+      metalView.clearFailedTexturePaths()
+      metalView.primeTexturesForCurrentBuffers()
+      metalView.needsDisplay = true
+    }
+  }
+
+  func logTextureDiagnostics(for sourceURL: URL) {
+    guard let metalView = metalView else { return }
+    let totalBuffers = metalView.triangleBuffers.count
+    let texturedPaths = metalView.triangleBuffers.compactMap { $0.texturePath.isEmpty ? nil : $0.texturePath }
+    let uniquePaths = Array(Set(texturedPaths)).sorted()
+    Swift.print("Texture diagnostics (\(sourceURL.lastPathComponent)): textured buffers \(texturedPaths.count)/\(totalBuffers), unique textures \(uniquePaths.count)")
+    if !uniquePaths.isEmpty {
+      let samples = Array(uniquePaths.prefix(3)).joined(separator: " | ")
+      Swift.print("Texture samples (\(sourceURL.lastPathComponent)): \(samples)")
+    }
+  }
   
   func loadData(from urls: [URL]) {
     guard metalView != nil else {
       pendingURLs.append(contentsOf: urls)
       Swift.print("Deferred loading until after setup: \(urls)")
       return
+    }
+    metalView?.clearFailedTexturePaths()
+    dataManager.setUseAppearances(metalView?.showTextures == true)
+    currentAppearanceTheme.withCString { pointer in
+      dataManager.setAppearanceTheme(pointer)
     }
     self.performanceHelper.startTimer()
     
@@ -499,6 +756,8 @@ extension NSToolbarItem.Identifier {
           }
           continue
         }
+
+        self.retainSecurityScopes(for: url)
         
         Swift.print("Loading " + url.path + "...")
         DispatchQueue.main.async {
@@ -588,6 +847,12 @@ extension NSToolbarItem.Identifier {
         
         Swift.print("Loading triangle buffers...")
         self.reloadTriangleBuffers()
+        self.logTextureDiagnostics(for: url)
+        if self.metalView?.showTextures == true {
+          DispatchQueue.main.sync {
+            self.metalView?.primeTexturesForCurrentBuffers()
+          }
+        }
         self.updateVisibleStateBuffer()
         self.updateSelectionStateBuffer()
         self.performanceHelper.printTimeSpent()
@@ -651,6 +916,7 @@ extension NSToolbarItem.Identifier {
                 self.statusBarView?.alphaValue = 1
               }
             }
+            self.updateAppearanceThemeOptions()
             self.updateLodSegments()
           }
         }
@@ -764,6 +1030,16 @@ extension NSToolbarItem.Identifier {
       let bufferColourBuffer = UnsafeBufferPointer(start: firstBufferColourComponent, count: 4)
       let bufferColourArray = ContiguousArray(bufferColourBuffer)
       let bufferColour = SIMD4<Float>(bufferColourArray[0], bufferColourArray[1], bufferColourArray[2], bufferColourArray[3])
+
+      var textureURIlength: Int = 0
+      let textureURI: String
+      if let firstCharacterOfTextureURI = self.dataManager.currentTriangleBufferTextureURI(withLength: &textureURIlength),
+         textureURIlength > 0 {
+        let textureURIData = Data(bytes: firstCharacterOfTextureURI, count: textureURIlength*MemoryLayout<Int8>.size)
+        textureURI = String(data: textureURIData, encoding: .utf8) ?? ""
+      } else {
+        textureURI = ""
+      }
       
       var vertexBufferSize: Int = 0
       let vertexBuffer = self.dataManager.currentTriangleBuffer(withSize: &vertexBufferSize)
@@ -778,7 +1054,8 @@ extension NSToolbarItem.Identifier {
                                                                 indexBuffer: indexMTLBuffer,
                                                                 indexCount: indexBufferSize / MemoryLayout<UInt32>.size,
                                                                 type: bufferType,
-                                                                colour: bufferColour))
+                                                                colour: bufferColour,
+                                                                texturePath: textureURI))
       }
       self.dataManager.advanceTriangleBufferIterator()
     }
@@ -825,6 +1102,7 @@ extension NSToolbarItem.Identifier {
 
   func applicationWillTerminate(_ aNotification: Notification) {
     Swift.print("Controller.applicationWillTerminate(Notification)")
+    releaseAllRetainedSecurityScopes()
   }
   
   @IBAction func showHelp(_ sender: Any) {
@@ -880,6 +1158,18 @@ extension NSToolbarItem.Identifier {
       emptyMenu.addItem(noneItem)
       lodMenuItem?.submenu = emptyMenu
       lodMenuItem?.isHidden = true
+      currentLodFilter = ""
+      "".withCString { pointer in
+        dataManager.setLodFilter(pointer)
+      }
+      dataManager.regenerateTriangleBuffers(withMaximumSize: 16*1024*1024)
+      reloadTriangleBuffers()
+      updateVisibleStateBuffer()
+      updateSelectionStateBuffer()
+      dataManager.regenerateEdgeBuffers(withMaximumSize: 16*1024*1024)
+      reloadEdgeBuffers()
+      metalView?.needsDisplay = true
+      objectsSourceList?.reloadData()
       return
     }
     
@@ -1338,6 +1628,14 @@ extension NSToolbarItem.Identifier {
        let srgb = color.usingColorSpace(.sRGB) {
       dataManager.setSelectedEdgesColourWithRed(Float(srgb.redComponent), green: Float(srgb.greenComponent), blue: Float(srgb.blueComponent), alpha: Float(srgb.alphaComponent))
     }
+    // Always start with default (non-appearance) rendering.
+    metalView?.showTextures = false
+    UserDefaults.standard.set(false, forKey: showAppearancesDefaultsKey)
+    dataManager.setUseAppearances(metalView?.showTextures == true)
+    currentAppearanceTheme.withCString { pointer in
+      dataManager.setAppearanceTheme(pointer)
+    }
+    updateAppearanceUIState()
     metalView?.updateAppearance()
   }
 
@@ -1476,9 +1774,16 @@ extension NSToolbarItem.Identifier {
       self.metalView!.projectionMatrix = deserialiseToMatrix4x4(matrix: viewParameters.projectionMatrix)
       self.metalView!.viewEdges = viewParameters.viewEdges
       self.metalView!.viewBoundingBox = viewParameters.viewBoundingBox
+      let showAppearances = viewParameters.showAppearances ?? viewParameters.showTextures ?? false
+      self.metalView!.showTextures = showAppearances
+      self.currentAppearanceTheme = viewParameters.appearanceTheme ?? self.currentAppearanceTheme
       self.toggleViewEdgesMenuItem.state = viewParameters.viewEdges ? .on : .off
       self.toggleViewBoundingBoxMenuItem.state = viewParameters.viewBoundingBox ? .on : .off
       self.toggleEdgesToolbarItem?.image = NSImage(systemSymbolName: viewParameters.viewEdges ? "square.dashed" : "square", accessibilityDescription: "Toggle edges")
+      UserDefaults.standard.set(self.metalView!.showTextures, forKey: showAppearancesDefaultsKey)
+      self.updateAppearanceThemeOptions()
+      self.updateAppearanceUIState()
+      self.refreshAppearanceRendering(requestAuthorization: self.metalView!.showTextures)
       
       self.metalView!.constants.modelMatrix = self.metalView!.modelMatrix
       self.metalView!.constants.modelViewProjectionMatrix = matrix_multiply(self.metalView!.projectionMatrix, matrix_multiply(self.metalView!.viewMatrix, self.metalView!.modelMatrix))
@@ -1514,7 +1819,10 @@ extension NSToolbarItem.Identifier {
                                         viewMatrix: serialise(matrix: metalView!.viewMatrix),
                                         projectionMatrix: serialise(matrix: metalView!.projectionMatrix),
                                         viewEdges: metalView!.viewEdges,
-                                        viewBoundingBox: metalView!.viewBoundingBox)
+                                        viewBoundingBox: metalView!.viewBoundingBox,
+                                        showTextures: metalView!.showTextures,
+                                        showAppearances: metalView!.showTextures,
+                                        appearanceTheme: currentAppearanceTheme)
     do {
       let jsonData = try jsonEncoder.encode(viewParameters)
       let savePanel = NSSavePanel()

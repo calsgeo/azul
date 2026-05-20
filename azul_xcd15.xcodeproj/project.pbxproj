@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 70;
+	objectVersion = 54;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -18,6 +18,18 @@
 		BE8C43D51F8D1E8A0021CA0B /* poly.icns in Resources */ = {isa = PBXBuildFile; fileRef = BE8C43CA1F8D1CAD0021CA0B /* poly.icns */; };
 		BE8C43D71F8D1EA70021CA0B /* xml.icns in Resources */ = {isa = PBXBuildFile; fileRef = BE8C43D61F8D1EA50021CA0B /* xml.icns */; };
 		BEA3000E1F8EDB4F00DCC464 /* json.icns in Resources */ = {isa = PBXBuildFile; fileRef = BEA3000D1F8EDB4800DCC464 /* json.icns */; };
+		BEA611B02FBC000100000001 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEA611A02FBC000100000001 /* AppDelegate.swift */; };
+		BEA611B02FBC000100000002 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEA611A02FBC000100000002 /* SceneDelegate.swift */; };
+		BEA611B02FBC000100000003 /* MainViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEA611A02FBC000100000003 /* MainViewController.swift */; };
+		BEA611B02FBC000100000004 /* ObjectListViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEA611A02FBC000100000004 /* ObjectListViewController.swift */; };
+		BEA611B02FBC000100000005 /* AttributeTableViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEA611A02FBC000100000005 /* AttributeTableViewController.swift */; };
+		BEA611B02FBC000100000006 /* LodPickerViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEA611A02FBC000100000006 /* LodPickerViewController.swift */; };
+		BEA611C02FBC000100000001 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEA611A02FBC000100000001 /* AppDelegate.swift */; };
+		BEA611C02FBC000100000002 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEA611A02FBC000100000002 /* SceneDelegate.swift */; };
+		BEA611C02FBC000100000003 /* MainViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEA611A02FBC000100000003 /* MainViewController.swift */; };
+		BEA611C02FBC000100000004 /* ObjectListViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEA611A02FBC000100000004 /* ObjectListViewController.swift */; };
+		BEA611C02FBC000100000005 /* AttributeTableViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEA611A02FBC000100000005 /* AttributeTableViewController.swift */; };
+		BEA611C02FBC000100000006 /* LodPickerViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEA611A02FBC000100000006 /* LodPickerViewController.swift */; };
 		BEB3C35F1F8EC6CB00F14F1A /* azulview.icns in Resources */ = {isa = PBXBuildFile; fileRef = BEB3C35E1F8EC6BE00F14F1A /* azulview.icns */; };
 		BEB3C909288075240014932A /* libpugixml.a in Frameworks */ = {isa = PBXBuildFile; fileRef = BEB3C903288075240014932A /* libpugixml.a */; };
 		BEB3C90A288075240014932A /* libmpfr.a in Frameworks */ = {isa = PBXBuildFile; fileRef = BEB3C904288075240014932A /* libmpfr.a */; };
@@ -101,6 +113,14 @@
 		BEA2DAD11F7054F7002FBEF4 /* Credits.rtf */ = {isa = PBXFileReference; lastKnownFileType = text.rtf; path = Credits.rtf; sourceTree = "<group>"; };
 		BEA2DAD21F7055A7002FBEF4 /* JSONParsingHelper.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = JSONParsingHelper.hpp; sourceTree = "<group>"; };
 		BEA3000D1F8EDB4800DCC464 /* json.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = json.icns; sourceTree = "<group>"; };
+		BEA611A02FBC000100000001 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		BEA611A02FBC000100000002 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
+		BEA611A02FBC000100000003 /* MainViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainViewController.swift; sourceTree = "<group>"; };
+		BEA611A02FBC000100000004 /* ObjectListViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObjectListViewController.swift; sourceTree = "<group>"; };
+		BEA611A02FBC000100000005 /* AttributeTableViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttributeTableViewController.swift; sourceTree = "<group>"; };
+		BEA611A02FBC000100000006 /* LodPickerViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LodPickerViewController.swift; sourceTree = "<group>"; };
+		BEA611A02FBC000100000007 /* Azul-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Azul-Bridging-Header.h"; sourceTree = "<group>"; };
+		BEA611A02FBC000100000008 /* iOS-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "iOS-Info.plist"; sourceTree = "<group>"; };
 		BEB3C35E1F8EC6BE00F14F1A /* azulview.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = azulview.icns; sourceTree = "<group>"; };
 		BEB3C903288075240014932A /* libpugixml.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libpugixml.a; path = libs/libpugixml.a; sourceTree = "<group>"; };
 		BEB3C904288075240014932A /* libmpfr.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libmpfr.a; path = libs/libmpfr.a; sourceTree = "<group>"; };
@@ -136,10 +156,6 @@
 		BEF69F501F6AA4C30079531B /* Shaders.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = Shaders.metal; sourceTree = "<group>"; };
 		BEF69F521F6AA9540079531B /* Math.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Math.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
-
-/* Begin PBXFileSystemSynchronizedRootGroup section */
-		BEE5F90E2FACAEBF00653BE1 /* src_iOS */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = src_iOS; sourceTree = "<group>"; };
-/* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		BEE5F8B12FACA2C400653BE1 /* Frameworks */ = {
@@ -254,6 +270,21 @@
 			name = Frameworks;
 			sourceTree = "<group>";
 		};
+		BEE5F90E2FACAEBF00653BE1 /* src_iOS */ = {
+			isa = PBXGroup;
+			children = (
+				BEA611A02FBC000100000001 /* AppDelegate.swift */,
+				BEA611A02FBC000100000002 /* SceneDelegate.swift */,
+				BEA611A02FBC000100000003 /* MainViewController.swift */,
+				BEA611A02FBC000100000004 /* ObjectListViewController.swift */,
+				BEA611A02FBC000100000005 /* AttributeTableViewController.swift */,
+				BEA611A02FBC000100000006 /* LodPickerViewController.swift */,
+				BEA611A02FBC000100000007 /* Azul-Bridging-Header.h */,
+				BEA611A02FBC000100000008 /* iOS-Info.plist */,
+			);
+			path = src_iOS;
+			sourceTree = "<group>";
+		};
 		BEF69F341F6AA0520079531B = {
 			isa = PBXGroup;
 			children = (
@@ -312,9 +343,6 @@
 			);
 			dependencies = (
 			);
-			fileSystemSynchronizedGroups = (
-				BEE5F90E2FACAEBF00653BE1 /* src_iOS */,
-			);
 			name = "azul-iOS";
 			packageProductDependencies = (
 			);
@@ -333,9 +361,6 @@
 			buildRules = (
 			);
 			dependencies = (
-			);
-			fileSystemSynchronizedGroups = (
-				BEE5F90E2FACAEBF00653BE1 /* src_iOS */,
 			);
 			name = "azul-iOS-simulator";
 			packageProductDependencies = (
@@ -378,7 +403,6 @@
 					BEF69F3C1F6AA0520079531B = {
 						CreatedOnToolsVersion = 9.0;
 						LastSwiftMigration = 1020;
-						ProvisioningStyle = Automatic;
 					};
 				};
 			};
@@ -465,6 +489,12 @@
 				BEE5F8D52FACA45D00653BE1 /* DataManagerWrapperWrapper.mm in Sources */,
 				BEE5F8D72FACA45D00653BE1 /* Shaders.metal in Sources */,
 				BEE5F8D92FACA45D00653BE1 /* Math.swift in Sources */,
+				BEA611B02FBC000100000001 /* AppDelegate.swift in Sources */,
+				BEA611B02FBC000100000002 /* SceneDelegate.swift in Sources */,
+				BEA611B02FBC000100000003 /* MainViewController.swift in Sources */,
+				BEA611B02FBC000100000004 /* ObjectListViewController.swift in Sources */,
+				BEA611B02FBC000100000005 /* AttributeTableViewController.swift in Sources */,
+				BEA611B02FBC000100000006 /* LodPickerViewController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -478,6 +508,12 @@
 				BEE5F9BA2FAD44BD00653BE1 /* DataManagerWrapperWrapper.mm in Sources */,
 				BEE5F9BB2FAD44BD00653BE1 /* Shaders.metal in Sources */,
 				BEE5F9BC2FAD44BD00653BE1 /* Math.swift in Sources */,
+				BEA611C02FBC000100000001 /* AppDelegate.swift in Sources */,
+				BEA611C02FBC000100000002 /* SceneDelegate.swift in Sources */,
+				BEA611C02FBC000100000003 /* MainViewController.swift in Sources */,
+				BEA611C02FBC000100000004 /* ObjectListViewController.swift in Sources */,
+				BEA611C02FBC000100000005 /* AttributeTableViewController.swift in Sources */,
+				BEA611C02FBC000100000006 /* LodPickerViewController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -863,12 +899,13 @@
 				CLANG_WARN_DOCUMENTATION_COMMENTS = NO;
 				CODE_SIGN_ENTITLEMENTS = azul.entitlements;
 				CODE_SIGN_IDENTITY = "-";
-				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
-				CODE_SIGN_STYLE = Automatic;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
+				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1401;
 				DEAD_CODE_STRIPPING = YES;
 				DEFINES_MODULE = NO;
+				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				GCC_C_LANGUAGE_STANDARD = c11;
 				GCC_OPTIMIZATION_LEVEL = 3;
@@ -892,6 +929,7 @@
 				OTHER_CPLUSPLUSFLAGS = "$(OTHER_CFLAGS)";
 				PRODUCT_BUNDLE_IDENTIFIER = tudelft3d.azul;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_OBJC_BRIDGING_HEADER = "$(SRCROOT)/src/Azul-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 5.0;
@@ -907,12 +945,13 @@
 				CLANG_WARN_DOCUMENTATION_COMMENTS = NO;
 				CODE_SIGN_ENTITLEMENTS = azul.entitlements;
 				CODE_SIGN_IDENTITY = "-";
-				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
-				CODE_SIGN_STYLE = Automatic;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
+				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1401;
 				DEAD_CODE_STRIPPING = YES;
 				DEFINES_MODULE = NO;
+				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				GCC_C_LANGUAGE_STANDARD = c11;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = NO;
@@ -935,6 +974,7 @@
 				OTHER_CPLUSPLUSFLAGS = "$(OTHER_CFLAGS)";
 				PRODUCT_BUNDLE_IDENTIFIER = tudelft3d.azul;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_OBJC_BRIDGING_HEADER = "$(SRCROOT)/src/Azul-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 5.0;

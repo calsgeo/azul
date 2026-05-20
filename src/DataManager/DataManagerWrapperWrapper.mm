@@ -126,6 +126,11 @@ struct DataManagerWrapper {
   return dataManagerWrapper->dataManager->currentTriangleBuffer->colour;
 }
 
+- (const char *) currentTriangleBufferTextureURIWithLength:(long *)length {
+  *length = dataManagerWrapper->dataManager->currentTriangleBuffer->textureUri.size();
+  return dataManagerWrapper->dataManager->currentTriangleBuffer->textureUri.c_str();
+}
+
 - (void) advanceTriangleBufferIterator {
   ++dataManagerWrapper->dataManager->currentTriangleBuffer;
 }
@@ -252,13 +257,24 @@ struct DataManagerWrapper {
   // Objects
   else {
     NSString *objectType = [NSString stringWithUTF8String:[currentItem iterator]->type.c_str()];
-    NSMutableString *stringToPut = [NSMutableString stringWithString:objectType];
+    NSString *displayType = objectType;
+    if (![currentItem iterator]->displayType.empty()) {
+      displayType = [NSString stringWithUTF8String:[currentItem iterator]->displayType.c_str()];
+    }
+    if ([objectType isEqualToString:@"ReferencePoint"]) displayType = @"Reference Point";
+    else if ([objectType isEqualToString:@"PointGeometry"]) displayType = @"Point Geometry";
+    NSMutableString *stringToPut = [NSMutableString stringWithString:displayType];
     if ([currentItem iterator]->id.size() > 0) {
     NSString *objectId = [NSString stringWithUTF8String:[currentItem iterator]->id.c_str()];
       [stringToPut appendString:@" ("];
       [stringToPut appendString:objectId];
       [stringToPut appendString:@")"];
     } NSImage *objectIcon = [NSImage imageNamed:objectType];
+    if (objectIcon == nil &&
+        ([objectType isEqualToString:@"ReferencePoint"] ||
+         [objectType isEqualToString:@"PointGeometry"])) {
+      objectIcon = [NSImage imageNamed:@"Point"];
+    }
     if (objectIcon != nil) [[result imageView] setImage:objectIcon];
     else [[result imageView] setImage:nil];
     [[result textField] setStringValue:stringToPut];
@@ -557,6 +573,27 @@ struct DataManagerWrapper {
   return result;
 }
 
+- (void) setUseAppearances:(BOOL)enabled {
+  dataManagerWrapper->dataManager->setUseAppearances(enabled == YES);
+}
+
+- (void) setAppearanceTheme:(const char *)theme {
+  if (theme == nullptr) {
+    dataManagerWrapper->dataManager->setAppearanceTheme("");
+    return;
+  }
+  dataManagerWrapper->dataManager->setAppearanceTheme(std::string(theme));
+}
+
+- (NSArray<NSString *> *) availableAppearanceThemes {
+  std::vector<std::string> themes = dataManagerWrapper->dataManager->getAvailableAppearanceThemes();
+  NSMutableArray *result = [NSMutableArray arrayWithCapacity:themes.size()];
+  for (const auto &theme : themes) {
+    [result addObject:[NSString stringWithUTF8String:theme.c_str()]];
+  }
+  return result;
+}
+
 - (void) updateSelectionStates {
   dataManagerWrapper->dataManager->updateSelectionStates();
 }
@@ -659,6 +696,16 @@ struct DataManagerWrapper {
 - (NSString *) typeOfItem:(id)item {
   if (![item isKindOfClass:[AzulObjectIterator class]]) return @"";
   AzulObjectIterator *currentItem = item;
+  if ([currentItem iterator]->type.empty()) return @"";
+  return [NSString stringWithUTF8String:[currentItem iterator]->type.c_str()];
+}
+
+- (NSString *) displayTypeOfItem:(id)item {
+  if (![item isKindOfClass:[AzulObjectIterator class]]) return @"";
+  AzulObjectIterator *currentItem = item;
+  if (![currentItem iterator]->displayType.empty()) {
+    return [NSString stringWithUTF8String:[currentItem iterator]->displayType.c_str()];
+  }
   if ([currentItem iterator]->type.empty()) return @"";
   return [NSString stringWithUTF8String:[currentItem iterator]->type.c_str()];
 }

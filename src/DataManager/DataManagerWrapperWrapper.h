@@ -79,6 +79,7 @@ struct DataManagerWrapper;
 - (const unsigned int *) currentTriangleBufferIndicesWithSize:(long *)bytes;
 - (const char *) currentTriangleBufferTypeWithLength:(long *)length;
 - (const float *) currentTriangleBufferColour;
+- (const char *) currentTriangleBufferTextureURIWithLength:(long *)length;
 - (void) advanceTriangleBufferIterator;
 - (BOOL) triangleBufferIteratorEnded;
 
@@ -101,6 +102,11 @@ struct DataManagerWrapper;
 // LOD filtering
 - (void) setLodFilter:(const char *)lod;
 - (NSArray<NSString *> *) availableLods;
+
+// Appearance filtering
+- (void) setUseAppearances:(BOOL)enabled;
+- (void) setAppearanceTheme:(const char *)theme;
+- (NSArray<NSString *> *) availableAppearanceThemes;
 
 // Status message
 - (NSString *)statusMessage;
@@ -154,6 +160,7 @@ struct DataManagerWrapper;
 - (NSInteger) numberOfChildrenOfItem:(id)item;
 - (id) childOfItem:(id)item atIndex:(NSInteger)index;
 - (NSString *) typeOfItem:(id)item;
+- (NSString *) displayTypeOfItem:(id)item;
 - (NSString *) identifierOfItem:(id)item;
 - (char) visibleStateOfItem:(id)item;
 - (NSInteger) numberOfAttributesOfItem:(id)item;

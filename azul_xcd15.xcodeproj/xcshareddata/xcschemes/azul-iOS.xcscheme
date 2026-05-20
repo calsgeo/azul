@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Scheme
    LastUpgradeVersion = "2640"
-   version = "1.7">
+   version = "1.8">
    <BuildAction
       parallelizeBuildables = "YES"
       buildImplicitDependencies = "YES"
@@ -15,9 +15,9 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "BEE5F9B52FAD44BD00653BE1"
-               BuildableName = "azul-iOS-simulator.app"
-               BlueprintName = "azul-iOS-simulator"
+               BlueprintIdentifier = "BEE5F8B32FACA2C400653BE1"
+               BuildableName = "azul-iOS.app"
+               BlueprintName = "azul-iOS"
                ReferencedContainer = "container:azul.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
@@ -45,9 +45,9 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "BEE5F9B52FAD44BD00653BE1"
-            BuildableName = "azul-iOS-simulator.app"
-            BlueprintName = "azul-iOS-simulator"
+            BlueprintIdentifier = "BEE5F8B32FACA2C400653BE1"
+            BuildableName = "azul-iOS.app"
+            BlueprintName = "azul-iOS"
             ReferencedContainer = "container:azul.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
@@ -62,9 +62,9 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "BEE5F9B52FAD44BD00653BE1"
-            BuildableName = "azul-iOS-simulator.app"
-            BlueprintName = "azul-iOS-simulator"
+            BlueprintIdentifier = "BEE5F8B32FACA2C400653BE1"
+            BuildableName = "azul-iOS.app"
+            BlueprintName = "azul-iOS"
             ReferencedContainer = "container:azul.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
