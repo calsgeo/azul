@@ -126,7 +126,7 @@ struct Constants {
   var modelMatrixInverseTransposed = matrix_identity_float3x3
   var viewMatrixInverse = matrix_identity_float4x4
   var colour = SIMD4<Float>(0.0, 0.0, 0.0, 1.0)
-  var selectionColour = SIMD4<Float>(1.0, 1.0, 0.0, 0.4)
+  var selectionColour = SIMD4<Float>(1.0, 1.0, 0.0, 0.7)
 }
 
 struct Vertex {

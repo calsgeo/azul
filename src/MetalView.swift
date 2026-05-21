@@ -62,7 +62,7 @@ import MetalKit
   
   var viewEdges: Bool = true
   var viewBoundingBox: Bool = false
-  var selectionColour: SIMD4<Float> = SIMD4<Float>(1.0, 1.0, 0.0, 0.4) {
+  var selectionColour: SIMD4<Float> = SIMD4<Float>(1.0, 1.0, 0.0, 0.7) {
     didSet {
       constants.selectionColour = selectionColour
       needsDisplay = true
