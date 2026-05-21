@@ -582,26 +582,7 @@ import MetalKit
       renderEncoder.setFragmentBytes(&one, length: MemoryLayout<Float>.size, index: 3)
     }
 
-    let drawTriangleBuffer: (Int) -> Void = { i in
-      let triangleBuffer = self.triangleBuffers[i]
-      let useTexture = self.showTextures && !triangleBuffer.texturePath.isEmpty
-      if useTexture,
-         let texturedPipeline = self.texturedRenderPipelineState {
-        if triangleBuffer.texture == nil {
-          self.triangleBuffers[i].texture = self.textureForPath(triangleBuffer.texturePath)
-        }
-        if let texture = self.triangleBuffers[i].texture {
-          renderEncoder.setRenderPipelineState(texturedPipeline)
-          renderEncoder.setFragmentTexture(texture, index: 0)
-          renderEncoder.setFragmentSamplerState(self.textureSamplerState, index: 0)
-        } else {
-          renderEncoder.setRenderPipelineState(self.litRenderPipelineState!)
-          renderEncoder.setFragmentTexture(nil, index: 0)
-        }
-      } else {
-        renderEncoder.setRenderPipelineState(self.litRenderPipelineState!)
-        renderEncoder.setFragmentTexture(nil, index: 0)
-      }
+    let drawVertices: (BufferWithColour) -> Void = { triangleBuffer in
       renderEncoder.setVertexBuffer(triangleBuffer.buffer, offset:0, index:0)
       self.constants.colour = triangleBuffer.colour
       renderEncoder.setVertexBytes(&self.constants, length: MemoryLayout<Constants>.size, index: 1)
@@ -609,12 +590,29 @@ import MetalKit
       renderEncoder.drawIndexedPrimitives(type: .triangle, indexCount: triangleBuffer.indexCount, indexType: .uint32, indexBuffer: triangleBuffer.indexBuffer, indexBufferOffset: 0)
     }
 
-    for i in triangleBuffers.indices where triangleBuffers[i].colour.w == 1.0 {
-      drawTriangleBuffer(i)
+    func drawPass(where opacityCondition: (Float) -> Bool) {
+      if self.showTextures, let texturedPipeline = self.texturedRenderPipelineState {
+        renderEncoder.setRenderPipelineState(texturedPipeline)
+        for i in triangleBuffers.indices where opacityCondition(triangleBuffers[i].colour.w) && !triangleBuffers[i].texturePath.isEmpty {
+          if triangleBuffers[i].texture == nil {
+            triangleBuffers[i].texture = self.textureForPath(triangleBuffers[i].texturePath)
+          }
+          if let texture = triangleBuffers[i].texture {
+            renderEncoder.setFragmentTexture(texture, index: 0)
+            renderEncoder.setFragmentSamplerState(self.textureSamplerState, index: 0)
+            drawVertices(triangleBuffers[i])
+          }
+        }
+      }
+      renderEncoder.setRenderPipelineState(self.litRenderPipelineState!)
+      renderEncoder.setFragmentTexture(nil, index: 0)
+      for i in triangleBuffers.indices where opacityCondition(triangleBuffers[i].colour.w) && (!self.showTextures || triangleBuffers[i].texturePath.isEmpty || triangleBuffers[i].texture == nil) {
+        drawVertices(triangleBuffers[i])
+      }
     }
-    for i in triangleBuffers.indices where triangleBuffers[i].colour.w != 1.0 {
-      drawTriangleBuffer(i)
-    }
+
+    drawPass { $0 == 1.0 }
+    drawPass { $0 != 1.0 }
     
     if viewEdges {
       renderEncoder.setRenderPipelineState(edgeRenderPipelineState!)
@@ -1083,25 +1081,7 @@ import MetalKit
       renderEncoder.setFragmentBytes(&one, length: MemoryLayout<Float>.size, index: 3)
     }
 
-    let drawTriangleBuffer: (Int) -> Void = { i in
-      let triangleBuffer = self.triangleBuffers[i]
-      let useTexture = self.showTextures && !triangleBuffer.texturePath.isEmpty
-      if useTexture {
-        if triangleBuffer.texture == nil {
-          self.triangleBuffers[i].texture = self.textureForPath(triangleBuffer.texturePath)
-        }
-        if let texture = self.triangleBuffers[i].texture {
-          renderEncoder.setRenderPipelineState(texturedPSO)
-          renderEncoder.setFragmentTexture(texture, index: 0)
-          renderEncoder.setFragmentSamplerState(self.textureSamplerState, index: 0)
-        } else {
-          renderEncoder.setRenderPipelineState(litPSO)
-          renderEncoder.setFragmentTexture(nil, index: 0)
-        }
-      } else {
-        renderEncoder.setRenderPipelineState(litPSO)
-        renderEncoder.setFragmentTexture(nil, index: 0)
-      }
+    let drawVertices: (BufferWithColour) -> Void = { triangleBuffer in
       renderEncoder.setVertexBuffer(triangleBuffer.buffer, offset: 0, index: 0)
       self.constants.colour = triangleBuffer.colour
       renderEncoder.setVertexBytes(&self.constants, length: MemoryLayout<Constants>.size, index: 1)
@@ -1109,12 +1089,29 @@ import MetalKit
       renderEncoder.drawIndexedPrimitives(type: .triangle, indexCount: triangleBuffer.indexCount, indexType: .uint32, indexBuffer: triangleBuffer.indexBuffer, indexBufferOffset: 0)
     }
 
-    for i in triangleBuffers.indices where triangleBuffers[i].colour.w == 1.0 {
-      drawTriangleBuffer(i)
+    func drawPass(where opacityCondition: (Float) -> Bool) {
+      if self.showTextures {
+        renderEncoder.setRenderPipelineState(texturedPSO)
+        for i in triangleBuffers.indices where opacityCondition(triangleBuffers[i].colour.w) && !triangleBuffers[i].texturePath.isEmpty {
+          if triangleBuffers[i].texture == nil {
+            triangleBuffers[i].texture = self.textureForPath(triangleBuffers[i].texturePath)
+          }
+          if let texture = triangleBuffers[i].texture {
+            renderEncoder.setFragmentTexture(texture, index: 0)
+            renderEncoder.setFragmentSamplerState(self.textureSamplerState, index: 0)
+            drawVertices(triangleBuffers[i])
+          }
+        }
+      }
+      renderEncoder.setRenderPipelineState(litPSO)
+      renderEncoder.setFragmentTexture(nil, index: 0)
+      for i in triangleBuffers.indices where opacityCondition(triangleBuffers[i].colour.w) && (!self.showTextures || triangleBuffers[i].texturePath.isEmpty || triangleBuffers[i].texture == nil) {
+        drawVertices(triangleBuffers[i])
+      }
     }
-    for i in triangleBuffers.indices where triangleBuffers[i].colour.w != 1.0 {
-      drawTriangleBuffer(i)
-    }
+
+    drawPass { $0 == 1.0 }
+    drawPass { $0 != 1.0 }
 
     if viewEdges {
       renderEncoder.setRenderPipelineState(edgePSO)
