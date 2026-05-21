@@ -521,12 +521,8 @@ void DataManager::putAzulObjectAndItsChildrenIntoTriangleBuffers(const AzulObjec
         textureUri = appearanceStyle.textureUri;
       }
     } else if (!useAppearances &&
-               (typeWithColour == "Building" || typeWithColour == "BuildingPart") &&
                triangle.appearanceStyleId >= 0 &&
                triangle.appearanceStyleId < static_cast<int>(appearanceStyles.size())) {
-      // Some CityGML files encode BuildingPart semantic colouring only via materials.
-      // Keep default (non-textured) rendering usable by applying material colour even when
-      // appearances are toggled off; texture application remains controlled by the toggle.
       const auto &appearanceStyle = appearanceStyles[triangle.appearanceStyleId];
       if (appearanceStyle.hasMaterial) {
         colour[0] = appearanceStyle.materialColour[0];
