@@ -24,6 +24,7 @@ The current version of azul runs on **macOS 13+** (Apple Silicon and Intel) and 
 * Filter by level of detail: click LoD segment in sidebar
 * Show bounding box: b or cmd+shift+b
 * Show edges: e or cmd+shift+e
+* Appearance (Semantic Colours / Materials / Textures): in toolbar dropdown
 * Preferences: cmd+,
 * Object type colours: shift+cmd+c
 
