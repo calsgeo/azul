@@ -24,9 +24,17 @@ import MetalKit
   
   var commandQueue: MTLCommandQueue?
   var litRenderPipelineState: MTLRenderPipelineState?
+  var texturedRenderPipelineState: MTLRenderPipelineState?
   var unlitRenderPipelineState: MTLRenderPipelineState?
   var edgeRenderPipelineState: MTLRenderPipelineState?
   var depthStencilState: MTLDepthStencilState?
+  var textureSamplerState: MTLSamplerState?
+  var textureLoader: MTKTextureLoader?
+  var loadedTextures = [String: MTLTexture]()
+  var failedTexturePaths = Set<String>()
+  var permissionDeniedTextureDirectories = Set<String>()
+  var loggedTextureFailureCount: Int = 0
+  let maxLoggedTextureFailures: Int = 40
   
   var msaaTexture: MTLTexture?
   var msaaDepthTexture: MTLTexture?
@@ -46,6 +54,10 @@ import MetalKit
   var exportLitRenderPipelineState: MTLRenderPipelineState?
   var exportUnlitRenderPipelineState: MTLRenderPipelineState?
   var exportEdgeRenderPipelineState: MTLRenderPipelineState?
+  
+  @objc var showTextures: Bool = false {
+    didSet { needsDisplay = true }
+  }
   
   var viewEdges: Bool = true
   var viewBoundingBox: Bool = false
@@ -127,6 +139,8 @@ import MetalKit
     
     // Store library
     library = device!.makeDefaultLibrary()
+    textureLoader = MTKTextureLoader(device: device!)
+    textureSamplerState = buildTextureSamplerState()
     
     // Build pipelines
     recreatePipelines()
@@ -192,6 +206,18 @@ import MetalKit
     litPipelineDescriptor.depthAttachmentPixelFormat = depthStencilPixelFormat
     litPipelineDescriptor.rasterSampleCount = msaaSampleCount
 
+    let texturedPipelineDescriptor = MTLRenderPipelineDescriptor()
+    texturedPipelineDescriptor.vertexFunction = library.makeFunction(name: "vertexLitTextured")
+    texturedPipelineDescriptor.fragmentFunction = library.makeFunction(name: "fragmentLitTextured")
+    texturedPipelineDescriptor.colorAttachments[0].pixelFormat = colorPixelFormat
+    texturedPipelineDescriptor.colorAttachments[0].isBlendingEnabled = true
+    texturedPipelineDescriptor.colorAttachments[0].sourceRGBBlendFactor = .sourceAlpha
+    texturedPipelineDescriptor.colorAttachments[0].sourceAlphaBlendFactor = .sourceAlpha
+    texturedPipelineDescriptor.colorAttachments[0].destinationRGBBlendFactor = .oneMinusSourceAlpha
+    texturedPipelineDescriptor.colorAttachments[0].destinationAlphaBlendFactor = .oneMinusSourceAlpha
+    texturedPipelineDescriptor.depthAttachmentPixelFormat = depthStencilPixelFormat
+    texturedPipelineDescriptor.rasterSampleCount = msaaSampleCount
+
     let unlitPipelineDescriptor = MTLRenderPipelineDescriptor()
     unlitPipelineDescriptor.vertexFunction = library.makeFunction(name: "vertexUnlit")
     unlitPipelineDescriptor.fragmentFunction = library.makeFunction(name: "fragmentUnlit")
@@ -210,6 +236,7 @@ import MetalKit
 
     do {
       litRenderPipelineState = try device.makeRenderPipelineState(descriptor: litPipelineDescriptor)
+      texturedRenderPipelineState = try device.makeRenderPipelineState(descriptor: texturedPipelineDescriptor)
       unlitRenderPipelineState = try device.makeRenderPipelineState(descriptor: unlitPipelineDescriptor)
       edgeRenderPipelineState = try device.makeRenderPipelineState(descriptor: edgePipelineDescriptor)
     } catch {
@@ -280,6 +307,18 @@ import MetalKit
     litPipelineDescriptor.depthAttachmentPixelFormat = depthStencilPixelFormat
     litPipelineDescriptor.rasterSampleCount = msaaSampleCount
 
+    let texturedPipelineDescriptor = MTLRenderPipelineDescriptor()
+    texturedPipelineDescriptor.vertexFunction = library.makeFunction(name: "vertexLitTextured")
+    texturedPipelineDescriptor.fragmentFunction = library.makeFunction(name: "fragmentLitTextured")
+    texturedPipelineDescriptor.colorAttachments[0].pixelFormat = colorPixelFormat
+    texturedPipelineDescriptor.colorAttachments[0].isBlendingEnabled = true
+    texturedPipelineDescriptor.colorAttachments[0].sourceRGBBlendFactor = .sourceAlpha
+    texturedPipelineDescriptor.colorAttachments[0].sourceAlphaBlendFactor = .sourceAlpha
+    texturedPipelineDescriptor.colorAttachments[0].destinationRGBBlendFactor = .oneMinusSourceAlpha
+    texturedPipelineDescriptor.colorAttachments[0].destinationAlphaBlendFactor = .oneMinusSourceAlpha
+    texturedPipelineDescriptor.depthAttachmentPixelFormat = depthStencilPixelFormat
+    texturedPipelineDescriptor.rasterSampleCount = msaaSampleCount
+
     let unlitPipelineDescriptor = MTLRenderPipelineDescriptor()
     unlitPipelineDescriptor.vertexFunction = library.makeFunction(name: "vertexUnlit")
     unlitPipelineDescriptor.fragmentFunction = library.makeFunction(name: "fragmentUnlit")
@@ -297,6 +336,7 @@ import MetalKit
     if !fileManager.fileExists(atPath: archiveURL.path) {
       if let archive = try? device.makeBinaryArchive(descriptor: MTLBinaryArchiveDescriptor()) {
         try? archive.addRenderPipelineFunctions(descriptor: litPipelineDescriptor)
+        try? archive.addRenderPipelineFunctions(descriptor: texturedPipelineDescriptor)
         try? archive.addRenderPipelineFunctions(descriptor: unlitPipelineDescriptor)
         if let pickFunction = library.makeFunction(name: "pick") {
           let pickDesc = MTLComputePipelineDescriptor()
@@ -307,6 +347,110 @@ import MetalKit
         Swift.print("Cached binary archive to \(archiveURL.path)")
       }
     }
+  }
+
+  func buildTextureSamplerState() -> MTLSamplerState? {
+    let descriptor = MTLSamplerDescriptor()
+    descriptor.minFilter = .linear
+    descriptor.magFilter = .linear
+    descriptor.mipFilter = .linear
+    descriptor.sAddressMode = .repeat
+    descriptor.tAddressMode = .repeat
+    descriptor.normalizedCoordinates = true
+    return device?.makeSamplerState(descriptor: descriptor)
+  }
+
+  func textureURL(from path: String) -> URL? {
+    if path.isEmpty { return nil }
+    if let url = URL(string: path), url.scheme != nil {
+      return url
+    }
+    return URL(fileURLWithPath: path)
+  }
+
+  func logTextureFailure(_ message: String) {
+    if loggedTextureFailureCount < maxLoggedTextureFailures {
+      Swift.print(message)
+    } else if loggedTextureFailureCount == maxLoggedTextureFailures {
+      Swift.print("Texture load failed: additional failures suppressed.")
+    }
+    loggedTextureFailureCount += 1
+  }
+
+  func errorIndicatesPermissionDenied(_ error: NSError) -> Bool {
+    if error.domain == NSCocoaErrorDomain && error.code == NSFileReadNoPermissionError { return true }
+    if error.domain == NSURLErrorDomain && error.code == NSURLErrorNoPermissionsToReadFile { return true }
+    if error.localizedDescription.localizedCaseInsensitiveContains("permission") { return true }
+    if let underlyingError = error.userInfo[NSUnderlyingErrorKey] as? NSError {
+      return errorIndicatesPermissionDenied(underlyingError)
+    }
+    return false
+  }
+
+  func recordPermissionDeniedDirectory(for textureURL: URL, error: Error) {
+    guard textureURL.isFileURL else { return }
+    if errorIndicatesPermissionDenied(error as NSError) {
+      permissionDeniedTextureDirectories.insert(textureURL.deletingLastPathComponent().path)
+    }
+  }
+
+  func textureForPath(_ texturePath: String) -> MTLTexture? {
+    if let loaded = loadedTextures[texturePath] { return loaded }
+    if failedTexturePaths.contains(texturePath) { return nil }
+    guard let loader = textureLoader,
+          let textureURL = textureURL(from: texturePath) else {
+      let wasNewFailure = failedTexturePaths.insert(texturePath).inserted
+      if wasNewFailure { logTextureFailure("Texture load failed (\(texturePath)): invalid texture path") }
+      return nil
+    }
+    do {
+      let options: [MTKTextureLoader.Option: Any] = [
+        .origin: MTKTextureLoader.Origin.bottomLeft,
+        .SRGB: false
+      ]
+      let loaded = try loader.newTexture(URL: textureURL, options: options)
+      loadedTextures[texturePath] = loaded
+      return loaded
+    } catch {
+      let wasNewFailure = failedTexturePaths.insert(texturePath).inserted
+      if wasNewFailure {
+        recordPermissionDeniedDirectory(for: textureURL, error: error)
+        logTextureFailure("Texture load failed (\(texturePath)): \(error.localizedDescription)")
+      }
+      return nil
+    }
+  }
+
+  @objc func clearFailedTexturePaths() {
+    failedTexturePaths.removeAll()
+    permissionDeniedTextureDirectories.removeAll()
+    loggedTextureFailureCount = 0
+  }
+
+  @objc func consumePermissionDeniedTextureDirectories() -> [String] {
+    let directories = Array(permissionDeniedTextureDirectories).sorted()
+    permissionDeniedTextureDirectories.removeAll()
+    return directories
+  }
+
+  @objc func failedTextureDirectories() -> [String] {
+    let directories: Set<String> = Set<String>(failedTexturePaths.compactMap { texturePath in
+      guard let textureURL = textureURL(from: texturePath), textureURL.isFileURL else { return nil }
+      return textureURL.deletingLastPathComponent().path
+    })
+    return Array(directories).sorted()
+  }
+
+  @objc func primeTexturesForCurrentBuffers() {
+    let texturePaths = Set(triangleBuffers.compactMap { buffer in
+      buffer.texturePath.isEmpty ? nil : buffer.texturePath
+    })
+    for texturePath in texturePaths { _ = textureForPath(texturePath) }
+  }
+
+  @objc func clearTextureCaches() {
+    loadedTextures.removeAll()
+    clearFailedTexturePaths()
   }
 
   func createPickingTextures() {
@@ -410,7 +554,6 @@ import MetalKit
     
     renderEncoder.setFrontFacing(.counterClockwise)
     renderEncoder.setDepthStencilState(depthStencilState)
-    renderEncoder.setRenderPipelineState(litRenderPipelineState!)
     
     if let selBuffer = selectionStateBuffer, selectionStateCount > 0 {
       renderEncoder.setFragmentBuffer(selBuffer, offset: 0, index: 2)
@@ -425,24 +568,30 @@ import MetalKit
       renderEncoder.setFragmentBytes(&one, length: MemoryLayout<Float>.size, index: 3)
     }
 
-    for triangleBuffer in triangleBuffers {
-      if triangleBuffer.colour.w == 1.0 {
-        renderEncoder.setVertexBuffer(triangleBuffer.buffer, offset:0, index:0)
-        constants.colour = triangleBuffer.colour
-        renderEncoder.setVertexBytes(&constants, length: MemoryLayout<Constants>.size, index: 1)
-        renderEncoder.setFragmentBytes(&constants, length: MemoryLayout<Constants>.size, index: 0)
-        renderEncoder.drawIndexedPrimitives(type: .triangle, indexCount: triangleBuffer.indexCount, indexType: .uint32, indexBuffer: triangleBuffer.indexBuffer, indexBufferOffset: 0)
+    let drawTriangleBuffer: (BufferWithColour) -> Void = { triangleBuffer in
+      let useTexture = self.showTextures && !triangleBuffer.texturePath.isEmpty
+      if useTexture,
+         let texturedPipeline = self.texturedRenderPipelineState,
+         let texture = self.textureForPath(triangleBuffer.texturePath) {
+        renderEncoder.setRenderPipelineState(texturedPipeline)
+        renderEncoder.setFragmentTexture(texture, index: 0)
+        renderEncoder.setFragmentSamplerState(self.textureSamplerState, index: 0)
+      } else {
+        renderEncoder.setRenderPipelineState(self.litRenderPipelineState!)
+        renderEncoder.setFragmentTexture(nil, index: 0)
       }
+      renderEncoder.setVertexBuffer(triangleBuffer.buffer, offset:0, index:0)
+      self.constants.colour = triangleBuffer.colour
+      renderEncoder.setVertexBytes(&self.constants, length: MemoryLayout<Constants>.size, index: 1)
+      renderEncoder.setFragmentBytes(&self.constants, length: MemoryLayout<Constants>.size, index: 0)
+      renderEncoder.drawIndexedPrimitives(type: .triangle, indexCount: triangleBuffer.indexCount, indexType: .uint32, indexBuffer: triangleBuffer.indexBuffer, indexBufferOffset: 0)
     }
-    
-    for triangleBuffer in triangleBuffers {
-      if triangleBuffer.colour.w != 1.0 {
-        renderEncoder.setVertexBuffer(triangleBuffer.buffer, offset:0, index:0)
-        constants.colour = triangleBuffer.colour
-        renderEncoder.setVertexBytes(&constants, length: MemoryLayout<Constants>.size, index: 1)
-        renderEncoder.setFragmentBytes(&constants, length: MemoryLayout<Constants>.size, index: 0)
-        renderEncoder.drawIndexedPrimitives(type: .triangle, indexCount: triangleBuffer.indexCount, indexType: .uint32, indexBuffer: triangleBuffer.indexBuffer, indexBufferOffset: 0)
-      }
+
+    for triangleBuffer in triangleBuffers where triangleBuffer.colour.w == 1.0 {
+      drawTriangleBuffer(triangleBuffer)
+    }
+    for triangleBuffer in triangleBuffers where triangleBuffer.colour.w != 1.0 {
+      drawTriangleBuffer(triangleBuffer)
     }
     
     if viewEdges {

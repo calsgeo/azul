@@ -130,6 +130,11 @@ struct DataManagerWrapper {
   return dataManagerWrapper->dataManager->currentTriangleBuffer->colour;
 }
 
+- (const char *) currentTriangleBufferTextureURIWithLength:(long *)length {
+  *length = dataManagerWrapper->dataManager->currentTriangleBuffer->textureUri.size();
+  return dataManagerWrapper->dataManager->currentTriangleBuffer->textureUri.c_str();
+}
+
 - (void) advanceTriangleBufferIterator {
   ++dataManagerWrapper->dataManager->currentTriangleBuffer;
 }
@@ -557,6 +562,27 @@ struct DataManagerWrapper {
   NSMutableArray *result = [NSMutableArray arrayWithCapacity:lods.size()];
   for (const auto &lod : lods) {
     [result addObject:[NSString stringWithUTF8String:lod.c_str()]];
+  }
+  return result;
+}
+
+- (void) setUseAppearances:(BOOL)enabled {
+  dataManagerWrapper->dataManager->setUseAppearances(enabled == YES);
+}
+
+- (void) setAppearanceTheme:(const char *)theme {
+  if (theme == nullptr) {
+    dataManagerWrapper->dataManager->setAppearanceTheme("");
+    return;
+  }
+  dataManagerWrapper->dataManager->setAppearanceTheme(std::string(theme));
+}
+
+- (NSArray<NSString *> *) availableAppearanceThemes {
+  std::vector<std::string> themes = dataManagerWrapper->dataManager->getAvailableAppearanceThemes();
+  NSMutableArray *result = [NSMutableArray arrayWithCapacity:themes.size()];
+  for (const auto &theme : themes) {
+    [result addObject:[NSString stringWithUTF8String:theme.c_str()]];
   }
   return result;
 }

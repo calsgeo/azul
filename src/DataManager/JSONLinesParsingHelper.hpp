@@ -23,6 +23,7 @@ class JSONLinesParsingHelper : public JSONParsingHelper {
   std::vector<double> scale;
   std::vector<double> translation;
   AzulObject geometryTemplates;
+  AppearanceContext rootAppearanceContext;
 public:
   void parse(const char *filePath, AzulObject &parsedFile) {
     try {
@@ -40,7 +41,13 @@ public:
         return;
       } parsedFile.type = "File";
       parsedFile.id = filePath;
+      currentFilePath = filePath;
       deferredParentRelationships.clear();
+      resetAppearanceForNewFile();
+      rootAppearanceContext.clear();
+      scale.clear();
+      translation.clear();
+      geometryTemplates = AzulObject();
       
       for (auto doc: docs) {
         
@@ -76,6 +83,15 @@ public:
               }
             }
             
+            // Appearance object
+            error = doc["appearance"].get(object);
+            if (!error) {
+              parseAppearanceObject(object);
+              rootAppearanceContext = currentAppearanceContext();
+            } else {
+              rootAppearanceContext.clear();
+            }
+
             // Transform object
             error = doc["transform"].get(object);
             if (!error) {
@@ -157,6 +173,12 @@ public:
         }
         
         else if (docType == "CityJSONFeature") {
+          AppearanceContext featureAppearanceContext = rootAppearanceContext;
+          simdjson::ondemand::object featureAppearanceObject;
+          if (!doc["appearance"].get(featureAppearanceObject)) {
+            parseAppearanceObjectInto(featureAppearanceObject, featureAppearanceContext);
+          }
+          setAppearanceContext(featureAppearanceContext);
           
           // Vertices
           std::vector<std::tuple<double, double, double>> vertices;
@@ -186,7 +208,9 @@ public:
           std::cout << "Found a line that isn't a CityJSONFeature";
         }
         
-      } buildHierarchy(parsedFile);
+      }
+      buildHierarchy(parsedFile);
+      finalizeAppearanceForFile(parsedFile);
       
     } catch (simdjson::simdjson_error &e) {
       std::cout << "simdjson error: " << e.what() << std::endl;

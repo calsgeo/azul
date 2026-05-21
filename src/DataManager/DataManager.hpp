@@ -58,7 +58,7 @@ private:
   void generateEdgesForAzulObjectAndItsChildren(AzulObject &object);
   void updateBoundsWithAzulObjectAndItsChildren(const AzulObject &object);
   void clearPolygonsOfAzulObjectAndItsChildren(AzulObject &object);
-  void putAzulObjectAndItsChildrenIntoTriangleBuffers(const AzulObject &object, const std::string &typeWithColour, const long maxBufferSize, bool underMatchingLod = false);
+  void putAzulObjectAndItsChildrenIntoTriangleBuffers(const AzulObject &object, const std::vector<AzulAppearanceStyle> &appearanceStyles, const std::string &typeWithColour, const long maxBufferSize, bool underMatchingLod = false);
   void putAzulObjectAndItsChildrenIntoEdgeBuffers(const AzulObject &object, const long maxBufferSize, bool underMatchingLod = false);
   void printAzulObject(const AzulObject &object, unsigned int tabs);
   void boundsOfAzulObjectAndItsChildren(const AzulObject &object, double *min, double *max);
@@ -85,7 +85,7 @@ public:
   std::list<TriangleBuffer> triangleBuffers;
   std::list<EdgeBuffer> edgeBuffers;
   
-  std::map<std::string, std::list<TriangleBuffer>::iterator> lastTriangleBufferOfType;
+  std::map<std::string, std::list<TriangleBuffer>::iterator> lastTriangleBufferByKey;
   std::map<bool, std::list<EdgeBuffer>::iterator> lastEdgeBufferBySelection;
   
   // Selection & visibility state
@@ -104,6 +104,10 @@ public:
   
   // Search
   std::string searchString;
+
+  // Appearance rendering
+  bool useAppearances;
+  std::string appearanceTheme;
   
   // LOD filtering
   std::string lodFilter;
@@ -111,6 +115,9 @@ public:
   void setLodFilter(const char *lod);
   bool matchesLodFilter(const AzulObject &object);
   bool directlyMatchesLodFilter(const AzulObject &object);
+  std::vector<std::string> getAvailableAppearanceThemes();
+  void setUseAppearances(bool enabled);
+  void setAppearanceTheme(const std::string &theme);
   
   // Status message
   std::string statusMessage;

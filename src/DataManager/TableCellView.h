@@ -17,6 +17,8 @@
 #ifndef TableCellView_h
 #define TableCellView_h
 
+#import <TargetConditionals.h>
+
 #if TARGET_OS_OSX
 #import <Cocoa/Cocoa.h>
 

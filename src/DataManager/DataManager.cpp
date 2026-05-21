@@ -18,7 +18,49 @@
 #include <functional>
 #include <cctype>
 #include <cmath>
+#include <sstream>
+#include <unordered_map>
 #include "DataManager.hpp"
+
+namespace {
+struct PointKey {
+  long long x;
+  long long y;
+  long long z;
+  bool operator==(const PointKey &other) const {
+    return x == other.x && y == other.y && z == other.z;
+  }
+};
+
+struct PointKeyHasher {
+  std::size_t operator()(const PointKey &key) const {
+    std::size_t hx = std::hash<long long>{}(key.x);
+    std::size_t hy = std::hash<long long>{}(key.y);
+    std::size_t hz = std::hash<long long>{}(key.z);
+    return hx ^ (hy << 1) ^ (hz << 2);
+  }
+};
+
+PointKey makePointKey(const AzulPoint &point) {
+  return PointKey{
+    static_cast<long long>(llround(point.coordinates[0]*1e6)),
+    static_cast<long long>(llround(point.coordinates[1]*1e6)),
+    static_cast<long long>(llround(point.coordinates[2]*1e6))
+  };
+}
+
+std::string triangleBufferKey(const std::string &type, const std::string &textureUri, const float colour[4]) {
+  std::ostringstream key;
+  key << type << "|" << textureUri << "|"
+      << colour[0] << "," << colour[1] << ","
+      << colour[2] << "," << colour[3];
+  return key.str();
+}
+
+constexpr const char *kAppearanceMaterialsOnly = "Materials";
+constexpr const char *kAppearanceTexturesOnly = "Textures";
+
+}
 
 void DataManager::boundsOfAzulObjectAndItsChildren(const AzulObject &object, double *min, double *max) {
   for (const auto &child: object.children) boundsOfAzulObjectAndItsChildren(child, min, max);
@@ -158,9 +200,22 @@ void DataManager::triangulateAzulObjectAndItsChildren(AzulObject &object) {
       std::cout << "Polygon with < 4 points! Skipping..." << std::endl;
       continue;
     }
+
+    std::unordered_map<PointKey, std::array<float, 2>, PointKeyHasher> textureCoordinatesByPoint;
+    bool polygonHasTextureCoordinates = false;
+    auto addRingTextureCoordinates = [&](const AzulRing &ring) {
+      if (!ring.hasTextureCoordinates) return;
+      if (ring.points.size() != ring.textureCoordinates.size()) return;
+      polygonHasTextureCoordinates = true;
+      for (std::size_t pointIndex = 0; pointIndex < ring.points.size(); ++pointIndex) {
+        textureCoordinatesByPoint[makePointKey(ring.points[pointIndex])] = ring.textureCoordinates[pointIndex];
+      }
+    };
+    addRingTextureCoordinates(polygon.exteriorRing);
+    for (auto const &ring: polygon.interiorRings) addRingTextureCoordinates(ring);
     
     // Triangle: no need to triangulate
-    else if (polygon.exteriorRing.points.size() == 4 && polygon.interiorRings.size() == 0) {
+    if (polygon.exteriorRing.points.size() == 4 && polygon.interiorRings.size() == 0) {
       Kernel::Plane_3 plane(Kernel::Point_3(polygon.exteriorRing.points[0].coordinates[0],
                                             polygon.exteriorRing.points[0].coordinates[1],
                                             polygon.exteriorRing.points[0].coordinates[2]),
@@ -171,12 +226,21 @@ void DataManager::triangulateAzulObjectAndItsChildren(AzulObject &object) {
                                             polygon.exteriorRing.points[2].coordinates[1],
                                             polygon.exteriorRing.points[2].coordinates[2]));
       triangles.push_back(AzulTriangle());
+      triangles.back().appearanceStyleId = polygon.appearanceStyleId;
       for (unsigned int currentPoint = 0; currentPoint < 3; ++currentPoint) {
         for (unsigned int currentCoordinate = 0; currentCoordinate < 3; ++currentCoordinate) {
           triangles.back().points[currentPoint].coordinates[currentCoordinate] = polygon.exteriorRing.points[currentPoint].coordinates[currentCoordinate];
           triangles.back().normals[currentPoint].components[currentCoordinate] = CGAL::to_double(plane.orthogonal_vector().cartesian(currentCoordinate));
         }
+        auto foundTextureCoordinates = textureCoordinatesByPoint.find(makePointKey(polygon.exteriorRing.points[currentPoint]));
+        if (foundTextureCoordinates != textureCoordinatesByPoint.end()) {
+          triangles.back().textureCoordinates[currentPoint][0] = foundTextureCoordinates->second[0];
+          triangles.back().textureCoordinates[currentPoint][1] = foundTextureCoordinates->second[1];
+        } else {
+          polygonHasTextureCoordinates = false;
+        }
       }
+      triangles.back().hasTextureCoordinates = polygonHasTextureCoordinates;
     }
     
     // Polygon
@@ -301,6 +365,8 @@ void DataManager::triangulateAzulObjectAndItsChildren(AzulObject &object) {
         if (currentFace->label() > 0) {
           //        std::cout << "\tCreated triangle with points:" << std::endl;
           triangles.push_back(AzulTriangle());
+          triangles.back().appearanceStyleId = polygon.appearanceStyleId;
+          bool triangleHasTextureCoordinates = polygonHasTextureCoordinates;
           for (unsigned int currentVertexIndex = 0; currentVertexIndex < 3; ++currentVertexIndex) {
 //            std::cout << "Point_2: " << currentFace->vertex(currentVertexIndex)->point() << " info: " << currentFace->vertex(currentVertexIndex)->info() << std::endl;
             Kernel::Point_3 point3;
@@ -316,7 +382,21 @@ void DataManager::triangulateAzulObjectAndItsChildren(AzulObject &object) {
               triangles.back().points[currentVertexIndex].coordinates[currentCoordinate] = CGAL::to_double(point3[currentCoordinate]);
               triangles.back().normals[currentVertexIndex].components[currentCoordinate] = CGAL::to_double(bestPlane.orthogonal_vector().cartesian(currentCoordinate));
             }
+            if (polygonHasTextureCoordinates) {
+              AzulPoint point;
+              point.coordinates[0] = triangles.back().points[currentVertexIndex].coordinates[0];
+              point.coordinates[1] = triangles.back().points[currentVertexIndex].coordinates[1];
+              point.coordinates[2] = triangles.back().points[currentVertexIndex].coordinates[2];
+              auto foundTextureCoordinates = textureCoordinatesByPoint.find(makePointKey(point));
+              if (foundTextureCoordinates != textureCoordinatesByPoint.end()) {
+                triangles.back().textureCoordinates[currentVertexIndex][0] = foundTextureCoordinates->second[0];
+                triangles.back().textureCoordinates[currentVertexIndex][1] = foundTextureCoordinates->second[1];
+              } else {
+                triangleHasTextureCoordinates = false;
+              }
+            }
           }
+          triangles.back().hasTextureCoordinates = triangleHasTextureCoordinates;
         }
       }
     }
@@ -365,7 +445,7 @@ void DataManager::clearPolygonsOfAzulObjectAndItsChildren(AzulObject &object) {
   object.polygons.clear();
 }
 
-void DataManager::putAzulObjectAndItsChildrenIntoTriangleBuffers(const AzulObject &object, const std::string &typeWithColour, const long maxBufferSize, bool underMatchingLod) {
+void DataManager::putAzulObjectAndItsChildrenIntoTriangleBuffers(const AzulObject &object, const std::vector<AzulAppearanceStyle> &appearanceStyles, const std::string &typeWithColour, const long maxBufferSize, bool underMatchingLod) {
   bool childUnderMatchingLod;
   if (lodFilter == "__highest__") {
     childUnderMatchingLod = underMatchingLod || (object.lodMatch == 'Y' && !lodOfObject(object).empty());
@@ -373,56 +453,117 @@ void DataManager::putAzulObjectAndItsChildrenIntoTriangleBuffers(const AzulObjec
     childUnderMatchingLod = underMatchingLod || (!lodFilter.empty() && directlyMatchesLodFilter(object));
   }
   for (auto &child: object.children) {
-    if (colourForType.count(child.type)) putAzulObjectAndItsChildrenIntoTriangleBuffers(child, child.type, maxBufferSize, childUnderMatchingLod);
-    else putAzulObjectAndItsChildrenIntoTriangleBuffers(child, typeWithColour, maxBufferSize, childUnderMatchingLod);
+    if (colourForType.count(child.type)) putAzulObjectAndItsChildrenIntoTriangleBuffers(child, appearanceStyles, child.type, maxBufferSize, childUnderMatchingLod);
+    else putAzulObjectAndItsChildrenIntoTriangleBuffers(child, appearanceStyles, typeWithColour, maxBufferSize, childUnderMatchingLod);
   }
   
   if (object.triangles.empty()) return;
   if (lodFilter == "__highest__") {
     if (!underMatchingLod && object.lodMatch != 'Y') return;
   } else if (!lodFilter.empty() && !underMatchingLod && !directlyMatchesLodFilter(object)) return;
-  
-  // Pre-compute the size this object will add
-  long vertexFloatCount = object.triangles.size() * 3 * 7;
-  long indexCount = object.triangles.size() * 3;
-  long objectBufferSize = vertexFloatCount * sizeof(float) + indexCount * sizeof(std::uint32_t);
-  
-  std::list<TriangleBuffer>::iterator currentBuffer;
-  
-  // Find or create a type-colored buffer (no more selected/non-selected split)
-  if (lastTriangleBufferOfType.count(typeWithColour) == 0 ||
-      (lastTriangleBufferOfType[typeWithColour]->triangles.size() * sizeof(float) +
-       lastTriangleBufferOfType[typeWithColour]->indices.size() * sizeof(std::uint32_t) +
-       objectBufferSize) > maxBufferSize) {
-    triangleBuffers.push_front(TriangleBuffer());
-    currentBuffer = triangleBuffers.begin();
-    currentBuffer->type = typeWithColour;
-    {
-      auto const &colour = colourForType[typeWithColour];
-      currentBuffer->colour[0] = std::get<0>(colour);
-      currentBuffer->colour[1] = std::get<1>(colour);
-      currentBuffer->colour[2] = std::get<2>(colour);
-      currentBuffer->colour[3] = std::get<3>(colour);
-    }
-    lastTriangleBufferOfType[typeWithColour] = currentBuffer;
-  } else {
-    currentBuffer = lastTriangleBufferOfType[typeWithColour];
+
+  // Avoid drawing duplicate lod* shells under building contexts.
+  // These shells wash out default roof/wall semantic colours, especially for BuildingParts.
+  bool inBuildingContext = (typeWithColour == "Building" || typeWithColour == "BuildingPart");
+  bool isLodShell = object.type.rfind("lod", 0) == 0 &&
+                    (object.type.find("Solid") != std::string::npos ||
+                     object.type.find("MultiSurface") != std::string::npos);
+  if (inBuildingContext && isLodShell) {
+    return;
   }
   
   // Assign a unique objectId for selection and visibility tracking
   int objectId = static_cast<int>(objectsById.size());
   objectsById.push_back(const_cast<AzulObject *>(&object));
   const_cast<AzulObject &>(object).objectId = objectId;
-  
-  // Push vertices and indices into the buffer
-  std::uint32_t vertexIndex = static_cast<std::uint32_t>(currentBuffer->triangles.size() / 7);
+
+  auto typeColourIterator = colourForType.find(typeWithColour);
+  auto defaultColourIterator = colourForType.find("");
+  std::tuple<float, float, float, float> fallbackTypeColour = defaultColourIterator != colourForType.end() ? defaultColourIterator->second : std::tuple<float, float, float, float>(0.75f, 0.75f, 0.75f, 1.0f);
+  if (typeColourIterator != colourForType.end()) fallbackTypeColour = typeColourIterator->second;
+
   for (auto const &triangle: object.triangles) {
+    std::string textureUri;
+    float colour[4] = {
+      std::get<0>(fallbackTypeColour),
+      std::get<1>(fallbackTypeColour),
+      std::get<2>(fallbackTypeColour),
+      std::get<3>(fallbackTypeColour)
+    };
+
+    if (useAppearances &&
+        triangle.appearanceStyleId >= 0 &&
+        triangle.appearanceStyleId < static_cast<int>(appearanceStyles.size())) {
+      const auto &appearanceStyle = appearanceStyles[triangle.appearanceStyleId];
+      bool materialsOnly = appearanceTheme == kAppearanceMaterialsOnly;
+      bool texturesOnly = appearanceTheme == kAppearanceTexturesOnly;
+      bool themeMatches = appearanceTheme.empty() ||
+                          materialsOnly ||
+                          texturesOnly ||
+                          appearanceStyle.theme == appearanceTheme;
+      if (themeMatches && appearanceStyle.hasMaterial && !texturesOnly) {
+        colour[0] = appearanceStyle.materialColour[0];
+        colour[1] = appearanceStyle.materialColour[1];
+        colour[2] = appearanceStyle.materialColour[2];
+        colour[3] = appearanceStyle.materialColour[3];
+      }
+      if (themeMatches &&
+          appearanceStyle.hasTexture &&
+          !materialsOnly &&
+          triangle.hasTextureCoordinates &&
+          !appearanceStyle.textureUri.empty()) {
+        textureUri = appearanceStyle.textureUri;
+      }
+    } else if (!useAppearances &&
+               (typeWithColour == "Building" || typeWithColour == "BuildingPart") &&
+               triangle.appearanceStyleId >= 0 &&
+               triangle.appearanceStyleId < static_cast<int>(appearanceStyles.size())) {
+      // Some CityGML files encode BuildingPart semantic colouring only via materials.
+      // Keep default (non-textured) rendering usable by applying material colour even when
+      // appearances are toggled off; texture application remains controlled by the toggle.
+      const auto &appearanceStyle = appearanceStyles[triangle.appearanceStyleId];
+      if (appearanceStyle.hasMaterial) {
+        colour[0] = appearanceStyle.materialColour[0];
+        colour[1] = appearanceStyle.materialColour[1];
+        colour[2] = appearanceStyle.materialColour[2];
+        colour[3] = appearanceStyle.materialColour[3];
+      }
+    }
+
+    std::string bufferKey = triangleBufferKey(typeWithColour, textureUri, colour);
+    long triangleBufferFootprint = static_cast<long>((3 * 9 * sizeof(float)) + (3 * sizeof(std::uint32_t)));
+    std::list<TriangleBuffer>::iterator currentBuffer;
+    if (lastTriangleBufferByKey.count(bufferKey) == 0 ||
+        (lastTriangleBufferByKey[bufferKey]->triangles.size() * sizeof(float) +
+         lastTriangleBufferByKey[bufferKey]->indices.size() * sizeof(std::uint32_t) +
+         triangleBufferFootprint) > maxBufferSize) {
+      triangleBuffers.push_front(TriangleBuffer());
+      currentBuffer = triangleBuffers.begin();
+      currentBuffer->type = typeWithColour;
+      currentBuffer->textureUri = textureUri;
+      currentBuffer->colour[0] = colour[0];
+      currentBuffer->colour[1] = colour[1];
+      currentBuffer->colour[2] = colour[2];
+      currentBuffer->colour[3] = colour[3];
+      lastTriangleBufferByKey[bufferKey] = currentBuffer;
+    } else {
+      currentBuffer = lastTriangleBufferByKey[bufferKey];
+    }
+
+    std::uint32_t vertexIndex = static_cast<std::uint32_t>(currentBuffer->triangles.size() / 9);
     for (int pointIndex = 0; pointIndex < 3; ++pointIndex) {
       for (int coordinate = 0; coordinate < 3; ++coordinate)
         currentBuffer->triangles.push_back((triangle.points[pointIndex].coordinates[coordinate]-midCoordinates[coordinate])/maxRange);
       currentBuffer->triangles.push_back(static_cast<float>(objectId));
       for (int component = 0; component < 3; ++component)
         currentBuffer->triangles.push_back(triangle.normals[pointIndex].components[component]);
+      if (!textureUri.empty()) {
+        currentBuffer->triangles.push_back(triangle.textureCoordinates[pointIndex][0]);
+        currentBuffer->triangles.push_back(triangle.textureCoordinates[pointIndex][1]);
+      } else {
+        currentBuffer->triangles.push_back(0.0f);
+        currentBuffer->triangles.push_back(0.0f);
+      }
       currentBuffer->indices.push_back(vertexIndex++);
     }
   }
@@ -487,6 +628,8 @@ void DataManager::putAzulObjectAndItsChildrenIntoEdgeBuffers(const AzulObject &o
 }
 
 DataManager::DataManager() {
+  useAppearances = false;
+  appearanceTheme.clear();
   for (int coordinate = 0; coordinate < 3; ++coordinate) {
     minCoordinates[coordinate] = std::numeric_limits<double>::max();
     maxCoordinates[coordinate] = std::numeric_limits<double>::lowest();
@@ -643,10 +786,10 @@ void DataManager::clearPolygonsOfLastFile() {
 void DataManager::regenerateTriangleBuffers(long maxBufferSize) {
   std::string defaultType = "";
   triangleBuffers.clear();
-  lastTriangleBufferOfType.clear();
+  lastTriangleBufferByKey.clear();
   objectsById.clear();
   
-  for (auto &file: parsedFiles) putAzulObjectAndItsChildrenIntoTriangleBuffers(file, defaultType, maxBufferSize);
+  for (auto &file: parsedFiles) putAzulObjectAndItsChildrenIntoTriangleBuffers(file, file.appearanceStyles, defaultType, maxBufferSize);
   std::cout << "Created " << triangleBuffers.size() << " triangle buffers with " << objectsById.size() << " objects" << std::endl;
   
   // Initialize selection and visibility states from current object states
@@ -676,17 +819,48 @@ void DataManager::clear() {
   clearHelpers();
   parsedFiles.clear();
   triangleBuffers.clear();
-  lastTriangleBufferOfType.clear();
+  lastTriangleBufferByKey.clear();
   objectsById.clear();
   selectionStates.clear();
   visibleStates.clear();
   edgeBuffers.clear();
   lastEdgeBufferBySelection.clear();
+  useAppearances = false;
+  appearanceTheme.clear();
   
   for (int coordinate = 0; coordinate < 3; ++coordinate) {
     minCoordinates[coordinate] = std::numeric_limits<double>::max();
     maxCoordinates[coordinate] = std::numeric_limits<double>::lowest();
   }
+}
+
+std::vector<std::string> DataManager::getAvailableAppearanceThemes() {
+  std::set<std::string> themes;
+  bool hasAnyMaterial = false;
+  bool hasAnyTexture = false;
+  for (const auto &file : parsedFiles) {
+    for (const auto &theme : file.appearanceThemes) {
+      if (!theme.empty()) themes.insert(theme);
+    }
+    for (const auto &style : file.appearanceStyles) {
+      hasAnyMaterial = hasAnyMaterial || style.hasMaterial;
+      hasAnyTexture = hasAnyTexture || style.hasTexture;
+    }
+  }
+  if (hasAnyMaterial && hasAnyTexture) {
+    themes.erase("visual");
+    themes.insert(kAppearanceMaterialsOnly);
+    themes.insert(kAppearanceTexturesOnly);
+  }
+  return std::vector<std::string>(themes.begin(), themes.end());
+}
+
+void DataManager::setUseAppearances(bool enabled) {
+  useAppearances = enabled;
+}
+
+void DataManager::setAppearanceTheme(const std::string &theme) {
+  appearanceTheme = theme;
 }
 
 void DataManager::printParsedFiles() {
@@ -1008,6 +1182,13 @@ std::string DataManager::computeLodMatches(AzulObject &object) {
       object.lodMatch = 'N';
       for (auto &child: object.children) {
         if (child.lodMatch == 'Y') { object.lodMatch = 'Y'; break; }
+      }
+      // Keep non-LoD leaf geometry visible when filtering by highest LoD.
+      // This covers datasets where thematic surfaces carry polygons but no explicit LoD tag.
+      if (object.lodMatch != 'Y' &&
+          highestLod.empty() &&
+          (!object.polygons.empty() || !object.triangles.empty())) {
+        object.lodMatch = 'Y';
       }
     }
   } else if (lodFilter.empty() || directlyMatchesLodFilter(object)) {

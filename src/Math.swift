@@ -142,6 +142,7 @@ struct VertexWithNormal {
   var px, py, pz: Float
   var objectId: Float
   var nx, ny, nz: Float
+  var u, v: Float
 }
 
 struct BufferWithColour {
@@ -150,4 +151,6 @@ struct BufferWithColour {
   var indexCount: Int
   var type: String
   var colour: SIMD4<Float>
+  var texturePath: String = ""
+  var texture: MTLTexture? = nil
 }

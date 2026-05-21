@@ -38,6 +38,7 @@ struct VertexWithNormalIn {
   packed_float3 position;
   float objectId;
   packed_float3 normal;
+  packed_float2 uv;
 };
 
 struct VertexIn {
@@ -53,6 +54,14 @@ struct VertexOutLit {
   float4 position [[position]];
   float3 worldNormal;
   float3 worldPosition;
+  float objectId;
+};
+
+struct VertexOutLitTextured {
+  float4 position [[position]];
+  float3 worldNormal;
+  float3 worldPosition;
+  float2 uv;
   float objectId;
 };
 
@@ -118,6 +127,52 @@ fragment half4 fragmentLit(VertexOutLit fragmentIn [[stage_in]],
   return half4(float4(ambient + diffuse + specular, uniforms.colour.a));
 }
 
+vertex VertexOutLitTextured vertexLitTextured(const device VertexWithNormalIn *vertices [[buffer(0)]],
+                                              constant Constants &uniforms [[buffer(1)]],
+                                              uint VertexId [[vertex_id]]) {
+  VertexOutLitTextured out;
+  float3 position = float3(vertices[VertexId].position);
+  float3 normal = float3(vertices[VertexId].normal);
+  out.position = uniforms.modelViewProjectionMatrix * float4(position, 1.0);
+  out.worldNormal = normalize(uniforms.modelMatrixInverseTransposed * normal);
+  float4 worldPosition = uniforms.modelMatrix * float4(position, 1.0);
+  out.worldPosition = worldPosition.xyz;
+  out.uv = float2(vertices[VertexId].uv);
+  out.objectId = vertices[VertexId].objectId;
+  return out;
+}
+
+fragment half4 fragmentLitTextured(VertexOutLitTextured fragmentIn [[stage_in]],
+                                   texture2d<float> textureData [[texture(0)]],
+                                   sampler textureSampler [[sampler(0)]],
+                                   constant Constants &uniforms [[buffer(0)]],
+                                   const device float *selectionStates [[buffer(2)]],
+                                   const device float *visibleStates [[buffer(3)]]) {
+  int objectId = int(fragmentIn.objectId);
+  if (visibleStates[objectId] < 0.5) discard_fragment();
+
+  float4 sampled = textureData.sample(textureSampler, fragmentIn.uv);
+  float selected = selectionStates[objectId];
+  float3 baseColour = mix(sampled.rgb, float3(uniforms.selectionColour.r, uniforms.selectionColour.g, uniforms.selectionColour.b), selected);
+
+  float3 normalDirection = normalize(fragmentIn.worldNormal);
+  float3 viewDirection = normalize(float3(uniforms.viewMatrixInverse * float4(0.0, 0.0, 0.0, 1.0) - float4(fragmentIn.worldPosition, 1.0)));
+  float3 lightDirection = normalize(float3(uniforms.viewMatrixInverse * float4(lightDirectionInCamera, 0.0)));
+
+  float hemiWeight = 0.5 + 0.5 * normalDirection.y;
+  float3 ambient = mix(groundColour, skyColour, hemiWeight) * baseColour * ambientLightIntensity;
+
+  float nDotL = dot(normalDirection, lightDirection);
+  float diffuseWeight = 0.5 + 0.5 * nDotL;
+  float3 diffuse = diffuseLightIntensity * baseColour * diffuseWeight;
+
+  float3 r = reflect(-lightDirection, normalDirection);
+  float rDotV = max(0.0, dot(r, viewDirection));
+  float3 specular = specularLightIntensity * pow(rDotV, shininess);
+
+  return half4(float4(ambient + diffuse + specular, sampled.a));
+}
+
 fragment half4 fragmentUnlit(VertexOutUnlit fragmentIn [[stage_in]]) {
   return half4(fragmentIn.colour);
 }
@@ -166,4 +221,3 @@ fragment half4 fragmentPicking(VertexOutPicking fragmentIn [[stage_in]],
     half((id >> 24) & 0xFF) / 255.0h
   );
 }
-

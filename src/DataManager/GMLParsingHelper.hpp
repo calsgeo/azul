@@ -19,17 +19,180 @@
 
 #include "DataModel.hpp"
 
+#include <array>
 #include <boost/spirit/home/x3.hpp>
+#include <filesystem>
+#include <list>
 #include <pugixml.hpp>
+#include <set>
+#include <sstream>
 #include <unordered_map>
 
 class GMLParsingHelper {
   pugi::xml_document doc;
+  std::vector<AzulAppearanceStyle> appearanceStyles;
+  std::unordered_map<std::string, int> appearanceStyleIdByKey;
+  std::unordered_map<std::string, int> appearanceStyleIdByPolygonId;
+  std::unordered_map<std::string, int> appearanceStyleIdByRingId;
+  std::unordered_map<std::string, std::vector<std::array<float, 2>>> ringTextureCoordinatesByRingId;
+  std::set<std::string> appearanceThemes;
+  std::set<std::string> activeGeometryXlinks;
+  std::string currentFilePath;
   
   const char *typeWithoutNamespace(const char *type) {
     const char *namespaceSeparator = strchr(type, ':');
     if (namespaceSeparator != NULL) return namespaceSeparator+1;
     else return type;
+  }
+
+  std::string appearanceStyleKey(const AzulAppearanceStyle &style) {
+    std::ostringstream key;
+    key << (style.hasTexture ? "T" : "N") << "|"
+        << style.theme << "|"
+        << style.textureUri << "|"
+        << (style.hasMaterial ? "M" : "N") << "|"
+        << style.materialColour[0] << ","
+        << style.materialColour[1] << ","
+        << style.materialColour[2] << ","
+        << style.materialColour[3];
+    return key.str();
+  }
+
+  int addOrGetStyleId(const AzulAppearanceStyle &style) {
+    std::string key = appearanceStyleKey(style);
+    auto found = appearanceStyleIdByKey.find(key);
+    if (found != appearanceStyleIdByKey.end()) return found->second;
+    appearanceStyles.push_back(style);
+    int newId = static_cast<int>(appearanceStyles.size()-1);
+    appearanceStyleIdByKey[key] = newId;
+    return newId;
+  }
+
+  std::string resolveImageUri(const std::string &imageUri) const {
+    if (imageUri.empty()) return "";
+    if (imageUri.find("://") != std::string::npos) return imageUri;
+    if (imageUri[0] == '/') return imageUri;
+    if (imageUri.size() > 1 && imageUri[1] == ':') return imageUri;
+    std::filesystem::path sourcePath(currentFilePath);
+    std::filesystem::path resolved = (sourcePath.parent_path() / std::filesystem::path(imageUri)).lexically_normal();
+    if (std::filesystem::exists(resolved)) return resolved.string();
+
+    // Accept both common folder names used in datasets: "appearance" and "appearances".
+    std::string normalized = imageUri;
+    std::string altImageUri = imageUri;
+    std::size_t pluralPos = normalized.find("appearances/");
+    if (pluralPos != std::string::npos) {
+      altImageUri.replace(pluralPos, std::string("appearances").size(), "appearance");
+    } else {
+      std::size_t singularPos = normalized.find("appearance/");
+      if (singularPos != std::string::npos) {
+        altImageUri.replace(singularPos, std::string("appearance").size(), "appearances");
+      } else {
+        return resolved.string();
+      }
+    }
+    std::filesystem::path altResolved = (sourcePath.parent_path() / std::filesystem::path(altImageUri)).lexically_normal();
+    if (std::filesystem::exists(altResolved)) return altResolved.string();
+    return resolved.string();
+  }
+
+  std::string normaliseReference(std::string reference) {
+    if (reference.empty()) return "";
+    if (reference[0] == '#') reference.erase(reference.begin());
+    std::size_t hashPos = reference.find('#');
+    if (hashPos != std::string::npos) reference = reference.substr(hashPos+1);
+    std::size_t startQuote = reference.find('\'');
+    if (startQuote != std::string::npos) {
+      std::size_t endQuote = reference.find('\'', startQuote+1);
+      if (endQuote != std::string::npos && endQuote > startQuote+1) {
+        reference = reference.substr(startQuote+1, endQuote-startQuote-1);
+      }
+    }
+    return reference;
+  }
+
+  std::string extractReferenceFromNode(const pugi::xml_node &node) {
+    for (auto const &attribute: node.attributes()) {
+      const char *attributeType = typeWithoutNamespace(attribute.name());
+      if (strcmp(attributeType, "href") == 0 || strcmp(attributeType, "uri") == 0) return normaliseReference(attribute.value());
+    }
+    const char *value = node.child_value();
+    if (value != nullptr && strlen(value) > 0) return normaliseReference(value);
+    return "";
+  }
+
+  std::string extractIdFromNode(const pugi::xml_node &node) {
+    for (auto const &attribute: node.attributes()) {
+      const char *attributeType = typeWithoutNamespace(attribute.name());
+      if (strcmp(attributeType, "id") == 0) return attribute.value();
+    }
+    return "";
+  }
+
+  void collectPolygonIds(const pugi::xml_node &node,
+                         std::vector<std::string> &polygonIds,
+                         const std::unordered_map<std::string, pugi::xml_node> &nodesById,
+                         std::set<std::string> &visitedReferences) {
+    const char *nodeType = typeWithoutNamespace(node.name());
+    if (strcmp(nodeType, "Polygon") == 0 || strcmp(nodeType, "Triangle") == 0) {
+      std::string polygonId = extractIdFromNode(node);
+      if (!polygonId.empty()) polygonIds.push_back(polygonId);
+    }
+
+    std::string reference = extractReferenceFromNode(node);
+    if (!reference.empty() && visitedReferences.insert(reference).second) {
+      auto referencedNode = nodesById.find(reference);
+      if (referencedNode != nodesById.end()) {
+        collectPolygonIds(referencedNode->second, polygonIds, nodesById, visitedReferences);
+      }
+    }
+
+    for (auto const &child: node.children()) collectPolygonIds(child, polygonIds, nodesById, visitedReferences);
+  }
+
+  void assignStyleToTargetReference(const std::string &targetRef,
+                                    int styleId,
+                                    const std::unordered_map<std::string, pugi::xml_node> &nodesById) {
+    if (targetRef.empty()) return;
+    auto targetNode = nodesById.find(targetRef);
+    if (targetNode == nodesById.end()) return;
+
+    std::vector<std::string> polygonIds;
+    std::set<std::string> visitedReferences;
+    visitedReferences.insert(targetRef);
+    collectPolygonIds(targetNode->second, polygonIds, nodesById, visitedReferences);
+    for (auto const &polygonId: polygonIds) appearanceStyleIdByPolygonId[polygonId] = styleId;
+  }
+
+  bool parseReferencedNode(const std::string &reference,
+                           AzulObject &parsedObject,
+                           std::unordered_map<std::string, pugi::xml_node> &nodesById) {
+    if (reference.empty()) return false;
+    if (!activeGeometryXlinks.insert(reference).second) return false;
+    auto foundNode = nodesById.find(reference);
+    if (foundNode != nodesById.end()) {
+      parseCityGMLObject(foundNode->second, parsedObject, nodesById);
+      activeGeometryXlinks.erase(reference);
+      return true;
+    }
+    activeGeometryXlinks.erase(reference);
+    return false;
+  }
+
+  bool parseDoubleList(const char *values, std::vector<double> &result) {
+    result.clear();
+    if (values == nullptr) return false;
+    while (isspace(*values)) ++values;
+    while (strlen(values) > 0) {
+      const char *last = values;
+      while (!isspace(*last) && *last != '\0') ++last;
+      double parsedValue = 0.0;
+      if (!boost::spirit::x3::parse(values, last, boost::spirit::x3::double_, parsedValue)) return false;
+      result.push_back(parsedValue);
+      values = last;
+      while (isspace(*values)) ++values;
+    }
+    return true;
   }
   
   void buildNodesIndex(const pugi::xml_node &node, std::unordered_map<std::string, pugi::xml_node> &nodesById) {
@@ -67,9 +230,168 @@ class GMLParsingHelper {
       }
     } for (auto const &child: node.children()) buildNodesIndex(child, nodesById);
   }
+
+  void parseX3DMaterial(const pugi::xml_node &materialNode, std::unordered_map<std::string, pugi::xml_node> &nodesById, const std::string &theme) {
+    AzulAppearanceStyle style;
+    style.hasMaterial = true;
+    style.theme = theme;
+    style.materialColour[0] = 0.75f;
+    style.materialColour[1] = 0.75f;
+    style.materialColour[2] = 0.75f;
+    style.materialColour[3] = 1.0f;
+
+    for (auto const &child: materialNode.children()) {
+      const char *childType = typeWithoutNamespace(child.name());
+      if (strcmp(childType, "diffuseColor") == 0) {
+        std::vector<double> values;
+        if (parseDoubleList(child.child_value(), values) && values.size() >= 3) {
+          style.materialColour[0] = static_cast<float>(values[0]);
+          style.materialColour[1] = static_cast<float>(values[1]);
+          style.materialColour[2] = static_cast<float>(values[2]);
+        }
+      } else if (strcmp(childType, "transparency") == 0) {
+        std::vector<double> values;
+        if (parseDoubleList(child.child_value(), values) && !values.empty()) {
+          float transparency = static_cast<float>(values[0]);
+          if (transparency < 0.0f) transparency = 0.0f;
+          if (transparency > 1.0f) transparency = 1.0f;
+          style.materialColour[3] = 1.0f-transparency;
+        }
+      }
+    }
+
+    int styleId = addOrGetStyleId(style);
+    if (!theme.empty()) appearanceThemes.insert(theme);
+
+    for (auto const &child: materialNode.children()) {
+      const char *childType = typeWithoutNamespace(child.name());
+      if (strcmp(childType, "target") != 0) continue;
+      std::string targetRef = extractReferenceFromNode(child);
+      if (targetRef.empty()) continue;
+      assignStyleToTargetReference(targetRef, styleId, nodesById);
+    }
+  }
+
+  void parseTexCoordList(const pugi::xml_node &texCoordListNode) {
+    std::vector<std::pair<std::string, std::vector<std::array<float, 2>>>> parsedTextureCoordinates;
+    for (auto const &child: texCoordListNode.children()) {
+      const char *childType = typeWithoutNamespace(child.name());
+      if (strcmp(childType, "textureCoordinates") != 0) continue;
+      std::string ringRef;
+      for (auto const &attribute: child.attributes()) {
+        const char *attributeType = typeWithoutNamespace(attribute.name());
+        if (strcmp(attributeType, "ring") == 0) {
+          ringRef = normaliseReference(attribute.value());
+          break;
+        }
+      }
+      if (ringRef.empty()) continue;
+      std::vector<double> values;
+      if (!parseDoubleList(child.child_value(), values) || values.size() < 2 || values.size()%2 != 0) continue;
+      std::vector<std::array<float, 2>> ringTextureCoordinates;
+      ringTextureCoordinates.reserve(values.size()/2);
+      for (std::size_t i = 0; i+1 < values.size(); i += 2) {
+        ringTextureCoordinates.push_back({static_cast<float>(values[i]), static_cast<float>(values[i+1])});
+      }
+      parsedTextureCoordinates.push_back(std::make_pair(ringRef, ringTextureCoordinates));
+    }
+    for (auto const &entry: parsedTextureCoordinates) ringTextureCoordinatesByRingId[entry.first] = entry.second;
+  }
+
+  void assignStyleToTextureCoordinateRings(const pugi::xml_node &node, int styleId) {
+    for (auto const &child: node.children()) {
+      const char *childType = typeWithoutNamespace(child.name());
+      if (strcmp(childType, "textureCoordinates") == 0) {
+        std::string ringRef;
+        for (auto const &attribute: child.attributes()) {
+          const char *attributeType = typeWithoutNamespace(attribute.name());
+          if (strcmp(attributeType, "ring") == 0) {
+            ringRef = normaliseReference(attribute.value());
+            break;
+          }
+        }
+        if (!ringRef.empty()) appearanceStyleIdByRingId[ringRef] = styleId;
+      } else if (strcmp(childType, "TexCoordList") == 0 || strcmp(childType, "_TextureParameterization") == 0) {
+        assignStyleToTextureCoordinateRings(child, styleId);
+      }
+    }
+  }
+
+  void parseParameterizedTexture(const pugi::xml_node &textureNode, std::unordered_map<std::string, pugi::xml_node> &nodesById, const std::string &theme) {
+    AzulAppearanceStyle style;
+    style.hasTexture = true;
+    style.theme = theme;
+
+    for (auto const &child: textureNode.children()) {
+      const char *childType = typeWithoutNamespace(child.name());
+      if (strcmp(childType, "imageURI") == 0) {
+        style.textureUri = resolveImageUri(std::string(child.child_value()));
+      }
+    }
+    if (style.textureUri.empty()) return;
+    int styleId = addOrGetStyleId(style);
+    if (!theme.empty()) appearanceThemes.insert(theme);
+
+    for (auto const &child: textureNode.children()) {
+      const char *childType = typeWithoutNamespace(child.name());
+      if (strcmp(childType, "target") != 0) continue;
+
+      std::string targetRef = extractReferenceFromNode(child);
+      if (!targetRef.empty()) {
+        assignStyleToTargetReference(targetRef, styleId, nodesById);
+      }
+
+      for (auto const &targetChild: child.children()) {
+        const char *targetChildType = typeWithoutNamespace(targetChild.name());
+        if (strcmp(targetChildType, "TexCoordList") == 0) {
+          parseTexCoordList(targetChild);
+          assignStyleToTextureCoordinateRings(targetChild, styleId);
+        } else if (strcmp(targetChildType, "_TextureParameterization") == 0) {
+          for (auto const &parameterizationChild: targetChild.children()) {
+            const char *parameterizationType = typeWithoutNamespace(parameterizationChild.name());
+            if (strcmp(parameterizationType, "TexCoordList") == 0) {
+              parseTexCoordList(parameterizationChild);
+              assignStyleToTextureCoordinateRings(parameterizationChild, styleId);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  void parseAppearanceNodes(const pugi::xml_node &node, std::unordered_map<std::string, pugi::xml_node> &nodesById, const std::string &inheritedTheme = "") {
+    const char *nodeType = typeWithoutNamespace(node.name());
+    std::string theme = inheritedTheme;
+
+    if (strcmp(nodeType, "Appearance") == 0) {
+      for (auto const &child: node.children()) {
+        const char *childType = typeWithoutNamespace(child.name());
+        if (strcmp(childType, "theme") == 0) theme = child.child_value();
+      }
+    }
+
+    if (strcmp(nodeType, "X3DMaterial") == 0) {
+      parseX3DMaterial(node, nodesById, theme);
+    } else if (strcmp(nodeType, "ParameterizedTexture") == 0) {
+      parseParameterizedTexture(node, nodesById, theme);
+    }
+
+    for (auto const &child: node.children()) parseAppearanceNodes(child, nodesById, theme);
+  }
   
-  void parseRing(const pugi::xml_node &node, AzulRing &parsedRing) {
-    for (auto const &child: node.first_child().children()) {
+  void parseRing(const pugi::xml_node &node, AzulRing &parsedRing, std::unordered_map<std::string, pugi::xml_node> &nodesById) {
+    pugi::xml_node ringNode = node.first_child();
+    if (!ringNode) {
+      std::string ringReference = extractReferenceFromNode(node);
+      if (!ringReference.empty()) {
+        auto referencedRingNode = nodesById.find(ringReference);
+        if (referencedRingNode != nodesById.end()) ringNode = referencedRingNode->second;
+      }
+    }
+    if (!ringNode) return;
+
+    std::string ringId = extractIdFromNode(ringNode);
+    for (auto const &child: ringNode.children()) {
       const char *childType = typeWithoutNamespace(child.name());
       if (strcmp(childType, "pos") == 0 ||
           strcmp(childType, "posList") == 0) {
@@ -97,17 +419,72 @@ class GMLParsingHelper {
         } //std::cout << "Created " << points.size() << " points" << std::endl;
       }
     }
+    auto foundTextureCoordinates = ringTextureCoordinatesByRingId.find(ringId);
+    if (foundTextureCoordinates != ringTextureCoordinatesByRingId.end()) {
+      parsedRing.textureCoordinates = foundTextureCoordinates->second;
+      if (parsedRing.points.size() == parsedRing.textureCoordinates.size()+1 &&
+          parsedRing.points.size() >= 2 &&
+          parsedRing.points.front().coordinates[0] == parsedRing.points.back().coordinates[0] &&
+          parsedRing.points.front().coordinates[1] == parsedRing.points.back().coordinates[1] &&
+          parsedRing.points.front().coordinates[2] == parsedRing.points.back().coordinates[2] &&
+          !parsedRing.textureCoordinates.empty()) {
+        parsedRing.textureCoordinates.push_back(parsedRing.textureCoordinates.front());
+      } else if (parsedRing.textureCoordinates.size() == parsedRing.points.size()+1 &&
+                 parsedRing.textureCoordinates.size() >= 2 &&
+                 parsedRing.textureCoordinates.front()[0] == parsedRing.textureCoordinates.back()[0] &&
+                 parsedRing.textureCoordinates.front()[1] == parsedRing.textureCoordinates.back()[1]) {
+        parsedRing.textureCoordinates.pop_back();
+      }
+      parsedRing.hasTextureCoordinates = !parsedRing.textureCoordinates.empty();
+    }
+
   }
   
-  void parsePolygon(const pugi::xml_node &node, AzulPolygon &parsedPolygon) {
-    for (auto const &child: node.children()) {
+  void parsePolygon(const pugi::xml_node &node, AzulPolygon &parsedPolygon, std::unordered_map<std::string, pugi::xml_node> &nodesById) {
+    pugi::xml_node polygonNode = node;
+    if (!polygonNode.first_child()) {
+      std::string polygonReference = extractReferenceFromNode(node);
+      if (!polygonReference.empty()) {
+        auto referencedPolygonNode = nodesById.find(polygonReference);
+        if (referencedPolygonNode != nodesById.end()) polygonNode = referencedPolygonNode->second;
+      }
+    }
+
+    std::string polygonId = extractIdFromNode(polygonNode);
+    auto foundStyle = appearanceStyleIdByPolygonId.find(polygonId);
+    if (foundStyle != appearanceStyleIdByPolygonId.end()) parsedPolygon.appearanceStyleId = foundStyle->second;
+
+    for (auto const &child: polygonNode.children()) {
       const char *childType = typeWithoutNamespace(child.name());
       if (strcmp(childType, "exterior") == 0) {
-        parseRing(child, parsedPolygon.exteriorRing);
+        parseRing(child, parsedPolygon.exteriorRing, nodesById);
       } else if (strcmp(childType, "interior") == 0) {
         AzulRing ring;
-        parseRing(child, ring);
+        parseRing(child, ring, nodesById);
         parsedPolygon.interiorRings.push_back(ring);
+      }
+    }
+
+    if (parsedPolygon.appearanceStyleId < 0) {
+      pugi::xml_node exteriorNode;
+      for (auto const &child: polygonNode.children()) {
+        if (strcmp(typeWithoutNamespace(child.name()), "exterior") == 0) {
+          exteriorNode = child;
+          break;
+        }
+      }
+      pugi::xml_node linearRingNode = exteriorNode.first_child();
+      if (!linearRingNode) {
+        std::string ringReference = extractReferenceFromNode(exteriorNode);
+        if (!ringReference.empty()) {
+          auto referencedRingNode = nodesById.find(ringReference);
+          if (referencedRingNode != nodesById.end()) linearRingNode = referencedRingNode->second;
+        }
+      }
+      std::string ringId = extractIdFromNode(linearRingNode);
+      if (!ringId.empty()) {
+        auto foundStyleByRing = appearanceStyleIdByRingId.find(ringId);
+        if (foundStyleByRing != appearanceStyleIdByRingId.end()) parsedPolygon.appearanceStyleId = foundStyleByRing->second;
       }
     }
   }
@@ -142,7 +519,10 @@ class GMLParsingHelper {
           std::cout << "Building nodes index...";
           buildNodesIndex(node, nodesById);
           std::cout << " done (" << nodesById.size() << " entries)." << std::endl;
+          parseAppearanceNodes(node, nodesById);
           parseCityGMLObject(node, parsedObject, nodesById);
+          parsedObject.appearanceStyles = appearanceStyles;
+          parsedObject.appearanceThemes.assign(appearanceThemes.begin(), appearanceThemes.end());
           statusMessage = "Loaded CityGML " + docVersion + " file";
         } else {
           statusMessage = "CityGML " + docVersion + " is not supported, please upgrade to CityJSON";
@@ -200,7 +580,7 @@ class GMLParsingHelper {
              strcmp(nodeType, "Rectangle") == 0 ||
              strcmp(nodeType, "Triangle") == 0) {
       AzulPolygon polygon;
-      parsePolygon(node, polygon);
+      parsePolygon(node, polygon, nodesById);
       parsedObject.polygons.push_back(polygon);
     }
 
@@ -333,12 +713,9 @@ class GMLParsingHelper {
         if (strcmp(attributeType, "href") == 0) xlink = attribute.value();
       } if (xlink != NULL) {
         if (xlink[0] == '#') ++xlink;
-//        std::unordered_map<std::string, pugi::xml_node>::const_iterator xlinkNode = nodesById.find(xlink);
-//        if (xlinkNode != nodesById.end()) {
-//          parseCityGMLObject(xlinkNode->second, parsedObject, nodesById);
-//        } else {
-//          std::cout << "Geometry with xlink " << xlink << " not found. Skipped." << std::endl;
-//        }
+        if (!parseReferencedNode(xlink, parsedObject, nodesById)) {
+          std::cout << "Geometry with xlink " << xlink << " not found. Skipped." << std::endl;
+        }
       }
     }
     
@@ -493,7 +870,7 @@ class GMLParsingHelper {
     else if (strcmp(nodeType, "Polygon") == 0 ||
              strcmp(nodeType, "Triangle") == 0) {
       AzulPolygon polygon;
-      parsePolygon(node, polygon);
+      parsePolygon(node, polygon, nodesById);
       parsedObject.polygons.push_back(polygon);
     }
     
@@ -532,10 +909,7 @@ class GMLParsingHelper {
             if (strcmp(attributeType, "href") == 0) xlink = attribute.value();
           } if (xlink != NULL) {
             if (xlink[0] == '#') ++xlink;
-            std::unordered_map<std::string, pugi::xml_node>::const_iterator xlinkNode = nodesById.find(xlink);
-            if (xlinkNode != nodesById.end()) {
-              parseCityGMLObject(xlinkNode->second, transformedChild, nodesById);
-            } else {
+            if (!parseReferencedNode(xlink, transformedChild, nodesById)) {
               std::cout << "Geometry with xlink " << xlink << " not found" << std::endl;
             }
           }
@@ -636,6 +1010,14 @@ public:
   void parse(const char *filePath, AzulObject &parsedFile) {
     parsedFile.type = "File";
     parsedFile.id = filePath;
+    currentFilePath = filePath;
+    appearanceStyles.clear();
+    appearanceStyleIdByKey.clear();
+    appearanceStyleIdByPolygonId.clear();
+    appearanceStyleIdByRingId.clear();
+    ringTextureCoordinatesByRingId.clear();
+    appearanceThemes.clear();
+    activeGeometryXlinks.clear();
     doc.load_file(filePath);
     parseGML(doc.root(), parsedFile);
     pugi::xpath_node srsNode = doc.select_node("//*[@srsName]");
@@ -647,6 +1029,14 @@ public:
   
   void clearDOM() {
     doc.reset();
+    appearanceStyles.clear();
+    appearanceStyleIdByKey.clear();
+    appearanceStyleIdByPolygonId.clear();
+    appearanceStyleIdByRingId.clear();
+    ringTextureCoordinatesByRingId.clear();
+    appearanceThemes.clear();
+    activeGeometryXlinks.clear();
+    currentFilePath.clear();
   }
 };
 
