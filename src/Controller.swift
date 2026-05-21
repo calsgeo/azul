@@ -798,9 +798,7 @@ extension NSToolbarItem.Identifier {
         Swift.print("Loading triangle buffers...")
         self.reloadTriangleBuffers()
         if self.metalView?.showTextures == true {
-          DispatchQueue.main.sync {
-            self.metalView?.primeTexturesForCurrentBuffers()
-          }
+          self.metalView?.primeTexturesForCurrentBuffers()
         }
         self.updateVisibleStateBuffer()
         self.updateSelectionStateBuffer()
