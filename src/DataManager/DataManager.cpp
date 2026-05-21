@@ -41,11 +41,15 @@ struct PointKeyHasher {
   }
 };
 
+long long roundCoordinate(double coord) {
+  return static_cast<long long>(llround(coord * 1e9));
+}
+
 PointKey makePointKey(const AzulPoint &point) {
   return PointKey{
-    static_cast<long long>(llround(point.coordinates[0]*1e6)),
-    static_cast<long long>(llround(point.coordinates[1]*1e6)),
-    static_cast<long long>(llround(point.coordinates[2]*1e6))
+    roundCoordinate(point.coordinates[0]),
+    roundCoordinate(point.coordinates[1]),
+    roundCoordinate(point.coordinates[2])
   };
 }
 
