@@ -195,6 +195,22 @@ import MetalKit
   func recreatePipelines() {
     guard let library = library, let device = device else { return }
 
+    let fileManager = FileManager.default
+    let appSupportURL = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        .appendingPathComponent("azul", isDirectory: true)
+    let archiveURL = appSupportURL.appendingPathComponent("azul.metalar")
+    let archive: MTLBinaryArchive?
+    if fileManager.fileExists(atPath: archiveURL.path) {
+      let archiveDescriptor = MTLBinaryArchiveDescriptor()
+      archiveDescriptor.url = archiveURL
+      archive = try? device.makeBinaryArchive(descriptor: archiveDescriptor)
+      if archive != nil {
+        Swift.print("Loaded binary archive from \(archiveURL.path)")
+      }
+    } else {
+      archive = nil
+    }
+
     let litPipelineDescriptor = MTLRenderPipelineDescriptor()
     litPipelineDescriptor.vertexFunction = library.makeFunction(name: "vertexLit")
     litPipelineDescriptor.fragmentFunction = library.makeFunction(name: "fragmentLit")
@@ -235,6 +251,13 @@ import MetalKit
     edgePipelineDescriptor.depthAttachmentPixelFormat = depthStencilPixelFormat
     edgePipelineDescriptor.rasterSampleCount = msaaSampleCount
 
+    if let archive = archive {
+      litPipelineDescriptor.binaryArchives = [archive]
+      texturedPipelineDescriptor.binaryArchives = [archive]
+      unlitPipelineDescriptor.binaryArchives = [archive]
+      edgePipelineDescriptor.binaryArchives = [archive]
+    }
+
     do {
       litRenderPipelineState = try device.makeRenderPipelineState(descriptor: litPipelineDescriptor)
       texturedRenderPipelineState = try device.makeRenderPipelineState(descriptor: texturedPipelineDescriptor)
@@ -250,6 +273,9 @@ import MetalKit
     pickingPipelineDescriptor.colorAttachments[0].pixelFormat = .rgba8Unorm
     pickingPipelineDescriptor.depthAttachmentPixelFormat = depthStencilPixelFormat
     pickingPipelineDescriptor.rasterSampleCount = 1
+    if let archive = archive {
+      pickingPipelineDescriptor.binaryArchives = [archive]
+    }
     do {
       pickingRenderPipelineState = try device.makeRenderPipelineState(descriptor: pickingPipelineDescriptor)
     } catch {
@@ -296,6 +322,13 @@ import MetalKit
     exportTexturedDesc.depthAttachmentPixelFormat = depthStencilPixelFormat
     exportTexturedDesc.rasterSampleCount = sampleCount
 
+    if let archive = archive {
+      exportLitDesc.binaryArchives = [archive]
+      exportTexturedDesc.binaryArchives = [archive]
+      exportUnlitDesc.binaryArchives = [archive]
+      exportEdgeDesc.binaryArchives = [archive]
+    }
+
     do {
       exportLitRenderPipelineState = try device.makeRenderPipelineState(descriptor: exportLitDesc)
       exportTexturedRenderPipelineState = try device.makeRenderPipelineState(descriptor: exportTexturedDesc)
@@ -308,6 +341,19 @@ import MetalKit
 
   func cachePipelineArchive() {
     guard let library = library, let device = device else { return }
+
+    let fileManager = FileManager.default
+    let appSupportURL = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        .appendingPathComponent("azul", isDirectory: true)
+    let archiveURL = appSupportURL.appendingPathComponent("azul.metalar")
+    guard !fileManager.fileExists(atPath: archiveURL.path) else { return }
+
+    do {
+      try fileManager.createDirectory(at: appSupportURL, withIntermediateDirectories: true)
+    } catch {
+      Swift.print("Could not create archive directory: \(error)")
+      return
+    }
 
     let litPipelineDescriptor = MTLRenderPipelineDescriptor()
     litPipelineDescriptor.vertexFunction = library.makeFunction(name: "vertexLit")
@@ -341,25 +387,47 @@ import MetalKit
     unlitPipelineDescriptor.depthAttachmentPixelFormat = depthStencilPixelFormat
     unlitPipelineDescriptor.rasterSampleCount = msaaSampleCount
 
-    let fileManager = FileManager.default
-    let appSupportURL = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        .appendingPathComponent("azul", isDirectory: true)
-    let archiveURL = appSupportURL.appendingPathComponent("azul.metalar")
-    try? fileManager.createDirectory(at: appSupportURL, withIntermediateDirectories: true)
+    do {
+      let archive = try device.makeBinaryArchive(descriptor: MTLBinaryArchiveDescriptor())
+      var allSucceeded = true
 
-    if !fileManager.fileExists(atPath: archiveURL.path) {
-      if let archive = try? device.makeBinaryArchive(descriptor: MTLBinaryArchiveDescriptor()) {
-        try? archive.addRenderPipelineFunctions(descriptor: litPipelineDescriptor)
-        try? archive.addRenderPipelineFunctions(descriptor: texturedPipelineDescriptor)
-        try? archive.addRenderPipelineFunctions(descriptor: unlitPipelineDescriptor)
-        if let pickFunction = library.makeFunction(name: "pick") {
-          let pickDesc = MTLComputePipelineDescriptor()
-          pickDesc.computeFunction = pickFunction
-          try? archive.addComputePipelineFunctions(descriptor: pickDesc)
-        }
-        try? archive.serialize(to: archiveURL)
-        Swift.print("Cached binary archive to \(archiveURL.path)")
+      do {
+        try archive.addRenderPipelineFunctions(descriptor: litPipelineDescriptor)
+      } catch {
+        Swift.print("Failed to cache lit pipeline: \(error)")
+        allSucceeded = false
       }
+      do {
+        try archive.addRenderPipelineFunctions(descriptor: texturedPipelineDescriptor)
+      } catch {
+        Swift.print("Failed to cache textured pipeline: \(error)")
+        allSucceeded = false
+      }
+      do {
+        try archive.addRenderPipelineFunctions(descriptor: unlitPipelineDescriptor)
+      } catch {
+        Swift.print("Failed to cache unlit pipeline: \(error)")
+        allSucceeded = false
+      }
+      if let pickFunction = library.makeFunction(name: "pick") {
+        let pickDesc = MTLComputePipelineDescriptor()
+        pickDesc.computeFunction = pickFunction
+        do {
+          try archive.addComputePipelineFunctions(descriptor: pickDesc)
+        } catch {
+          Swift.print("Failed to cache pick compute pipeline: \(error)")
+          allSucceeded = false
+        }
+      }
+
+      if allSucceeded {
+        try archive.serialize(to: archiveURL)
+        Swift.print("Cached binary archive to \(archiveURL.path)")
+      } else {
+        Swift.print("Binary archive not saved due to previous errors")
+      }
+    } catch {
+      Swift.print("Failed to create binary archive: \(error)")
     }
   }
 
