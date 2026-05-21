@@ -17,6 +17,7 @@
 #ifndef AppearanceHelpers_hpp
 #define AppearanceHelpers_hpp
 
+#include <algorithm>
 #include <filesystem>
 #include <sstream>
 #include <string>
@@ -36,7 +37,8 @@ inline std::string appearanceStyleKey(const AzulAppearanceStyle &style) {
   return key.str();
 }
 
-inline std::string resolveImageUri(const std::string &imageUri, const std::string &currentFilePath) {
+inline std::string resolveImageUri(std::string imageUri, const std::string &currentFilePath) {
+  std::replace(imageUri.begin(), imageUri.end(), '\\', '/');
   if (imageUri.empty()) return "";
   if (imageUri.find("://") != std::string::npos) return imageUri;
   if (imageUri[0] == '/') return imageUri;
@@ -46,13 +48,12 @@ inline std::string resolveImageUri(const std::string &imageUri, const std::strin
   if (std::filesystem::exists(resolved)) return resolved.string();
 
   // Accept both common folder names used in datasets: "appearance" and "appearances".
-  std::string normalized = imageUri;
   std::string altImageUri = imageUri;
-  std::size_t pluralPos = normalized.find("appearances/");
+  std::size_t pluralPos = imageUri.find("appearances/");
   if (pluralPos != std::string::npos) {
     altImageUri.replace(pluralPos, std::string("appearances").size(), "appearance");
   } else {
-    std::size_t singularPos = normalized.find("appearance/");
+    std::size_t singularPos = imageUri.find("appearance/");
     if (singularPos != std::string::npos) {
       altImageUri.replace(singularPos, std::string("appearance").size(), "appearances");
     } else {
