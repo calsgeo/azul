@@ -540,6 +540,7 @@ extension NSToolbarItem.Identifier {
     Swift.print("Controller.new(NSMenuItem)")
     dataManager.clear()
     regenerateBoundingBoxBuffer()
+    metalView!.clearTextureCaches()
     metalView!.new()
     objectsSourceList!.reloadData()
     attributesTableView!.reloadData()
@@ -663,7 +664,7 @@ extension NSToolbarItem.Identifier {
       dataManager.setAppearanceTheme("")
       dataManager.setUseAppearances(false)
     }
-    metalView?.clearFailedTexturePaths()
+    metalView?.clearTextureCaches()
     isLoading = true
     self.performanceHelper.startTimer()
     
