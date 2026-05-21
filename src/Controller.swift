@@ -440,7 +440,8 @@ extension NSToolbarItem.Identifier {
 
     appearanceThemeToolbarItem?.isEnabled = true
     let appearancesOn = metalView?.showTextures ?? false
-    if !appearancesOn {
+    if !appearancesOn || sortedThemes.isEmpty {
+      if sortedThemes.isEmpty { metalView?.showTextures = false }
       popUpButton.selectItem(withTitle: "Semantics")
     } else if let item = popUpButton.item(withTitle: currentAppearanceTheme) {
       popUpButton.select(item)
