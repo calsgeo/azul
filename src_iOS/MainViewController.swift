@@ -84,9 +84,6 @@ class MainViewController: UIViewController, MTKViewDelegate {
     // MARK: LoD filter
     var currentLodFilter: String = ""
 
-    // MARK: Gesture state
-    var lastPanTranslation: CGPoint = .zero
-
     // MARK: Lifecycle
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -868,9 +865,9 @@ class MainViewController: UIViewController, MTKViewDelegate {
         pan.minimumNumberOfTouches = 1; pan.maximumNumberOfTouches = 1
         metalView.addGestureRecognizer(pan)
 
-        let twoFingerPan = UIPanGestureRecognizer(target: self, action: #selector(handleOrbit(_:)))
-        twoFingerPan.minimumNumberOfTouches = 2
-        metalView.addGestureRecognizer(twoFingerPan)
+        let orbitGesture = UIPanGestureRecognizer(target: self, action: #selector(handleOrbit(_:)))
+        orbitGesture.minimumNumberOfTouches = 2
+        metalView.addGestureRecognizer(orbitGesture)
 
         let pinch = UIPinchGestureRecognizer(target: self, action: #selector(handlePinch(_:)))
         metalView.addGestureRecognizer(pinch)
@@ -902,30 +899,28 @@ class MainViewController: UIViewController, MTKViewDelegate {
         updateConstants()
     }
 
-    @objc func handlePan(_ gesture: UIPanGestureRecognizer) {
+    @objc func handleOrbit(_ gesture: UIPanGestureRecognizer) {
+        guard gesture.state == .changed else { return }
         let translation = gesture.translation(in: metalView)
-        if gesture.state == .changed {
-            let distance = simd_length(centre - eye)
-            let sensitivity: Float = 0.003 * (fieldOfView / (.pi / 4)) * distance
-            let motionInCamera = SIMD3<Float>(sensitivity * Float(-translation.x), sensitivity * Float(translation.y), 0)
-            let cameraToObject = matrix_upper_left_3x3(matrix: matrix_multiply(viewMatrix, modelMatrix)).inverse
-            let motionInObject = matrix_multiply(cameraToObject, motionInCamera)
-            eye += motionInObject
-            centre += motionInObject
-            viewMatrix = matrix4x4_look_at(eye: eye, centre: centre, up: SIMD3<Float>(0, 1, 0))
-            updateConstants()
-        }
+        let viewSize = metalView.bounds.size
+        let sensitivity = Float.pi / Float(min(viewSize.width, viewSize.height))
+        orbit(angleX: Float(-translation.y) * sensitivity, angleY: Float(-translation.x) * sensitivity)
         gesture.setTranslation(.zero, in: metalView)
     }
 
-    @objc func handleOrbit(_ gesture: UIPanGestureRecognizer) {
+    @objc func handlePan(_ gesture: UIPanGestureRecognizer) {
+        guard gesture.state == .changed else { return }
         let translation = gesture.translation(in: metalView)
-        let delta = CGPoint(x: translation.x - lastPanTranslation.x, y: translation.y - lastPanTranslation.y)
-        lastPanTranslation = translation
-        if gesture.state == .began { lastPanTranslation = .zero }
-        else if gesture.state == .changed {
-            orbit(angleX: Float(-delta.y) * 0.005, angleY: Float(-delta.x) * 0.005)
-        } else if gesture.state == .ended || gesture.state == .cancelled { lastPanTranslation = .zero }
+        let distance = simd_length(centre - eye)
+        let sensitivity: Float = 0.003 * (fieldOfView / (.pi / 4)) * distance
+        let motionInCamera = SIMD3<Float>(sensitivity * Float(-translation.x), sensitivity * Float(translation.y), 0)
+        let cameraToWorld = matrix_upper_left_3x3(matrix: viewMatrix).inverse
+        let motionInWorld = matrix_multiply(cameraToWorld, motionInCamera)
+        eye += motionInWorld
+        centre += motionInWorld
+        viewMatrix = matrix4x4_look_at(eye: eye, centre: centre, up: SIMD3<Float>(0, 1, 0))
+        updateConstants()
+        gesture.setTranslation(.zero, in: metalView)
     }
 
     @objc func handlePinch(_ gesture: UIPinchGestureRecognizer) {
