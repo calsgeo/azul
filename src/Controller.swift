@@ -1496,11 +1496,12 @@ extension NSToolbarItem.Identifier {
     selHighlightWell.tag = 0
     selHighlightWell.action = #selector(selectionColourChanged(_:))
     selHighlightWell.target = self
+    NSColorPanel.shared.showsAlpha = true
     if let colorData = UserDefaults.standard.data(forKey: "azulSelectionColour"),
        let color = try? NSKeyedUnarchiver.unarchivedObject(ofClass: NSColor.self, from: colorData) {
       selHighlightWell.color = color
     } else {
-      selHighlightWell.color = NSColor.yellow
+      selHighlightWell.color = NSColor.yellow.withAlphaComponent(0.4)
     }
     selectionView.addSubview(selHighlightWell)
 
@@ -1722,7 +1723,7 @@ extension NSToolbarItem.Identifier {
   @objc func selectionReset(_ sender: Any) {
     UserDefaults.standard.removeObject(forKey: "azulSelectionColour")
     UserDefaults.standard.removeObject(forKey: "azulSelectedEdgesColour")
-    metalView?.selectionColour = SIMD4<Float>(1.0, 1.0, 0.0, 1.0)
+    metalView?.selectionColour = SIMD4<Float>(1.0, 1.0, 0.0, 0.4)
     dataManager.setSelectedEdgesColourWithRed(1.0, green: 0.0, blue: 0.0, alpha: 1.0)
     dataManager.regenerateEdgeBuffers(withMaximumSize: 16*1024*1024)
     reloadEdgeBuffers()

@@ -59,7 +59,7 @@ class MainViewController: UIViewController, MTKViewDelegate {
 
     // MARK: Scene state
     var showingBBox = false
-    var selectionColour = SIMD4<Float>(1.0, 1.0, 0.0, 1.0)
+    var selectionColour = SIMD4<Float>(1.0, 1.0, 0.0, 0.4)
     var customLightClearColor: MTLClearColor?
     var customDarkClearColor: MTLClearColor?
     let depthFormat = MTLPixelFormat.depth32Float
