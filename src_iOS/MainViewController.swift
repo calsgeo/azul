@@ -684,11 +684,6 @@ class MainViewController: UIViewController, MTKViewDelegate {
         }
     }
 
-    func clearTextureCaches() {
-        loadedTextures.removeAll()
-        failedTexturePaths.removeAll()
-    }
-
     // MARK: Appearance
     func requestTextureDirectoryAccessIfNeeded() {
         guard !failedTexturePaths.isEmpty, grantedTextureDirectoryURL == nil else { return }
@@ -723,7 +718,7 @@ class MainViewController: UIViewController, MTKViewDelegate {
         dataManager.updateSelectionStates()
         updateSelectionStateBuffer()
         if appearancesEnabled {
-            clearTextureCaches()
+            failedTexturePaths.removeAll()
             primeTexturesForCurrentBuffers()
             requestTextureDirectoryAccessIfNeeded()
         }
@@ -1247,7 +1242,7 @@ extension MainViewController: UIDocumentPickerDelegate {
             var isDir: ObjCBool = false
             if FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir), isDir.boolValue {
                 grantedTextureDirectoryURL = url
-                clearTextureCaches()
+                failedTexturePaths.removeAll()
                 primeTexturesForCurrentBuffers()
                 metalView?.setNeedsDisplay()
             } else {
