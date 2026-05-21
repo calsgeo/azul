@@ -32,8 +32,8 @@ Xcode Cloud: macOS only; uses `ci_scripts/ci_pre_xcodebuild.sh` to install pinne
 - **Entry point**: `src/Controller.swift` (`@NSApplicationMain` app delegate)
 - **Swift → C++ bridge**: `DataManagerWrapperWrapper.{h,mm}` + `PerformanceHelperWrapperWrapper.{h,mm}` expose C++ `DataManager` to Swift via Objective-C++. The bridging header (Swift→ObjC) is `src/Azul-Bridging-Header.h`. The `.mm` files also import `"azul-Swift.h"` (Xcode-generated ObjC→Swift header) to call back into Swift types.
 - **C++ core**: `src/DataManager/DataManager.cpp` owns all data, file parsing, triangulation, edge generation, selection, LOD filtering. Parsing helpers in `src/DataManager/*ParsingHelper.hpp`.
-- **Rendering**: `src/MetalView.swift` (MTKView subclass) + `src/Shaders.metal`. MSAA configurable (1/2/4x). Lit/unlit/picking pipelines cached as binary archive (`azul.metalar`). Textured pipeline (`vertexLitTextured`/`fragmentLitTextured`) used when appearances are on and a texture URI is available on the triangle buffer. Export pipelines (`exportLitRenderPipelineState`, etc.) use `.rgba8Unorm` with MSAA matching the view setting.
-- **Appearance system**: Three-mode dropdown in toolbar (Semantic Colours / Materials / Textures + named themes). Semantic Colours uses type-based `colourForType` map. Materials and Textures apply CityGML/CityJSON appearance data (X3DMaterial/ParameterizedTexture). Dropdown always defaults to Semantic Colours on file load. Appearance theme/state is stored in `DataManager::{useAppearances, appearanceTheme}` and persisted via `metalView.showTextures` + `currentAppearanceTheme`.
+- **Rendering**: `src/MetalView.swift` (MTKView subclass) + `src/Shaders.metal`. MSAA configurable (1/2/4x). Lit/unlit/picking pipelines cached as binary archive (`azul.metalar`). Textured pipeline (`vertexLitTextured`/`fragmentLitTextured`) used when appearances are on and a texture URI is available on the triangle buffer. Export pipelines (`exportLitRenderPipelineState`, etc.) use `.rgba8Unorm` with MSAA matching the view setting. Selection highlight uses a luminance-aware hybrid blend (screen blend on dark surfaces, plain mix on bright surfaces) with configurable alpha.
+- **Appearance system**: Single dropdown in toolbar: "Semantics" (appearances off, uses type-based `colourForType` map) plus named themes (Materials, Textures, and any themes from the file). Dropdown always defaults to Semantics on file load. Appearance theme/state is stored in `DataManager::{useAppearances, appearanceTheme}` and persisted via `metalView.showTextures` + `currentAppearanceTheme`.
 - **UI**: Menu bar loaded from `src/Base.lproj/MainMenu.xib` (XIB); all other UI (NSSplitView, NSOutlineView sidebar, NSTableView attributes) is programmatic. Appearance controls in toolbar dropdown only (no separate toggle). App icon and CityGML type icons in `src/Assets.xcassets/`; document type icons in `src/Icons/`.
 
 ### iOS
@@ -80,6 +80,7 @@ Xcode Cloud: macOS only; uses `ci_scripts/ci_pre_xcodebuild.sh` to install pinne
 | `src/DataManager/DataManagerWrapperWrapper.{h,mm}` | ObjC++ bridge exposing C++ DataManager to Swift |
 | `src/DataManager/PerformanceHelperWrapperWrapper.{h,mm}` | ObjC++ bridge for performance timing/memory |
 | `src/DataManager/TableCellView.{h,m}` | macOS custom NSTableCellView with checkbox + icon + label |
+| `src/DataManager/AppearanceHelpers.hpp` | Shared appearance parsing helpers (style key, URI resolution) |
 | `src/DataManager/*ParsingHelper.hpp` | Format-specific parsers (GML, JSON, JSONL, OBJ, OFF, POLY) |
 | `src/DataManager/simdjson.{cpp,h}` | Vendored simdjson 4.6.3 |
 | `src/Base.lproj/MainMenu.xib` | macOS menu bar (XIB) |
@@ -117,7 +118,7 @@ This ordering matters — it's the exact sequence in `Controller.swift:loadData(
 CityGML and CityJSON appearance data (X3DMaterial and ParameterizedTexture) is parsed in `GMLParsingHelper.hpp` and `JSONParsingHelper.hpp`. Styles are pooled into `AzulAppearanceStyle` structs and assigned to polygons via `appearanceStyleId`. During buffer regeneration, the `DataManager::useAppearances` and `appearanceTheme` flags control whether appearance data overrides the semantic `colourForType` fallback.
 
 The toolbar dropdown offers:
-- **Semantic Colours**: type-based colouring (`colourForType` map), appearances off
+- **Semantics**: type-based colouring (`colourForType` map), appearances off
 - **Materials**: material colours from the file (X3DMaterial), textures suppressed
 - **Textures**: texture images from the file (ParameterizedTexture), material colours suppressed
 - **Named themes** (if present): both materials and textures filtered by theme
@@ -130,7 +131,7 @@ Vegetation objects in CityGML often use `ImplicitGeometry` with a shared templat
 
 - Functions bridging to Swift return C types (`float *`, `const char *`); Swift side wraps with `UnsafeBufferPointer`.
 - Colour = `(r, g, b, a)` float tuple. `a == 1.0` renders opaque first, `a < 1.0` renders second (transparent overlay).
-- Selection overlay colour is configurable via Preferences (default yellow). Passed as `selectionColour` in the `Constants` Metal struct.
+- Selection overlay colour is configurable via Preferences (default yellow `(1.0, 1.0, 0.0, 0.7)`). Passed as `selectionColour` in the `Constants` Metal struct. Blend mode switches between screen blend (dark surfaces) and plain mix (bright surfaces) based on luminance.
 - Selected edges colour is configurable via Preferences (default red). Stored in `DataManager::selectedEdgesColour`, baked into edge buffers on regeneration.
 - Type/semantic surface colours are configurable via Preferences. Stored in `DataManager::colourForType` map; overrides persisted in UserDefaults `azulTypeColours` as `[type: [r, g, b, a]]`.
 - Preferences window has three tabbed panels: Rendering, Selection, Semantic Surfaces. All settings persist in UserDefaults.

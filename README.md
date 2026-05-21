@@ -24,7 +24,7 @@ The current version of azul runs on **macOS 13+** (Apple Silicon and Intel) and 
 * Filter by level of detail: click LoD segment in sidebar
 * Show bounding box: b or cmd+shift+b
 * Show edges: e or cmd+shift+e
-* Appearance (Semantic Colours / Materials / Textures): in toolbar dropdown
+* Appearance: select theme in toolbar dropdown
 * Preferences: cmd+,
 * Object type colours: shift+cmd+c
 
@@ -75,7 +75,6 @@ azul is written in a mix of C++17, Swift 5, Objective-C 2 and Objective-C++. The
 * Icons for missing types
 * Improved search with live viewing of matching objects
 * More complex materials
-* Materials and textures (loaded from files)
 * Shifting the rotation point out of the data plane
 * Using a rotation point at a visible object in the centre (good for zooming in and rotating)
 * Showing the data plane and rotation point
