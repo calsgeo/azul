@@ -26,6 +26,7 @@ class MainViewController: UIViewController, MTKViewDelegate {
     var textureLoader: MTKTextureLoader?
     var textureSamplerState: MTLSamplerState?
     var grantedTextureDirectoryURL: URL?
+    var openedFileURL: URL?
 
     var msaaTexture: MTLTexture?
     var msaaDepthTexture: MTLTexture?
@@ -764,8 +765,9 @@ class MainViewController: UIViewController, MTKViewDelegate {
 
     // MARK: File loading
     func loadFile(url: URL) {
-        let accessOK = url.startAccessingSecurityScopedResource()
-        defer { if accessOK { url.stopAccessingSecurityScopedResource() } }
+        openedFileURL?.stopAccessingSecurityScopedResource()
+        url.startAccessingSecurityScopedResource()
+        openedFileURL = url
         let path = url.path
         let totalWeight: Float = 75.165239
         var progress: Float = 0
@@ -1085,7 +1087,7 @@ class MainViewController: UIViewController, MTKViewDelegate {
     // MARK: Actions
     @objc func openFile() {
         let types: [UTType] = [.json, .xml, UTType(filenameExtension: "obj")!, UTType(filenameExtension: "off")!, UTType(filenameExtension: "poly")!, UTType(filenameExtension: "gml")!, UTType(filenameExtension: "azulview")!].compactMap { $0 }
-        let picker = UIDocumentPickerViewController(forOpeningContentTypes: types, asCopy: true)
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: types, asCopy: false)
         picker.delegate = self
         picker.allowsMultipleSelection = true
         present(picker, animated: true)
