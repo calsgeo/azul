@@ -1169,6 +1169,9 @@ extension NSToolbarItem.Identifier {
     }
     dataManager.regenerateTriangleBuffers(withMaximumSize: 16*1024*1024)
     self.reloadTriangleBuffers()
+    if self.metalView?.showTextures == true {
+      self.metalView?.primeTexturesForCurrentBuffers()
+    }
     self.updateVisibleStateBuffer()
     self.updateSelectionStateBuffer()
     dataManager.regenerateEdgeBuffers(withMaximumSize: 16*1024*1024)
@@ -1241,11 +1244,14 @@ extension NSToolbarItem.Identifier {
     lodMenuItem?.submenu = viewSubmenu
     
     dataManager.regenerateTriangleBuffers(withMaximumSize: 16*1024*1024)
-    reloadTriangleBuffers()
-    updateVisibleStateBuffer()
-    updateSelectionStateBuffer()
+    self.reloadTriangleBuffers()
+    if self.metalView?.showTextures == true {
+      self.metalView?.primeTexturesForCurrentBuffers()
+    }
+    self.updateVisibleStateBuffer()
+    self.updateSelectionStateBuffer()
     dataManager.regenerateEdgeBuffers(withMaximumSize: 16*1024*1024)
-    reloadEdgeBuffers()
+    self.reloadEdgeBuffers()
     metalView!.needsDisplay = true
     objectsSourceList!.reloadData()
     for row in 0..<objectsSourceList!.numberOfRows {
@@ -1682,6 +1688,9 @@ extension NSToolbarItem.Identifier {
 
     dataManager.regenerateTriangleBuffers(withMaximumSize: 16*1024*1024)
     reloadTriangleBuffers()
+    if metalView?.showTextures == true {
+      metalView?.primeTexturesForCurrentBuffers()
+    }
     updateVisibleStateBuffer()
     updateSelectionStateBuffer()
     dataManager.regenerateEdgeBuffers(withMaximumSize: 16*1024*1024)
@@ -1750,6 +1759,9 @@ extension NSToolbarItem.Identifier {
 
     dataManager.regenerateTriangleBuffers(withMaximumSize: 16*1024*1024)
     reloadTriangleBuffers()
+    if metalView?.showTextures == true {
+      metalView?.primeTexturesForCurrentBuffers()
+    }
     updateVisibleStateBuffer()
     updateSelectionStateBuffer()
     dataManager.regenerateEdgeBuffers(withMaximumSize: 16*1024*1024)
