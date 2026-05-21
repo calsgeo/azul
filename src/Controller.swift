@@ -435,13 +435,13 @@ extension NSToolbarItem.Identifier {
     let sortedThemes = themes.sorted()
 
     popUpButton.removeAllItems()
-    popUpButton.addItem(withTitle: "Semantic Colours")
+    popUpButton.addItem(withTitle: "Semantics")
     for theme in sortedThemes { popUpButton.addItem(withTitle: theme) }
 
     appearanceThemeToolbarItem?.isEnabled = true
     let appearancesOn = metalView?.showTextures ?? false
     if !appearancesOn {
-      popUpButton.selectItem(withTitle: "Semantic Colours")
+      popUpButton.selectItem(withTitle: "Semantics")
     } else if let item = popUpButton.item(withTitle: currentAppearanceTheme) {
       popUpButton.select(item)
     } else {
@@ -603,7 +603,7 @@ extension NSToolbarItem.Identifier {
   @objc func appearanceThemeChanged(_ sender: NSPopUpButton) {
     guard let selectedTheme = sender.selectedItem?.title else { return }
 
-    if selectedTheme == "Semantic Colours" {
+    if selectedTheme == "Semantics" {
       metalView?.showTextures = false
       currentAppearanceTheme = ""
       dataManager.setUseAppearances(false)
