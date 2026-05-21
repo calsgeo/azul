@@ -506,9 +506,7 @@ void DataManager::putAzulObjectAndItsChildrenIntoTriangleBuffers(const AzulObjec
   if ((object.type == "Building" || object.type == "BuildingPart") && !object.children.empty()) {
     childHasNonLodGeometry = false;
     for (const auto &child : object.children) {
-      bool childIsLodShell = child.type.rfind("lod", 0) == 0 &&
-                             (child.type.find("Solid") != std::string::npos ||
-                              child.type.find("MultiSurface") != std::string::npos);
+      bool childIsLodShell = child.type.rfind("lod", 0) == 0;
       if (!childIsLodShell && (!child.triangles.empty() || !child.polygons.empty())) {
         childHasNonLodGeometry = true;
         break;
