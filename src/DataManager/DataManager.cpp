@@ -52,8 +52,10 @@ PointKey makePointKey(const AzulPoint &point) {
 std::string triangleBufferKey(const std::string &type, const std::string &textureUri, const float colour[4]) {
   std::ostringstream key;
   key << type << "|" << textureUri << "|"
-      << colour[0] << "," << colour[1] << ","
-      << colour[2] << "," << colour[3];
+      << static_cast<unsigned int>(llround(colour[0] * 255.0f)) << ","
+      << static_cast<unsigned int>(llround(colour[1] * 255.0f)) << ","
+      << static_cast<unsigned int>(llround(colour[2] * 255.0f)) << ","
+      << static_cast<unsigned int>(llround(colour[3] * 255.0f));
   return key.str();
 }
 

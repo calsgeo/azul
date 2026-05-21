@@ -51,10 +51,10 @@ class GMLParsingHelper {
         << style.theme << "|"
         << style.textureUri << "|"
         << (style.hasMaterial ? "M" : "N") << "|"
-        << style.materialColour[0] << ","
-        << style.materialColour[1] << ","
-        << style.materialColour[2] << ","
-        << style.materialColour[3];
+        << static_cast<unsigned int>(llround(style.materialColour[0] * 255.0f)) << ","
+        << static_cast<unsigned int>(llround(style.materialColour[1] * 255.0f)) << ","
+        << static_cast<unsigned int>(llround(style.materialColour[2] * 255.0f)) << ","
+        << static_cast<unsigned int>(llround(style.materialColour[3] * 255.0f));
     return key.str();
   }
 
