@@ -457,10 +457,9 @@ import MetalKit
   }
 
   @objc func primeTexturesForCurrentBuffers() {
-    let texturePaths = Set(triangleBuffers.compactMap { buffer in
-      buffer.texturePath.isEmpty ? nil : buffer.texturePath
-    })
-    for texturePath in texturePaths { _ = textureForPath(texturePath) }
+    for i in triangleBuffers.indices where !triangleBuffers[i].texturePath.isEmpty {
+      triangleBuffers[i].texture = textureForPath(triangleBuffers[i].texturePath)
+    }
   }
 
   @objc func clearTextureCaches() {
@@ -583,14 +582,22 @@ import MetalKit
       renderEncoder.setFragmentBytes(&one, length: MemoryLayout<Float>.size, index: 3)
     }
 
-    let drawTriangleBuffer: (BufferWithColour) -> Void = { triangleBuffer in
+    let drawTriangleBuffer: (Int) -> Void = { i in
+      let triangleBuffer = self.triangleBuffers[i]
       let useTexture = self.showTextures && !triangleBuffer.texturePath.isEmpty
       if useTexture,
-         let texturedPipeline = self.texturedRenderPipelineState,
-         let texture = self.textureForPath(triangleBuffer.texturePath) {
-        renderEncoder.setRenderPipelineState(texturedPipeline)
-        renderEncoder.setFragmentTexture(texture, index: 0)
-        renderEncoder.setFragmentSamplerState(self.textureSamplerState, index: 0)
+         let texturedPipeline = self.texturedRenderPipelineState {
+        if triangleBuffer.texture == nil {
+          self.triangleBuffers[i].texture = self.textureForPath(triangleBuffer.texturePath)
+        }
+        if let texture = self.triangleBuffers[i].texture {
+          renderEncoder.setRenderPipelineState(texturedPipeline)
+          renderEncoder.setFragmentTexture(texture, index: 0)
+          renderEncoder.setFragmentSamplerState(self.textureSamplerState, index: 0)
+        } else {
+          renderEncoder.setRenderPipelineState(self.litRenderPipelineState!)
+          renderEncoder.setFragmentTexture(nil, index: 0)
+        }
       } else {
         renderEncoder.setRenderPipelineState(self.litRenderPipelineState!)
         renderEncoder.setFragmentTexture(nil, index: 0)
@@ -602,11 +609,11 @@ import MetalKit
       renderEncoder.drawIndexedPrimitives(type: .triangle, indexCount: triangleBuffer.indexCount, indexType: .uint32, indexBuffer: triangleBuffer.indexBuffer, indexBufferOffset: 0)
     }
 
-    for triangleBuffer in triangleBuffers where triangleBuffer.colour.w == 1.0 {
-      drawTriangleBuffer(triangleBuffer)
+    for i in triangleBuffers.indices where triangleBuffers[i].colour.w == 1.0 {
+      drawTriangleBuffer(i)
     }
-    for triangleBuffer in triangleBuffers where triangleBuffer.colour.w != 1.0 {
-      drawTriangleBuffer(triangleBuffer)
+    for i in triangleBuffers.indices where triangleBuffers[i].colour.w != 1.0 {
+      drawTriangleBuffer(i)
     }
     
     if viewEdges {
@@ -1076,13 +1083,21 @@ import MetalKit
       renderEncoder.setFragmentBytes(&one, length: MemoryLayout<Float>.size, index: 3)
     }
 
-    let drawTriangleBuffer: (BufferWithColour) -> Void = { triangleBuffer in
+    let drawTriangleBuffer: (Int) -> Void = { i in
+      let triangleBuffer = self.triangleBuffers[i]
       let useTexture = self.showTextures && !triangleBuffer.texturePath.isEmpty
-      if useTexture,
-         let texture = self.textureForPath(triangleBuffer.texturePath) {
-        renderEncoder.setRenderPipelineState(texturedPSO)
-        renderEncoder.setFragmentTexture(texture, index: 0)
-        renderEncoder.setFragmentSamplerState(self.textureSamplerState, index: 0)
+      if useTexture {
+        if triangleBuffer.texture == nil {
+          self.triangleBuffers[i].texture = self.textureForPath(triangleBuffer.texturePath)
+        }
+        if let texture = self.triangleBuffers[i].texture {
+          renderEncoder.setRenderPipelineState(texturedPSO)
+          renderEncoder.setFragmentTexture(texture, index: 0)
+          renderEncoder.setFragmentSamplerState(self.textureSamplerState, index: 0)
+        } else {
+          renderEncoder.setRenderPipelineState(litPSO)
+          renderEncoder.setFragmentTexture(nil, index: 0)
+        }
       } else {
         renderEncoder.setRenderPipelineState(litPSO)
         renderEncoder.setFragmentTexture(nil, index: 0)
@@ -1094,11 +1109,11 @@ import MetalKit
       renderEncoder.drawIndexedPrimitives(type: .triangle, indexCount: triangleBuffer.indexCount, indexType: .uint32, indexBuffer: triangleBuffer.indexBuffer, indexBufferOffset: 0)
     }
 
-    for triangleBuffer in triangleBuffers where triangleBuffer.colour.w == 1.0 {
-      drawTriangleBuffer(triangleBuffer)
+    for i in triangleBuffers.indices where triangleBuffers[i].colour.w == 1.0 {
+      drawTriangleBuffer(i)
     }
-    for triangleBuffer in triangleBuffers where triangleBuffer.colour.w != 1.0 {
-      drawTriangleBuffer(triangleBuffer)
+    for i in triangleBuffers.indices where triangleBuffers[i].colour.w != 1.0 {
+      drawTriangleBuffer(i)
     }
 
     if viewEdges {
