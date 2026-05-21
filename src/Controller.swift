@@ -66,7 +66,6 @@ extension NSToolbarItem.Identifier {
   static let lodSelector = NSToolbarItem.Identifier("azul.lodSelector")
   static let search = NSToolbarItem.Identifier("azul.search")
   static let toggleEdges = NSToolbarItem.Identifier("azul.toggleEdges")
-  static let toggleAppearances = NSToolbarItem.Identifier("azul.toggleAppearances")
   static let appearanceThemeSelector = NSToolbarItem.Identifier("azul.appearanceThemeSelector")
 }
 
@@ -80,7 +79,6 @@ extension NSToolbarItem.Identifier {
   @objc var lodSegmentedControl: NSSegmentedControl?
   @objc var lodToolbarItem: NSToolbarItem?
   @objc var toggleEdgesToolbarItem: NSToolbarItem?
-  @objc var toggleAppearancesToolbarItem: NSToolbarItem?
   @objc var appearanceThemePopUpButton: NSPopUpButton?
   @objc var appearanceThemeToolbarItem: NSToolbarItem?
   var objectsScrollView: NSScrollView?
@@ -113,10 +111,8 @@ extension NSToolbarItem.Identifier {
   @IBOutlet weak var saveViewParametersMenuItem: NSMenuItem!
   @IBOutlet weak var toggleFullScreenMenuItem: NSMenuItem!
   var lodMenuItem: NSMenuItem?
-  var showAppearancesMenuItem: NSMenuItem?
   var currentLodFilter: String = "__highest__"
   var currentAppearanceTheme: String = ""
-  let showAppearancesDefaultsKey = "azulShowAppearances"
   
   let dataManager = DataManagerWrapperWrapper()!
   let performanceHelper = PerformanceHelperWrapperWrapper()!
@@ -426,26 +422,8 @@ extension NSToolbarItem.Identifier {
       lodMenuItem.submenu = lodSubmenu
       viewMenu.insertItem(lodMenuItem, at: 2)
       self.lodMenuItem = lodMenuItem
-      if showAppearancesMenuItem == nil {
-        let appearancesItem = NSMenuItem(title: "Show Appearances", action: #selector(toggleShowAppearances(_:)), keyEquivalent: "")
-        appearancesItem.target = self
-        showAppearancesMenuItem = appearancesItem
-      }
-      if let showAppearancesMenuItem = showAppearancesMenuItem, showAppearancesMenuItem.menu !== viewMenu {
-        if showAppearancesMenuItem.menu != nil { showAppearancesMenuItem.menu?.removeItem(showAppearancesMenuItem) }
-        let lodIndex = viewMenu.index(of: lodMenuItem)
-        viewMenu.insertItem(showAppearancesMenuItem, at: min(lodIndex+1, viewMenu.items.count))
-      }
-      updateAppearanceUIState()
       break
     }
-  }
-
-  func updateAppearanceUIState() {
-    let appearancesEnabled = metalView?.showTextures == true
-    showAppearancesMenuItem?.state = appearancesEnabled ? .on : .off
-    toggleAppearancesToolbarItem?.image = NSImage(systemSymbolName: appearancesEnabled ? "photo.fill" : "photo", accessibilityDescription: "Toggle appearances")
-    toggleAppearancesToolbarItem?.toolTip = appearancesEnabled ? "Hide appearances" : "Show appearances"
   }
 
   func updateAppearanceThemeOptions() {
@@ -455,40 +433,26 @@ extension NSToolbarItem.Identifier {
       themes.remove("visual")
     }
     let sortedThemes = themes.sorted()
-    let previousTheme = currentAppearanceTheme
 
     popUpButton.removeAllItems()
-    if sortedThemes.isEmpty {
-      popUpButton.addItem(withTitle: "No Appearances")
-      popUpButton.selectItem(at: 0)
-      appearanceThemeToolbarItem?.isEnabled = false
-      currentAppearanceTheme = ""
-      currentAppearanceTheme.withCString { pointer in
-        dataManager.setAppearanceTheme(pointer)
-      }
-      return
-    }
-
-    appearanceThemeToolbarItem?.isEnabled = true
+    popUpButton.addItem(withTitle: "Semantic Colours")
     popUpButton.addItem(withTitle: "All Appearances")
     for theme in sortedThemes { popUpButton.addItem(withTitle: theme) }
 
-    if previousTheme.isEmpty {
-      currentAppearanceTheme = ""
+    appearanceThemeToolbarItem?.isEnabled = true
+    let appearancesOn = metalView?.showTextures ?? false
+    if !appearancesOn {
+      popUpButton.selectItem(withTitle: "Semantic Colours")
+    } else if currentAppearanceTheme.isEmpty {
       popUpButton.selectItem(withTitle: "All Appearances")
-    } else if sortedThemes.contains(previousTheme) {
-      currentAppearanceTheme = previousTheme
-      popUpButton.selectItem(withTitle: previousTheme)
+    } else if let item = popUpButton.item(withTitle: currentAppearanceTheme) {
+      popUpButton.select(item)
     } else {
-      currentAppearanceTheme = ""
       popUpButton.selectItem(withTitle: "All Appearances")
-    }
-    currentAppearanceTheme.withCString { pointer in
-      dataManager.setAppearanceTheme(pointer)
     }
   }
 
-  @objc func refreshAppearanceRendering(requestAuthorization: Bool) {
+  func refreshAppearanceRendering() {
     guard let metalView = metalView else { return }
     let appearancesEnabled = metalView.showTextures
     dataManager.setUseAppearances(appearancesEnabled)
@@ -502,10 +466,8 @@ extension NSToolbarItem.Identifier {
     if appearancesEnabled {
       metalView.clearFailedTexturePaths()
       metalView.primeTexturesForCurrentBuffers()
-      if requestAuthorization {
-        let sourceURL = window.representedURL ?? openFiles.first
-        if let sourceURL { requestTextureDirectoryAccessIfNeeded(for: sourceURL) }
-      }
+      let sourceURL = window.representedURL ?? openFiles.first
+      if let sourceURL { requestTextureDirectoryAccessIfNeeded(for: sourceURL) }
     } else {
       metalView.clearFailedTexturePaths()
     }
@@ -516,11 +478,11 @@ extension NSToolbarItem.Identifier {
   // MARK: - NSToolbarDelegate
   
   func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-    return [.toggleEdges, .toggleAppearances, .appearanceThemeSelector, .lodSelector, .flexibleSpace, .search]
+    return [.toggleEdges, .appearanceThemeSelector, .lodSelector, .flexibleSpace, .search]
   }
 
   func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-    return [.toggleEdges, .toggleAppearances, .appearanceThemeSelector, .lodSelector, .search]
+    return [.toggleEdges, .appearanceThemeSelector, .lodSelector, .search]
   }
   
   func toolbar(_ toolbar: NSToolbar, itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier, willBeInsertedIntoToolbar flag: Bool) -> NSToolbarItem? {
@@ -534,18 +496,6 @@ extension NSToolbarItem.Identifier {
       item.action = #selector(toggleViewEdges(_:))
       item.isBordered = true
       toggleEdgesToolbarItem = item
-      return item
-
-    case .toggleAppearances:
-      let item = NSToolbarItem(itemIdentifier: itemIdentifier)
-      let appearancesOn = metalView?.showTextures ?? false
-      item.image = NSImage(systemSymbolName: appearancesOn ? "photo.fill" : "photo", accessibilityDescription: "Toggle appearances")
-      item.label = "Appearances"
-      item.target = self
-      item.action = #selector(toggleShowAppearances(_:))
-      item.isBordered = true
-      item.toolTip = appearancesOn ? "Hide appearances" : "Show appearances"
-      toggleAppearancesToolbarItem = item
       return item
 
     case .appearanceThemeSelector:
@@ -603,11 +553,9 @@ extension NSToolbarItem.Identifier {
     self.statusBarView?.isHidden = true
     currentAppearanceTheme = ""
     metalView?.showTextures = false
-    UserDefaults.standard.set(false, forKey: showAppearancesDefaultsKey)
     dataManager.setUseAppearances(false)
     dataManager.setAppearanceTheme("")
     updateAppearanceThemeOptions()
-    updateAppearanceUIState()
     self.updateLodSegments()
   }
   
@@ -654,23 +602,25 @@ extension NSToolbarItem.Identifier {
     metalView!.needsDisplay = true
   }
 
-  @IBAction func toggleShowAppearances(_ sender: Any) {
-    guard let metalView = metalView else { return }
-    metalView.showTextures.toggle()
-    UserDefaults.standard.set(metalView.showTextures, forKey: showAppearancesDefaultsKey)
-    updateAppearanceUIState()
-    refreshAppearanceRendering(requestAuthorization: metalView.showTextures)
-  }
-
   @objc func appearanceThemeChanged(_ sender: NSPopUpButton) {
-    guard let selectedTheme = sender.selectedItem?.title, selectedTheme != "No Appearances" else { return }
-    currentAppearanceTheme = selectedTheme == "All Appearances" ? "" : selectedTheme
-    currentAppearanceTheme.withCString { pointer in
-      dataManager.setAppearanceTheme(pointer)
+    guard let selectedTheme = sender.selectedItem?.title else { return }
+
+    if selectedTheme == "Semantic Colours" {
+      metalView?.showTextures = false
+      currentAppearanceTheme = ""
+      dataManager.setUseAppearances(false)
+      currentAppearanceTheme.withCString { pointer in
+        dataManager.setAppearanceTheme(pointer)
+      }
+    } else {
+      metalView?.showTextures = true
+      currentAppearanceTheme = selectedTheme == "All Appearances" ? "" : selectedTheme
+      dataManager.setUseAppearances(true)
+      currentAppearanceTheme.withCString { pointer in
+        dataManager.setAppearanceTheme(pointer)
+      }
     }
-    if metalView?.showTextures == true {
-      refreshAppearanceRendering(requestAuthorization: true)
-    }
+    refreshAppearanceRendering()
   }
 
   @IBAction func toggleViewBoundingBox(_ sender: Any) {
@@ -712,18 +662,11 @@ extension NSToolbarItem.Identifier {
     let hasModelFiles = urls.contains { $0.pathExtension != "azulview" }
     if hasModelFiles {
       metalView?.showTextures = false
-      UserDefaults.standard.set(false, forKey: showAppearancesDefaultsKey)
       currentAppearanceTheme = ""
-      currentAppearanceTheme.withCString { pointer in
-        dataManager.setAppearanceTheme(pointer)
-      }
-      updateAppearanceUIState()
+      dataManager.setAppearanceTheme("")
+      dataManager.setUseAppearances(false)
     }
     metalView?.clearFailedTexturePaths()
-    dataManager.setUseAppearances(metalView?.showTextures == true)
-    currentAppearanceTheme.withCString { pointer in
-      dataManager.setAppearanceTheme(pointer)
-    }
     isLoading = true
     self.performanceHelper.startTimer()
     
@@ -926,15 +869,6 @@ extension NSToolbarItem.Identifier {
             }
             self.updateLodSegments()
             self.updateAppearanceThemeOptions()
-            self.dataManager.setUseAppearances(self.metalView?.showTextures == true)
-            self.currentAppearanceTheme.withCString { pointer in
-              self.dataManager.setAppearanceTheme(pointer)
-            }
-            if self.metalView?.showTextures == true {
-              self.refreshAppearanceRendering(requestAuthorization: true)
-            } else {
-              self.updateAppearanceUIState()
-            }
           }
         }
       }
@@ -1723,13 +1657,12 @@ extension NSToolbarItem.Identifier {
        let srgb = color.usingColorSpace(.sRGB) {
       dataManager.setSelectedEdgesColourWithRed(Float(srgb.redComponent), green: Float(srgb.greenComponent), blue: Float(srgb.blueComponent), alpha: Float(srgb.alphaComponent))
     }
-    let storedShowAppearances = UserDefaults.standard.object(forKey: showAppearancesDefaultsKey) as? Bool
-    metalView?.showTextures = storedShowAppearances ?? false
-    dataManager.setUseAppearances(metalView?.showTextures == true)
+    metalView?.showTextures = false
+    dataManager.setUseAppearances(false)
     currentAppearanceTheme.withCString { pointer in
       dataManager.setAppearanceTheme(pointer)
     }
-    updateAppearanceUIState()
+    updateAppearanceThemeOptions()
     metalView?.updateAppearance()
   }
 
@@ -1874,10 +1807,8 @@ extension NSToolbarItem.Identifier {
       self.toggleViewEdgesMenuItem.state = viewParameters.viewEdges ? .on : .off
       self.toggleViewBoundingBoxMenuItem.state = viewParameters.viewBoundingBox ? .on : .off
       self.toggleEdgesToolbarItem?.image = NSImage(systemSymbolName: viewParameters.viewEdges ? "square.dashed" : "square", accessibilityDescription: "Toggle edges")
-      UserDefaults.standard.set(self.metalView!.showTextures, forKey: self.showAppearancesDefaultsKey)
       self.updateAppearanceThemeOptions()
-      self.updateAppearanceUIState()
-      self.refreshAppearanceRendering(requestAuthorization: self.metalView!.showTextures)
+      self.refreshAppearanceRendering()
       
       self.metalView!.constants.modelMatrix = self.metalView!.modelMatrix
       self.metalView!.constants.modelViewProjectionMatrix = matrix_multiply(self.metalView!.projectionMatrix, matrix_multiply(self.metalView!.viewMatrix, self.metalView!.modelMatrix))
