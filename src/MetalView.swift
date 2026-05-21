@@ -52,6 +52,7 @@ import MetalKit
   var pickingDepthTexture: MTLTexture?
 
   var exportLitRenderPipelineState: MTLRenderPipelineState?
+  var exportTexturedRenderPipelineState: MTLRenderPipelineState?
   var exportUnlitRenderPipelineState: MTLRenderPipelineState?
   var exportEdgeRenderPipelineState: MTLRenderPipelineState?
   
@@ -283,8 +284,21 @@ import MetalKit
     exportEdgeDesc.depthAttachmentPixelFormat = depthStencilPixelFormat
     exportEdgeDesc.rasterSampleCount = sampleCount
 
+    let exportTexturedDesc = MTLRenderPipelineDescriptor()
+    exportTexturedDesc.vertexFunction = library.makeFunction(name: "vertexLitTextured")
+    exportTexturedDesc.fragmentFunction = library.makeFunction(name: "fragmentLitTextured")
+    exportTexturedDesc.colorAttachments[0].pixelFormat = .rgba8Unorm
+    exportTexturedDesc.colorAttachments[0].isBlendingEnabled = true
+    exportTexturedDesc.colorAttachments[0].sourceRGBBlendFactor = .sourceAlpha
+    exportTexturedDesc.colorAttachments[0].sourceAlphaBlendFactor = .sourceAlpha
+    exportTexturedDesc.colorAttachments[0].destinationRGBBlendFactor = .oneMinusSourceAlpha
+    exportTexturedDesc.colorAttachments[0].destinationAlphaBlendFactor = .oneMinusSourceAlpha
+    exportTexturedDesc.depthAttachmentPixelFormat = depthStencilPixelFormat
+    exportTexturedDesc.rasterSampleCount = sampleCount
+
     do {
       exportLitRenderPipelineState = try device.makeRenderPipelineState(descriptor: exportLitDesc)
+      exportTexturedRenderPipelineState = try device.makeRenderPipelineState(descriptor: exportTexturedDesc)
       exportUnlitRenderPipelineState = try device.makeRenderPipelineState(descriptor: exportUnlitDesc)
       exportEdgeRenderPipelineState = try device.makeRenderPipelineState(descriptor: exportEdgeDesc)
     } catch {
@@ -980,6 +994,7 @@ import MetalKit
     guard !triangleBuffers.isEmpty else { return nil }
     guard width > 0, height > 0 else { return nil }
     guard let litPSO = exportLitRenderPipelineState,
+          let texturedPSO = exportTexturedRenderPipelineState,
           let unlitPSO = exportUnlitRenderPipelineState,
           let edgePSO = exportEdgeRenderPipelineState else { return nil }
 
@@ -1047,8 +1062,6 @@ import MetalKit
     renderEncoder.setViewport(MTLViewport(originX: 0, originY: 0, width: Double(width), height: Double(height), znear: 0, zfar: 1))
     renderEncoder.setFrontFacing(.counterClockwise)
     renderEncoder.setDepthStencilState(depthStencilState)
-    renderEncoder.setRenderPipelineState(litPSO)
-
     if let selBuffer = selectionStateBuffer, selectionStateCount > 0 {
       renderEncoder.setFragmentBuffer(selBuffer, offset: 0, index: 2)
     } else {
@@ -1062,20 +1075,29 @@ import MetalKit
       renderEncoder.setFragmentBytes(&one, length: MemoryLayout<Float>.size, index: 3)
     }
 
-    for triangleBuffer in triangleBuffers where triangleBuffer.colour.w == 1.0 {
+    let drawTriangleBuffer: (BufferWithColour) -> Void = { triangleBuffer in
+      let useTexture = self.showTextures && !triangleBuffer.texturePath.isEmpty
+      if useTexture,
+         let texture = self.textureForPath(triangleBuffer.texturePath) {
+        renderEncoder.setRenderPipelineState(texturedPSO)
+        renderEncoder.setFragmentTexture(texture, index: 0)
+        renderEncoder.setFragmentSamplerState(self.textureSamplerState, index: 0)
+      } else {
+        renderEncoder.setRenderPipelineState(litPSO)
+        renderEncoder.setFragmentTexture(nil, index: 0)
+      }
       renderEncoder.setVertexBuffer(triangleBuffer.buffer, offset: 0, index: 0)
-      constants.colour = triangleBuffer.colour
-      renderEncoder.setVertexBytes(&constants, length: MemoryLayout<Constants>.size, index: 1)
-      renderEncoder.setFragmentBytes(&constants, length: MemoryLayout<Constants>.size, index: 0)
+      self.constants.colour = triangleBuffer.colour
+      renderEncoder.setVertexBytes(&self.constants, length: MemoryLayout<Constants>.size, index: 1)
+      renderEncoder.setFragmentBytes(&self.constants, length: MemoryLayout<Constants>.size, index: 0)
       renderEncoder.drawIndexedPrimitives(type: .triangle, indexCount: triangleBuffer.indexCount, indexType: .uint32, indexBuffer: triangleBuffer.indexBuffer, indexBufferOffset: 0)
     }
 
+    for triangleBuffer in triangleBuffers where triangleBuffer.colour.w == 1.0 {
+      drawTriangleBuffer(triangleBuffer)
+    }
     for triangleBuffer in triangleBuffers where triangleBuffer.colour.w != 1.0 {
-      renderEncoder.setVertexBuffer(triangleBuffer.buffer, offset: 0, index: 0)
-      constants.colour = triangleBuffer.colour
-      renderEncoder.setVertexBytes(&constants, length: MemoryLayout<Constants>.size, index: 1)
-      renderEncoder.setFragmentBytes(&constants, length: MemoryLayout<Constants>.size, index: 0)
-      renderEncoder.drawIndexedPrimitives(type: .triangle, indexCount: triangleBuffer.indexCount, indexType: .uint32, indexBuffer: triangleBuffer.indexBuffer, indexBufferOffset: 0)
+      drawTriangleBuffer(triangleBuffer)
     }
 
     if viewEdges {
