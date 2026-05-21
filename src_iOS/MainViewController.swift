@@ -15,10 +15,17 @@ class MainViewController: UIViewController, MTKViewDelegate {
     var library: MTLLibrary!
 
     var litRenderPipelineState: MTLRenderPipelineState?
+    var texturedRenderPipelineState: MTLRenderPipelineState?
     var unlitRenderPipelineState: MTLRenderPipelineState?
     var edgeRenderPipelineState: MTLRenderPipelineState?
     var pickingRenderPipelineState: MTLRenderPipelineState?
     var depthStencilState: MTLDepthStencilState?
+
+    var loadedTextures: [String: MTLTexture] = [:]
+    var failedTexturePaths: Set<String> = []
+    var textureLoader: MTKTextureLoader?
+    var textureSamplerState: MTLSamplerState?
+    var grantedTextureDirectoryURL: URL?
 
     var msaaTexture: MTLTexture?
     var msaaDepthTexture: MTLTexture?
@@ -57,10 +64,15 @@ class MainViewController: UIViewController, MTKViewDelegate {
     let depthFormat = MTLPixelFormat.depth32Float
     var isDarkMode: Bool { traitCollection.userInterfaceStyle == .dark }
 
+    // MARK: Appearance
+    var showTextures: Bool = false
+    var currentAppearanceTheme: String = ""
+
     // MARK: Floating buttons
     var openButton: UIButton!
     var objectsButton: UIButton!
     var lodButton: UIButton!
+    var appearanceButton: UIButton!
     var homeButton: UIButton!
 
     // MARK: Status bar
@@ -161,6 +173,17 @@ class MainViewController: UIViewController, MTKViewDelegate {
 
         updateAppearance()
 
+        textureLoader = MTKTextureLoader(device: device)
+
+        let samplerDesc = MTLSamplerDescriptor()
+        samplerDesc.minFilter = .linear
+        samplerDesc.magFilter = .linear
+        samplerDesc.mipFilter = .linear
+        samplerDesc.sAddressMode = .repeat
+        samplerDesc.tAddressMode = .repeat
+        samplerDesc.normalizedCoordinates = true
+        textureSamplerState = device.makeSamplerState(descriptor: samplerDesc)
+
         let depthDesc = MTLDepthStencilDescriptor()
         depthDesc.depthCompareFunction = .less
         depthDesc.isDepthWriteEnabled = true
@@ -206,6 +229,18 @@ class MainViewController: UIViewController, MTKViewDelegate {
         litDesc.depthAttachmentPixelFormat = depthFormat
         litDesc.rasterSampleCount = metalView.sampleCount
 
+        let texturedDesc = MTLRenderPipelineDescriptor()
+        texturedDesc.vertexFunction = library.makeFunction(name: "vertexLitTextured")
+        texturedDesc.fragmentFunction = library.makeFunction(name: "fragmentLitTextured")
+        texturedDesc.colorAttachments[0].pixelFormat = metalView.colorPixelFormat
+        texturedDesc.colorAttachments[0].isBlendingEnabled = true
+        texturedDesc.colorAttachments[0].sourceRGBBlendFactor = .sourceAlpha
+        texturedDesc.colorAttachments[0].sourceAlphaBlendFactor = .sourceAlpha
+        texturedDesc.colorAttachments[0].destinationRGBBlendFactor = .oneMinusSourceAlpha
+        texturedDesc.colorAttachments[0].destinationAlphaBlendFactor = .oneMinusSourceAlpha
+        texturedDesc.depthAttachmentPixelFormat = depthFormat
+        texturedDesc.rasterSampleCount = metalView.sampleCount
+
         let unlitDesc = MTLRenderPipelineDescriptor()
         unlitDesc.vertexFunction = library.makeFunction(name: "vertexUnlit")
         unlitDesc.fragmentFunction = library.makeFunction(name: "fragmentUnlit")
@@ -231,6 +266,7 @@ class MainViewController: UIViewController, MTKViewDelegate {
 
         do {
             litRenderPipelineState = try device.makeRenderPipelineState(descriptor: litDesc)
+            texturedRenderPipelineState = try device.makeRenderPipelineState(descriptor: texturedDesc)
             unlitRenderPipelineState = try device.makeRenderPipelineState(descriptor: unlitDesc)
             edgeRenderPipelineState = try device.makeRenderPipelineState(descriptor: edgeDesc)
             pickingRenderPipelineState = try device.makeRenderPipelineState(descriptor: pickDesc)
@@ -312,8 +348,6 @@ class MainViewController: UIViewController, MTKViewDelegate {
         let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: renderPassDescriptor)!
         encoder.setFrontFacing(.counterClockwise)
         encoder.setDepthStencilState(depthStencilState)
-        encoder.setRenderPipelineState(litRenderPipelineState!)
-
         if let selBuffer = selectionStateBuffer, selectionStateCount > 0 {
             encoder.setFragmentBuffer(selBuffer, offset: 0, index: 2)
         } else {
@@ -327,23 +361,37 @@ class MainViewController: UIViewController, MTKViewDelegate {
             encoder.setFragmentBytes(&one, length: MemoryLayout<Float>.size, index: 3)
         }
 
-        // Opaque triangles (alpha == 1.0)
-        for tb in triangleBuffers where tb.colour.w == 1.0 {
+        let drawVertices: (BufferWithColour) -> Void = { tb in
             encoder.setVertexBuffer(tb.buffer, offset: 0, index: 0)
-            constants.colour = tb.colour
-            encoder.setVertexBytes(&constants, length: MemoryLayout<Constants>.size, index: 1)
-            encoder.setFragmentBytes(&constants, length: MemoryLayout<Constants>.size, index: 0)
+            self.constants.colour = tb.colour
+            encoder.setVertexBytes(&self.constants, length: MemoryLayout<Constants>.size, index: 1)
+            encoder.setFragmentBytes(&self.constants, length: MemoryLayout<Constants>.size, index: 0)
             encoder.drawIndexedPrimitives(type: .triangle, indexCount: tb.indexCount, indexType: .uint32, indexBuffer: tb.indexBuffer, indexBufferOffset: 0)
         }
 
-        // Transparent triangles (alpha != 1.0)
-        for tb in triangleBuffers where tb.colour.w != 1.0 {
-            encoder.setVertexBuffer(tb.buffer, offset: 0, index: 0)
-            constants.colour = tb.colour
-            encoder.setVertexBytes(&constants, length: MemoryLayout<Constants>.size, index: 1)
-            encoder.setFragmentBytes(&constants, length: MemoryLayout<Constants>.size, index: 0)
-            encoder.drawIndexedPrimitives(type: .triangle, indexCount: tb.indexCount, indexType: .uint32, indexBuffer: tb.indexBuffer, indexBufferOffset: 0)
+        func drawPass(where opacityCondition: (Float) -> Bool) {
+            if showTextures, let texturedPipeline = texturedRenderPipelineState {
+                encoder.setRenderPipelineState(texturedPipeline)
+                for i in triangleBuffers.indices where opacityCondition(triangleBuffers[i].colour.w) && !triangleBuffers[i].texturePath.isEmpty {
+                    if triangleBuffers[i].texture == nil {
+                        triangleBuffers[i].texture = textureForPath(triangleBuffers[i].texturePath)
+                    }
+                    if let texture = triangleBuffers[i].texture {
+                        encoder.setFragmentTexture(texture, index: 0)
+                        encoder.setFragmentSamplerState(textureSamplerState, index: 0)
+                        drawVertices(triangleBuffers[i])
+                    }
+                }
+            }
+            encoder.setRenderPipelineState(litRenderPipelineState!)
+            encoder.setFragmentTexture(nil, index: 0)
+            for i in triangleBuffers.indices where opacityCondition(triangleBuffers[i].colour.w) && (!showTextures || triangleBuffers[i].texturePath.isEmpty || triangleBuffers[i].texture == nil) {
+                drawVertices(triangleBuffers[i])
+            }
         }
+
+        drawPass { $0 == 1.0 }
+        drawPass { $0 != 1.0 }
 
         // Edges
         encoder.setRenderPipelineState(edgeRenderPipelineState!)
@@ -513,11 +561,19 @@ class MainViewController: UIViewController, MTKViewDelegate {
             let colour = dataManager.currentTriangleBufferColour()
             let colourSIMD = colour != nil ? SIMD4<Float>(colour![0], colour![1], colour![2], colour![3]) : SIMD4<Float>(1, 1, 1, 1)
 
+            var texturePathLength: Int = 0
+            let firstTexturePathCharacter = UnsafeRawPointer(dataManager.currentTriangleBufferTextureURI(withLength: &texturePathLength))
+            var texturePath = ""
+            if let firstTexturePathCharacter = firstTexturePathCharacter, texturePathLength > 0 {
+                let texturePathData = Data(bytes: firstTexturePathCharacter, count: texturePathLength * MemoryLayout<Int8>.size)
+                texturePath = String(data: texturePathData, encoding: .utf8) ?? ""
+            }
+
             let buffer = device.makeBuffer(bytes: vertexPtr, length: bytes, options: [])!
             let indexBuffer = device.makeBuffer(bytes: indexPtr, length: indexBytes, options: [])!
             let indexCount = indexBytes / MemoryLayout<UInt32>.size
 
-            triangleBuffers.append(BufferWithColour(buffer: buffer, indexBuffer: indexBuffer, indexCount: indexCount, type: "", colour: colourSIMD))
+            triangleBuffers.append(BufferWithColour(buffer: buffer, indexBuffer: indexBuffer, indexCount: indexCount, type: "", colour: colourSIMD, texturePath: texturePath))
             dataManager.advanceTriangleBufferIterator()
         }
     }
@@ -570,6 +626,145 @@ class MainViewController: UIViewController, MTKViewDelegate {
         boundingBoxBuffer = vertices.withUnsafeBytes {
             device.makeBuffer(bytes: $0.baseAddress!, length: $0.count, options: [])
         }
+    }
+
+    // MARK: Texture loading
+    func textureForPath(_ texturePath: String) -> MTLTexture? {
+        if let loaded = loadedTextures[texturePath] { return loaded }
+        if failedTexturePaths.contains(texturePath) { return nil }
+        guard let loader = textureLoader else { return nil }
+
+        let textureURL: URL?
+        if texturePath.isEmpty {
+            textureURL = nil
+        } else if let url = URL(string: texturePath), url.scheme != nil {
+            textureURL = url
+        } else {
+            textureURL = URL(fileURLWithPath: texturePath)
+        }
+
+        if let url = textureURL {
+            do {
+                let options: [MTKTextureLoader.Option: Any] = [
+                    .origin: MTKTextureLoader.Origin.bottomLeft,
+                    .SRGB: false,
+                    .generateMipmaps: true
+                ]
+                let loaded = try loader.newTexture(URL: url, options: options)
+                loadedTextures[texturePath] = loaded
+                return loaded
+            } catch {
+                // Fallback: try loading from the granted textures directory
+                if let grantedDir = grantedTextureDirectoryURL {
+                    let fallbackURL = grantedDir.appendingPathComponent(url.lastPathComponent)
+                    do {
+                        let loaded = try loader.newTexture(URL: fallbackURL, options: [
+                            .origin: MTKTextureLoader.Origin.bottomLeft,
+                            .SRGB: false,
+                            .generateMipmaps: true
+                        ])
+                        loadedTextures[texturePath] = loaded
+                        return loaded
+                    } catch {
+                        // Both attempts failed
+                    }
+                }
+                failedTexturePaths.insert(texturePath)
+                print("Texture load failed (\(texturePath)): \(error.localizedDescription)")
+                return nil
+            }
+        }
+        failedTexturePaths.insert(texturePath)
+        return nil
+    }
+
+    func primeTexturesForCurrentBuffers() {
+        for i in triangleBuffers.indices where !triangleBuffers[i].texturePath.isEmpty {
+            triangleBuffers[i].texture = textureForPath(triangleBuffers[i].texturePath)
+        }
+    }
+
+    func clearTextureCaches() {
+        loadedTextures.removeAll()
+        failedTexturePaths.removeAll()
+    }
+
+    // MARK: Appearance
+    func requestTextureDirectoryAccessIfNeeded() {
+        guard !failedTexturePaths.isEmpty, grantedTextureDirectoryURL == nil else { return }
+        let samplePath = failedTexturePaths.first ?? ""
+        let dirName = (samplePath as NSString).deletingLastPathComponent
+        let alert = UIAlertController(
+            title: "Texture Access Needed",
+            message: "This file references textures that couldn't be loaded. Would you like to select the textures folder (\(dirName))?",
+            preferredStyle: .alert
+        )
+        alert.addAction(UIAlertAction(title: "Select Folder", style: .default) { [weak self] _ in
+            guard let self = self else { return }
+            let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.folder], asCopy: false)
+            picker.delegate = self
+            picker.allowsMultipleSelection = false
+            self.present(picker, animated: true)
+        })
+        alert.addAction(UIAlertAction(title: "Not Now", style: .cancel))
+        present(alert, animated: true)
+    }
+
+    func refreshAppearanceRendering() {
+        let appearancesEnabled = showTextures
+        dataManager.setUseAppearances(appearancesEnabled)
+        currentAppearanceTheme.withCString { pointer in
+            dataManager.setAppearanceTheme(pointer)
+        }
+        dataManager.regenerateTriangleBuffers(withMaximumSize: 16 * 1024 * 1024)
+        reloadTriangleBuffers()
+        dataManager.updateVisibleStates()
+        updateVisibleStateBuffer()
+        dataManager.updateSelectionStates()
+        updateSelectionStateBuffer()
+        if appearancesEnabled {
+            clearTextureCaches()
+            primeTexturesForCurrentBuffers()
+            requestTextureDirectoryAccessIfNeeded()
+        }
+        dataManager.regenerateEdgeBuffers(withMaximumSize: 16 * 1024 * 1024)
+        reloadEdgeBuffers()
+        metalView?.setNeedsDisplay()
+    }
+
+    @objc func showAppearancePicker() {
+        var themes = Set(dataManager.availableAppearanceThemes() ?? [])
+        if themes.contains("Materials") && themes.contains("Textures") {
+            themes.remove("visual")
+        }
+        let sortedThemes = themes.sorted()
+
+        let alert = UIAlertController(title: "Appearance", message: nil, preferredStyle: .actionSheet)
+
+        let semanticsAction = UIAlertAction(title: "Semantics", style: .default) { [weak self] _ in
+            guard let self = self else { return }
+            self.showTextures = false
+            self.currentAppearanceTheme = ""
+            self.refreshAppearanceRendering()
+        }
+        semanticsAction.accessibilityTraits = !showTextures && currentAppearanceTheme.isEmpty ? [.selected] : []
+        alert.addAction(semanticsAction)
+
+        for theme in sortedThemes {
+            let action = UIAlertAction(title: theme, style: .default) { [weak self] _ in
+                guard let self = self else { return }
+                self.showTextures = true
+                self.currentAppearanceTheme = theme
+                self.refreshAppearanceRendering()
+            }
+            action.accessibilityTraits = showTextures && currentAppearanceTheme == theme ? [.selected] : []
+            alert.addAction(action)
+        }
+
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        alert.popoverPresentationController?.sourceView = appearanceButton
+        alert.popoverPresentationController?.permittedArrowDirections = .down
+        present(alert, animated: true)
     }
 
     // MARK: File loading
@@ -642,6 +837,11 @@ class MainViewController: UIViewController, MTKViewDelegate {
                 self.updateVisibleStateBuffer()
                 self.dataManager.updateSelectionStates()
                 self.updateSelectionStateBuffer()
+
+                self.showTextures = false
+                self.currentAppearanceTheme = ""
+                self.dataManager.setAppearanceTheme("")
+                self.dataManager.setUseAppearances(false)
 
                 let lods = self.dataManager.availableLods() ?? []
                 if !lods.isEmpty {
@@ -792,9 +992,10 @@ class MainViewController: UIViewController, MTKViewDelegate {
         openButton = makeFloatingButton(systemName: "doc", config: buttonConfig, action: #selector(openFile))
         objectsButton = makeFloatingButton(systemName: "cube", config: buttonConfig, action: #selector(showObjects))
         lodButton = makeFloatingButton(systemName: "plus.minus.capsule", config: buttonConfig, action: #selector(showLodPicker))
+        appearanceButton = makeFloatingButton(systemName: "paintbrush", config: buttonConfig, action: #selector(showAppearancePicker))
         homeButton = makeFloatingButton(systemName: "viewfinder.circle", config: buttonConfig, action: #selector(goHome))
         
-        let bottomStack = UIStackView(arrangedSubviews: [openButton, objectsButton, lodButton, homeButton])
+        let bottomStack = UIStackView(arrangedSubviews: [openButton, objectsButton, lodButton, appearanceButton, homeButton])
         bottomStack.axis = .horizontal
         bottomStack.spacing = 12
         bottomStack.distribution = .equalSpacing
@@ -951,6 +1152,9 @@ class MainViewController: UIViewController, MTKViewDelegate {
         }
         dataManager.regenerateTriangleBuffers(withMaximumSize: 16 * 1024 * 1024)
         reloadTriangleBuffers()
+        if showTextures {
+            primeTexturesForCurrentBuffers()
+        }
         dataManager.updateVisibleStates()
         updateVisibleStateBuffer()
         dataManager.updateSelectionStates()
@@ -1040,7 +1244,15 @@ extension MainViewController: ObjectListViewControllerDelegate {
 extension MainViewController: UIDocumentPickerDelegate {
     func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
         for url in urls {
-            loadFile(url: url)
+            var isDir: ObjCBool = false
+            if FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir), isDir.boolValue {
+                grantedTextureDirectoryURL = url
+                clearTextureCaches()
+                primeTexturesForCurrentBuffers()
+                metalView?.setNeedsDisplay()
+            } else {
+                loadFile(url: url)
+            }
         }
     }
 }
