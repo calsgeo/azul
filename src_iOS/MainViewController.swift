@@ -870,9 +870,11 @@ class MainViewController: UIViewController, MTKViewDelegate {
         metalView.addGestureRecognizer(orbitGesture)
 
         let pinch = UIPinchGestureRecognizer(target: self, action: #selector(handlePinch(_:)))
+        pinch.delegate = self
         metalView.addGestureRecognizer(pinch)
 
         let rotation = UIRotationGestureRecognizer(target: self, action: #selector(handleRotation(_:)))
+        rotation.delegate = self
         metalView.addGestureRecognizer(rotation)
 
         let tap = UITapGestureRecognizer(target: self, action: #selector(handleTap(_:)))
@@ -1229,6 +1231,15 @@ extension MainViewController: ObjectListViewControllerDelegate {
             modelTranslationToCentreOfRotationMatrix)
 
         updateConstants()
+    }
+}
+
+// MARK: UIGestureRecognizerDelegate
+extension MainViewController: UIGestureRecognizerDelegate {
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
+        let isPinch = gestureRecognizer is UIPinchGestureRecognizer || other is UIPinchGestureRecognizer
+        let isRotation = gestureRecognizer is UIRotationGestureRecognizer || other is UIRotationGestureRecognizer
+        return isPinch && isRotation
     }
 }
 
