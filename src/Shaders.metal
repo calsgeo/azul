@@ -112,9 +112,13 @@ fragment half4 fragmentLit(VertexOutLit fragmentIn [[stage_in]],
   if (visibleStates[objectId] < 0.5) discard_fragment();
   float selected = selectionStates[objectId];
   float selectedBlend = selected * uniforms.selectionColour.a;
-  float3 baseColour = mix(float3(uniforms.colour.r, uniforms.colour.g, uniforms.colour.b),
-                           1.0 - (1.0 - float3(uniforms.colour.r, uniforms.colour.g, uniforms.colour.b)) * (1.0 - float3(uniforms.selectionColour.r, uniforms.selectionColour.g, uniforms.selectionColour.b)),
-                           selectedBlend);
+  float3 surfaceColour = float3(uniforms.colour.r, uniforms.colour.g, uniforms.colour.b);
+  float3 selectionRGB = float3(uniforms.selectionColour.r, uniforms.selectionColour.g, uniforms.selectionColour.b);
+  float3 screenBlend = 1.0 - (1.0 - surfaceColour) * (1.0 - selectionRGB);
+  float3 hardMix = mix(surfaceColour, selectionRGB, selectedBlend);
+  float baseLuminance = dot(surfaceColour, float3(0.299, 0.587, 0.114));
+  float blendWeight = smoothstep(0.5, 0.95, baseLuminance);
+  float3 baseColour = mix(surfaceColour, mix(screenBlend, hardMix, blendWeight), selectedBlend);
 
   float hemiWeight = 0.5 + 0.5 * normalDirection.y;
   float3 ambient = mix(groundColour, skyColour, hemiWeight) * baseColour * ambientLightIntensity;
@@ -157,7 +161,12 @@ fragment half4 fragmentLitTextured(VertexOutLitTextured fragmentIn [[stage_in]],
   float4 sampled = textureData.sample(textureSampler, fragmentIn.uv);
   float selected = selectionStates[objectId];
   float selectedBlend = selected * uniforms.selectionColour.a;
-  float3 baseColour = mix(sampled.rgb, 1.0 - (1.0 - sampled.rgb) * (1.0 - float3(uniforms.selectionColour.r, uniforms.selectionColour.g, uniforms.selectionColour.b)), selectedBlend);
+  float3 selectionRGB = float3(uniforms.selectionColour.r, uniforms.selectionColour.g, uniforms.selectionColour.b);
+  float3 screenBlend = 1.0 - (1.0 - sampled.rgb) * (1.0 - selectionRGB);
+  float3 hardMix = mix(sampled.rgb, selectionRGB, selectedBlend);
+  float baseLuminance = dot(sampled.rgb, float3(0.299, 0.587, 0.114));
+  float blendWeight = smoothstep(0.5, 0.95, baseLuminance);
+  float3 baseColour = mix(sampled.rgb, mix(screenBlend, hardMix, blendWeight), selectedBlend);
 
   float3 normalDirection = normalize(fragmentIn.worldNormal);
   float3 viewDirection = normalize(float3(uniforms.viewMatrixInverse * float4(0.0, 0.0, 0.0, 1.0) - float4(fragmentIn.worldPosition, 1.0)));
