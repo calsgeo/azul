@@ -435,14 +435,14 @@ extension NSToolbarItem.Identifier {
     let sortedThemes = themes.sorted()
 
     popUpButton.removeAllItems()
-    popUpButton.addItem(withTitle: "Semantics")
+    popUpButton.addItem(withTitle: "By Type")
     for theme in sortedThemes { popUpButton.addItem(withTitle: theme) }
 
     appearanceThemeToolbarItem?.isEnabled = true
     let appearancesOn = metalView?.showTextures ?? false
     if !appearancesOn || sortedThemes.isEmpty {
       if sortedThemes.isEmpty { metalView?.showTextures = false }
-      popUpButton.selectItem(withTitle: "Semantics")
+      popUpButton.selectItem(withTitle: "By Type")
     } else if let item = popUpButton.item(withTitle: currentAppearanceTheme) {
       popUpButton.select(item)
     } else {
@@ -501,8 +501,9 @@ extension NSToolbarItem.Identifier {
       let popUpButton = NSPopUpButton(frame: NSRect(x: 0, y: 0, width: 170, height: 28), pullsDown: false)
       popUpButton.target = self
       popUpButton.action = #selector(appearanceThemeChanged(_:))
+      popUpButton.toolTip = "Type-based colours when \"By Type\" is selected; otherwise uses material/texture themes from the file"
       item.view = popUpButton
-      item.label = "Appearances"
+      item.label = "Colour Mode"
       item.image = NSImage(systemSymbolName: "paintpalette", accessibilityDescription: "Appearances")
       appearanceThemePopUpButton = popUpButton
       appearanceThemeToolbarItem = item
@@ -604,7 +605,7 @@ extension NSToolbarItem.Identifier {
   @objc func appearanceThemeChanged(_ sender: NSPopUpButton) {
     guard let selectedTheme = sender.selectedItem?.title else { return }
 
-    if selectedTheme == "Semantics" {
+    if selectedTheme == "By Type" {
       metalView?.showTextures = false
       currentAppearanceTheme = ""
       dataManager.setUseAppearances(false)
