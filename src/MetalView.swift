@@ -420,7 +420,8 @@ import MetalKit
     do {
       let options: [MTKTextureLoader.Option: Any] = [
         .origin: MTKTextureLoader.Origin.bottomLeft,
-        .SRGB: false
+        .SRGB: false,
+        .generateMipmaps: true
       ]
       let loaded = try loader.newTexture(URL: textureURL, options: options)
       loadedTextures[texturePath] = loaded
