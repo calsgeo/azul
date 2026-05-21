@@ -436,7 +436,14 @@ extension NSToolbarItem.Identifier {
 
     popUpButton.removeAllItems()
     popUpButton.addItem(withTitle: "By Type")
+    popUpButton.lastItem?.image = NSImage(systemSymbolName: "tag.fill", accessibilityDescription: "By Type")
     for theme in sortedThemes { popUpButton.addItem(withTitle: theme) }
+    if let materialsItem = popUpButton.item(withTitle: "Materials") {
+      materialsItem.image = NSImage(systemSymbolName: "cube.fill", accessibilityDescription: "Materials")
+    }
+    if let texturesItem = popUpButton.item(withTitle: "Textures") {
+      texturesItem.image = NSImage(systemSymbolName: "grid", accessibilityDescription: "Textures")
+    }
 
     appearanceThemeToolbarItem?.isEnabled = true
     let appearancesOn = metalView?.showTextures ?? false
