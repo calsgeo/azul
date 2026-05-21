@@ -946,6 +946,13 @@ class GMLParsingHelper {
 //        std::cout << std::endl;
         for (auto const &polygon: transformedChild.polygons) {
           parsedObject.polygons.push_back(AzulPolygon());
+          parsedObject.polygons.back().appearanceStyleId = polygon.appearanceStyleId;
+          if (polygon.exteriorRing.hasTextureCoordinates) {
+            parsedObject.polygons.back().exteriorRing.hasTextureCoordinates = true;
+            for (auto const &uv: polygon.exteriorRing.textureCoordinates) {
+              parsedObject.polygons.back().exteriorRing.textureCoordinates.push_back(uv);
+            }
+          }
           for (auto const &point: polygon.exteriorRing.points) {
             parsedObject.polygons.back().exteriorRing.points.push_back(AzulPoint());
 //            std::cout << "Point: " << point.coordinates[0] << " " << point.coordinates[1] << " " << point.coordinates[2] << std::endl;
@@ -967,6 +974,12 @@ class GMLParsingHelper {
                                                                                       transformationMatrix[11])/homogeneousCoordinate + anchorPointCoordinates[2];
           } for (auto const &ring: polygon.interiorRings) {
             parsedObject.polygons.back().interiorRings.push_back(AzulRing());
+            if (ring.hasTextureCoordinates) {
+              parsedObject.polygons.back().interiorRings.back().hasTextureCoordinates = true;
+              for (auto const &uv: ring.textureCoordinates) {
+                parsedObject.polygons.back().interiorRings.back().textureCoordinates.push_back(uv);
+              }
+            }
             for (auto const &point: ring.points) {
               parsedObject.polygons.back().interiorRings.back().points.push_back(AzulPoint());
               double homogeneousCoordinate = (transformationMatrix[12]*point.coordinates[0] +
