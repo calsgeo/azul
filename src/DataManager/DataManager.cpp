@@ -100,6 +100,20 @@ void DataManager::transformAzulObjectAndItsChildren(AzulObject &object, double c
   }
 }
 
+void DataManager::swapAzulObjectLatLon(AzulObject &object) {
+  for (auto &child: object.children) swapAzulObjectLatLon(child);
+  for (auto &polygon: object.polygons) {
+    for (auto &point: polygon.exteriorRing.points) {
+      std::swap(point.coordinates[0], point.coordinates[1]);
+    }
+    for (auto &ring: polygon.interiorRings) {
+      for (auto &point: ring.points) {
+        std::swap(point.coordinates[0], point.coordinates[1]);
+      }
+    }
+  }
+}
+
 void DataManager::transformGeographicCoordinates() {
   auto &file = parsedFiles.back();
   if (file.crsIdentifier.empty()) return;
@@ -143,14 +157,40 @@ void DataManager::transformGeographicCoordinates() {
     4171, 4965,  // RGR92 (2D/3D)
     7070, 7071,  // RGAF09 (2D/3D)
   };
-  if (geographicCodes.find(epsgCode) == geographicCodes.end()) return;
-
-  std::cout << "Geographic CRS detected: " << file.crsIdentifier << ". Applying plate carrée projection." << std::endl;
-
   // Compute file bounds for projection center
   double fileMin[3] = {std::numeric_limits<double>::max(), std::numeric_limits<double>::max(), std::numeric_limits<double>::max()};
   double fileMax[3] = {std::numeric_limits<double>::lowest(), std::numeric_limits<double>::lowest(), std::numeric_limits<double>::lowest()};
   boundsOfAzulObjectAndItsChildren(file, fileMin, fileMax);
+
+  bool isGeographic = geographicCodes.find(epsgCode) != geographicCodes.end();
+
+  if (!isGeographic) {
+    // Fallback: detect geographic coordinates by their value range.
+    // Some files (e.g. Japanese PLATEAU) declare a projected CRS but
+    // store geographic (lat/lon) coordinates in degrees.
+    // CityGML 2.0 convention is (lon, lat, height) per GML 3.1.1.
+    // But some data stores (lat, lon, height) following CRS axis order.
+    // We check which arrangement fits geographic ranges.
+    bool coord0InLonRange = fileMin[0] >= -180.0 && fileMax[0] <= 180.0;
+    bool coord0InLatRange = fileMin[0] >= -90.0 && fileMax[0] <= 90.0;
+    bool coord1InLonRange = fileMin[1] >= -180.0 && fileMax[1] <= 180.0;
+    bool coord1InLatRange = fileMin[1] >= -90.0 && fileMax[1] <= 90.0;
+
+    if (coord0InLonRange && coord1InLatRange) {
+      // (lon, lat) order — standard CityGML convention
+      isGeographic = true;
+      std::cout << "Coordinates appear geographic (lon, lat order). CRS: " << file.crsIdentifier << ". Applying plate carrée projection." << std::endl;
+    } else if (coord0InLatRange && coord1InLonRange && !coord1InLatRange) {
+      // (lat, lon) order — follows CRS axis order, swap to match convention
+      isGeographic = true;
+      std::cout << "Coordinates appear geographic (lat, lon order). Swapping axes. CRS: " << file.crsIdentifier << ". Applying plate carrée projection." << std::endl;
+      swapAzulObjectLatLon(file);
+      std::swap(fileMin[0], fileMin[1]);
+      std::swap(fileMax[0], fileMax[1]);
+    }
+  }
+
+  if (!isGeographic) return;
 
   double centerLon = (fileMin[0] + fileMax[0]) / 2.0;
   double centerLat = (fileMin[1] + fileMax[1]) / 2.0;
@@ -451,16 +491,34 @@ void DataManager::clearPolygonsOfAzulObjectAndItsChildren(AzulObject &object) {
   object.polygons.clear();
 }
 
-void DataManager::putAzulObjectAndItsChildrenIntoTriangleBuffers(const AzulObject &object, const std::vector<AzulAppearanceStyle> &appearanceStyles, const std::string &typeWithColour, const long maxBufferSize, bool underMatchingLod) {
+void DataManager::putAzulObjectAndItsChildrenIntoTriangleBuffers(const AzulObject &object, const std::vector<AzulAppearanceStyle> &appearanceStyles, const std::string &typeWithColour, const long maxBufferSize, bool underMatchingLod, bool buildingHasNonLodGeometry) {
   bool childUnderMatchingLod;
   if (lodFilter == "__highest__") {
     childUnderMatchingLod = underMatchingLod || (object.lodMatch == 'Y' && !lodOfObject(object).empty());
   } else {
     childUnderMatchingLod = underMatchingLod || (!lodFilter.empty() && directlyMatchesLodFilter(object));
   }
+
+  // Compute whether this building has non-lod-shell children with geometry.
+  // This is used to only skip lod shells when thematic surfaces are present.
+  // The caller's buildingHasNonLodGeometry is passed through for the isLodShell check.
+  bool childHasNonLodGeometry = buildingHasNonLodGeometry;
+  if ((object.type == "Building" || object.type == "BuildingPart") && !object.children.empty()) {
+    childHasNonLodGeometry = false;
+    for (const auto &child : object.children) {
+      bool childIsLodShell = child.type.rfind("lod", 0) == 0 &&
+                             (child.type.find("Solid") != std::string::npos ||
+                              child.type.find("MultiSurface") != std::string::npos);
+      if (!childIsLodShell && (!child.triangles.empty() || !child.polygons.empty())) {
+        childHasNonLodGeometry = true;
+        break;
+      }
+    }
+  }
+
   for (auto &child: object.children) {
-    if (colourForType.count(child.type)) putAzulObjectAndItsChildrenIntoTriangleBuffers(child, appearanceStyles, child.type, maxBufferSize, childUnderMatchingLod);
-    else putAzulObjectAndItsChildrenIntoTriangleBuffers(child, appearanceStyles, typeWithColour, maxBufferSize, childUnderMatchingLod);
+    if (colourForType.count(child.type)) putAzulObjectAndItsChildrenIntoTriangleBuffers(child, appearanceStyles, child.type, maxBufferSize, childUnderMatchingLod, childHasNonLodGeometry);
+    else putAzulObjectAndItsChildrenIntoTriangleBuffers(child, appearanceStyles, typeWithColour, maxBufferSize, childUnderMatchingLod, childHasNonLodGeometry);
   }
   
   if (object.triangles.empty()) return;
@@ -470,11 +528,13 @@ void DataManager::putAzulObjectAndItsChildrenIntoTriangleBuffers(const AzulObjec
 
   // Avoid drawing duplicate lod* shells under building contexts.
   // These shells wash out default roof/wall semantic colours, especially for BuildingParts.
+  // Only skip when the building has actual non-lod-shell children (thematic surfaces).
+  // When all geometry is in lod shells (e.g. PLATEAU data), keep them visible.
   bool inBuildingContext = (typeWithColour == "Building" || typeWithColour == "BuildingPart");
   bool isLodShell = object.type.rfind("lod", 0) == 0 &&
                     (object.type.find("Solid") != std::string::npos ||
                      object.type.find("MultiSurface") != std::string::npos);
-  if (inBuildingContext && isLodShell) {
+  if (inBuildingContext && isLodShell && buildingHasNonLodGeometry) {
     return;
   }
   

@@ -58,11 +58,12 @@ private:
   void generateEdgesForAzulObjectAndItsChildren(AzulObject &object);
   void updateBoundsWithAzulObjectAndItsChildren(const AzulObject &object);
   void clearPolygonsOfAzulObjectAndItsChildren(AzulObject &object);
-  void putAzulObjectAndItsChildrenIntoTriangleBuffers(const AzulObject &object, const std::vector<AzulAppearanceStyle> &appearanceStyles, const std::string &typeWithColour, const long maxBufferSize, bool underMatchingLod = false);
+  void putAzulObjectAndItsChildrenIntoTriangleBuffers(const AzulObject &object, const std::vector<AzulAppearanceStyle> &appearanceStyles, const std::string &typeWithColour, const long maxBufferSize, bool underMatchingLod = false, bool buildingHasNonLodGeometry = false);
   void putAzulObjectAndItsChildrenIntoEdgeBuffers(const AzulObject &object, const long maxBufferSize, bool underMatchingLod = false);
   void printAzulObject(const AzulObject &object, unsigned int tabs);
   void boundsOfAzulObjectAndItsChildren(const AzulObject &object, double *min, double *max);
   void transformAzulObjectAndItsChildren(AzulObject &object, double centerLon, double centerLat, double cosCenterLat, double R);
+  void swapAzulObjectLatLon(AzulObject &object);
   void setMatchesSearch(AzulObject &object, char matches);
   bool matchesSearch(AzulObject &object);
   std::string computeLodMatches(AzulObject &object);
