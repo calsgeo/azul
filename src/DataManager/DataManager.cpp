@@ -836,7 +836,7 @@ void DataManager::clear() {
   }
 }
 
-std::vector<std::string> DataManager::getAvailableAppearanceThemes() {
+std::vector<std::string> DataManager::availableAppearanceThemes() {
   std::set<std::string> themes;
   bool hasAnyMaterial = false;
   bool hasAnyTexture = false;

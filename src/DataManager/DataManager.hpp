@@ -115,7 +115,7 @@ public:
   void setLodFilter(const char *lod);
   bool matchesLodFilter(const AzulObject &object);
   bool directlyMatchesLodFilter(const AzulObject &object);
-  std::vector<std::string> getAvailableAppearanceThemes();
+  std::vector<std::string> availableAppearanceThemes();
   void setUseAppearances(bool enabled);
   void setAppearanceTheme(const std::string &theme);
   

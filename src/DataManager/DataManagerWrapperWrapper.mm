@@ -579,7 +579,7 @@ struct DataManagerWrapper {
 }
 
 - (NSArray<NSString *> *) availableAppearanceThemes {
-  std::vector<std::string> themes = dataManagerWrapper->dataManager->getAvailableAppearanceThemes();
+  std::vector<std::string> themes = dataManagerWrapper->dataManager->availableAppearanceThemes();
   NSMutableArray *result = [NSMutableArray arrayWithCapacity:themes.size()];
   for (const auto &theme : themes) {
     [result addObject:[NSString stringWithUTF8String:theme.c_str()]];
