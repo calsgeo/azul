@@ -80,7 +80,6 @@ azul is written in a mix of C++17, Swift 5, Objective-C 2 and Objective-C++. The
 * Showing the data plane and rotation point
 * Animations when re-centering
 * Keyboard navigation
-* Multi-threaded file loading
 * QuickLook plug-in
 * Icon previews
 

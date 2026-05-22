@@ -261,12 +261,15 @@ struct DataManagerWrapper {
   // Objects
   else {
     NSString *objectType = [NSString stringWithUTF8String:[currentItem iterator]->type.c_str()];
+    if (objectType == nil) objectType = @"";
     NSMutableString *stringToPut = [NSMutableString stringWithString:objectType];
     if ([currentItem iterator]->id.size() > 0) {
     NSString *objectId = [NSString stringWithUTF8String:[currentItem iterator]->id.c_str()];
+    if (objectId != nil) {
       [stringToPut appendString:@" ("];
       [stringToPut appendString:objectId];
       [stringToPut appendString:@")"];
+    }
     } NSImage *objectIcon = [NSImage imageNamed:objectType];
     if (objectIcon != nil) [[result imageView] setImage:objectIcon];
     else [[result imageView] setImage:nil];
